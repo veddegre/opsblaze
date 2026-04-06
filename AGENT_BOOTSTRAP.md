@@ -1,6 +1,6 @@
 # Agent Bootstrap: AI-Powered Narrative Investigation Web App
 
-> **Last verified: 2026-03-14.** If this is more than a few sessions stale, audit sections 3-5 and 8-9 against the actual codebase before relying on them.
+> **Last verified: 2026-04-06.** If this is more than a few sessions stale, audit sections 3-5 and 8-9 against the actual codebase before relying on them.
 
 This document is for quickly bootstrapping a new agent instance into this project.
 
@@ -112,6 +112,10 @@ When discussing current file paths, use real paths. When discussing product iden
 - Production: `node bin/opsblaze.cjs start` / `stop` / `restart` / `status` / `logs`
 - Health check: `node bin/opsblaze.cjs check` (validates Node, `.env`, Claude CLI, build, port)
 - Splunk viz: `node bin/opsblaze.cjs install-splunk-viz` (installs optional `@splunk/visualizations`)
+
+### Splunk Packages and npm Operations
+
+The optional `@splunk/visualizations` packages are managed outside the lockfile by `bin/postinstall.cjs`. Any npm tree reconciliation command (`npm audit fix`, `npm update`, `npm dedupe`) will strip them from `node_modules`. **Always run `npm install` after these commands** to trigger the postinstall script that restores them. The marker file `data/.splunk-viz-enabled` controls whether postinstall restores the packages (present = restore, absent = skip). Security overrides for transitive dependencies (lodash, path-to-regexp) are in the `overrides` field of `package.json`.
 
 ### Mode Transitions
 
