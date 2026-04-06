@@ -224,6 +224,10 @@ export function useChat() {
       setConversationTitle(conv.title);
       setMessages(conv.messages as Message[]);
       localStorage.setItem(ACTIVE_CONV_KEY, conv.id);
+
+      if (abortControllers.current.has(conv.id)) {
+        setIsStreaming(true);
+      }
     } catch {
       setMessages([]);
       setConversationId(null);
