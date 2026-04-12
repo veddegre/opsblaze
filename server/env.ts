@@ -40,6 +40,27 @@ const envSchema = z.object({
 
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   NODE_ENV: z.string().optional(),
+
+  // Splunk HEC telemetry
+  SPLUNK_HEC_URL: z.string().optional(),
+  SPLUNK_HEC_TOKEN: z.string().optional(),
+  SPLUNK_HEC_INDEX: z.string().default("main"),
+  SPLUNK_HEC_SOURCE: z.string().default("opsblaze"),
+  SPLUNK_HEC_SOURCETYPE: z.string().default("opsblaze:agent"),
+  SPLUNK_HEC_VERIFY_SSL: z
+    .enum(["true", "false", "1", "0"])
+    .default("true")
+    .transform((v) => v === "true" || v === "1"),
+  SPLUNK_HEC_BATCH_SIZE: positiveInt.default(10),
+  SPLUNK_HEC_FLUSH_MS: positiveInt.default(5_000),
+
+  // OpenTelemetry
+  OTEL_ENABLED: z
+    .enum(["true", "false", "1", "0"])
+    .default("false")
+    .transform((v) => v === "true" || v === "1"),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
+  OTEL_SERVICE_NAME: z.string().default("opsblaze"),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

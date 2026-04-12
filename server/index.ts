@@ -45,12 +45,17 @@ import {
 import { extractSkill, refineSkill } from "./skill-extractor.js";
 import { renderExportHtml } from "./export.js";
 import { runHealthChecks } from "./health.js";
-import { updateRuntimeSettings, getClaudeModel, getClaudeEffort } from "./runtime-settings.js";
+import {
+  updateRuntimeSettings,
+  getClaudeModel,
+  getClaudeEffort,
+  getMaxTurns,
+  getStreamTimeoutMs,
+} from "./runtime-settings.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 const HOST = process.env.HOST ?? "127.0.0.1";
-const STREAM_TIMEOUT_MS = parseInt(process.env.OPSBLAZE_STREAM_TIMEOUT_MS ?? "300000", 10);
 const MAX_HISTORY = parseInt(process.env.OPSBLAZE_MAX_HISTORY ?? "20", 10);
 const MAX_MESSAGE_LEN = parseInt(process.env.OPSBLAZE_MAX_MESSAGE_LEN ?? "10000", 10);
 const MAX_HISTORY_ENTRY_LEN = 50_000;
@@ -226,10 +231,11 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
     }
   });
 
+  const timeoutMs = await getStreamTimeoutMs();
   const streamTimeout = setTimeout(() => {
     reqLog.error("stream timeout reached, aborting agent");
-    abortController.abort();
-  }, STREAM_TIMEOUT_MS);
+    abortController.abort("stream_timeout");
+  }, timeoutMs);
 
   try {
     await runAgent(message, history, res, abortController.signal, reqLog, requestedSkills);
@@ -414,9 +420,14 @@ app.get("/api/config-paths", apiLimiter, (_req, res) => {
 
 app.get("/api/settings", apiLimiter, async (_req, res) => {
   try {
-    const [model, effort] = await Promise.all([getClaudeModel(), getClaudeEffort()]);
+    const [model, effort, maxTurns, streamTimeoutMs] = await Promise.all([
+      getClaudeModel(),
+      getClaudeEffort(),
+      getMaxTurns(),
+      getStreamTimeoutMs(),
+    ]);
     res.json({
-      runtime: { claudeModel: model, claudeEffort: effort },
+      runtime: { claudeModel: model, claudeEffort: effort, maxTurns, streamTimeoutMs },
       system: {
         splunkHost: process.env.SPLUNK_HOST ?? "",
         splunkPort: parseInt(process.env.SPLUNK_PORT ?? "8089", 10),
@@ -437,9 +448,14 @@ app.get("/api/settings", apiLimiter, async (_req, res) => {
 app.patch("/api/settings", apiLimiter, async (req, res) => {
   try {
     await updateRuntimeSettings(req.body);
-    const [model, effort] = await Promise.all([getClaudeModel(), getClaudeEffort()]);
+    const [model, effort, maxTurns, streamTimeoutMs] = await Promise.all([
+      getClaudeModel(),
+      getClaudeEffort(),
+      getMaxTurns(),
+      getStreamTimeoutMs(),
+    ]);
     res.json({
-      runtime: { claudeModel: model, claudeEffort: effort },
+      runtime: { claudeModel: model, claudeEffort: effort, maxTurns, streamTimeoutMs },
     });
   } catch (err) {
     const msg = (err as Error).message;
@@ -872,7 +888,7 @@ try {
   process.exit(PORT_CONFLICT_EXIT);
 }
 
-const server = app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, async () => {
   logger.info({ port: PORT, host: HOST }, "OpsBlaze server running");
   logger.info(
     {
@@ -881,6 +897,13 @@ const server = app.listen(PORT, HOST, () => {
     },
     "Claude Agent SDK configured"
   );
+
+  try {
+    const { telemetry } = await import("./telemetry/index.js");
+    await telemetry.initialize();
+  } catch (err) {
+    logger.debug({ err }, "telemetry initialization skipped");
+  }
 });
 
 server.on("error", (err: NodeJS.ErrnoException) => {
@@ -909,6 +932,10 @@ function shutdown(signal: string) {
   logger.info({ signal }, "shutdown signal received");
   server.close();
 
+  const telemetryDone = import("./telemetry/index.js")
+    .then(({ telemetry }) => telemetry.shutdown())
+    .catch(() => {});
+
   for (const conn of activeConnections) {
     conn.abort.abort();
   }
@@ -923,8 +950,10 @@ function shutdown(signal: string) {
     if (activeConnections.size === 0) {
       clearInterval(check);
       clearTimeout(drainTimeout);
-      logger.info("all connections drained, exiting");
-      process.exit(0);
+      telemetryDone.then(() => {
+        logger.info("all connections drained, exiting");
+        process.exit(0);
+      });
     }
   }, 250);
 }

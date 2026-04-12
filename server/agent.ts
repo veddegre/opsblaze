@@ -8,7 +8,13 @@ import { sendSSE } from "./sse-helpers.js";
 import { processMessageStream } from "./pipeline.js";
 import { buildMcpServersForQuery } from "./mcp-config.js";
 import { listSkills } from "./skills.js";
-import { getClaudeModel, getClaudeEffort } from "./runtime-settings.js";
+import {
+  getClaudeModel,
+  getClaudeEffort,
+  getMaxTurns,
+  getStreamTimeoutMs,
+} from "./runtime-settings.js";
+import { telemetry } from "./telemetry/index.js";
 
 const PROJECT_ROOT = process.cwd();
 
@@ -96,13 +102,15 @@ export async function runAgent(
 
   const abortController = new AbortController();
   if (abortSignal) {
-    abortSignal.addEventListener("abort", () => abortController.abort(), {
+    abortSignal.addEventListener("abort", () => abortController.abort(abortSignal.reason), {
       once: true,
     });
   }
 
   const model = await getClaudeModel();
   const effort = await getClaudeEffort();
+  const maxTurns = await getMaxTurns();
+  const streamTimeoutMs = await getStreamTimeoutMs();
 
   const { mcpServers, allowedTools } = await buildMcpServersForQuery();
   agentLog.debug(
@@ -133,7 +141,7 @@ export async function runAgent(
     includePartialMessages: true,
     permissionMode: "bypassPermissions",
     abortController,
-    maxTurns: parseInt(process.env.OPSBLAZE_MAX_TURNS ?? "30", 10),
+    maxTurns,
   };
 
   let deniedSkills: Set<string> | undefined;
@@ -153,23 +161,38 @@ export async function runAgent(
     agentLog.debug({ skills: requestedSkills }, "skill scoping active");
   }
 
-  const messageSource = query({
+  const startTime = Date.now();
+  const bindings = agentLog.bindings?.() ?? {};
+  const requestId = String((bindings as Record<string, unknown>).requestId ?? "unknown");
+
+  if (telemetry.enabled) {
+    telemetry.emit({
+      type: "query_start",
+      timestamp: startTime,
+      requestId,
+      model,
+      promptLength: prompt.length,
+      skills: requestedSkills,
+    });
+  }
+
+  const queryObj = query({
     prompt,
     options: queryOptions,
-  }) as AsyncIterable<Record<string, unknown>>;
+  });
 
-  let messages: AsyncIterable<Record<string, unknown>> = messageSource;
+  let messages: AsyncIterable<Record<string, unknown>> = queryObj as AsyncIterable<
+    Record<string, unknown>
+  >;
 
   const recordDir = process.env.OPSBLAZE_RECORD_DIR;
   if (recordDir) {
     const { recordMessages } = await import("./recorder.js");
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const bindings = agentLog.bindings?.() ?? {};
-    const requestId = (bindings as Record<string, unknown>).requestId ?? "unknown";
-    const shortId = String(requestId).slice(0, 8);
+    const shortId = requestId.slice(0, 8);
     const fixturePath = path.join(recordDir, `${timestamp}_${shortId}.jsonl`);
     agentLog.info({ fixturePath }, "recording SDK messages");
-    messages = recordMessages(messageSource, fixturePath);
+    messages = recordMessages(queryObj as AsyncIterable<Record<string, unknown>>, fixturePath);
   }
 
   const emitter = {
@@ -177,19 +200,80 @@ export async function runAgent(
     log: agentLog,
   };
 
-  const { turnCount, skillsUsed } = await processMessageStream(
+  const { turnCount, skillsUsed, usage } = await processMessageStream(
     messages,
     emitter,
     abortSignal,
     deniedSkills
   );
 
+  try {
+    const contextUsage = await queryObj.getContextUsage();
+    if (contextUsage) {
+      const ctx = contextUsage as Record<string, unknown>;
+      const safeNum = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+      sendSSE(res, "context", {
+        totalTokens: safeNum(ctx.totalTokens),
+        maxTokens: safeNum(ctx.maxTokens),
+        percentage: safeNum(ctx.percentage),
+        categories: ctx.categories ?? {},
+      });
+      agentLog.debug({ contextUsage }, "context window usage");
+    }
+  } catch (err) {
+    agentLog.debug({ err }, "getContextUsage() unavailable");
+  }
+
+  const durationMs = Date.now() - startTime;
+
   agentLog.info(
     {
       turns: turnCount,
       skillsUsed: skillsUsed.length > 0 ? skillsUsed : undefined,
+      durationMs,
+      ...(usage && {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        costUsd: usage.totalCostUsd,
+      }),
     },
     "agent run complete"
   );
+
+  if (telemetry.enabled) {
+    const hasError = usage === null && turnCount === 0;
+    telemetry.emit({
+      type: hasError ? "query_error" : "query_complete",
+      timestamp: Date.now(),
+      requestId,
+      model,
+      turnCount,
+      durationMs,
+      skills: skillsUsed.length > 0 ? skillsUsed : undefined,
+      ...(usage && {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        cacheReadTokens: usage.cacheReadTokens,
+        cacheCreationTokens: usage.cacheCreationTokens,
+        totalCostUsd: usage.totalCostUsd,
+      }),
+    });
+  }
+
+  if (abortSignal?.aborted && abortSignal.reason === "stream_timeout") {
+    const timeoutMinutes = Math.round(streamTimeoutMs / 60_000);
+    sendSSE(res, "limit", {
+      reason: "stream_timeout",
+      message: `This investigation timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}.`,
+      setting: "Timeout",
+    });
+  } else if (turnCount >= maxTurns) {
+    sendSSE(res, "limit", {
+      reason: "max_turns",
+      message: `This investigation reached the ${maxTurns}-turn limit.`,
+      setting: "Max Turns",
+    });
+  }
+
   sendSSE(res, "done", {});
 }

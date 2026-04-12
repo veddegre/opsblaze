@@ -28,7 +28,10 @@ function makeCallbacks(overrides: Partial<SSECallbacks> = {}): SSECallbacks {
     onText: vi.fn(),
     onChart: vi.fn(),
     onSkill: vi.fn(),
+    onUsage: vi.fn(),
+    onContext: vi.fn(),
     onError: vi.fn(),
+    onLimit: vi.fn(),
     onDone: vi.fn(),
     ...overrides,
   };
@@ -275,5 +278,72 @@ describe("streamChat SSE parser", () => {
     await streamChat("q", [], cb, undefined, []);
 
     expect(capturedBody).not.toHaveProperty("skills");
+  });
+
+  describe("limit events", () => {
+    it("parses limit events and calls onLimit with correct payload", async () => {
+      const limitData = {
+        reason: "max_turns",
+        message: "This investigation reached the 30-turn limit.",
+        setting: "Max Turns",
+      };
+      const chunks = [
+        `event: limit\ndata: ${JSON.stringify(limitData)}\n\n`,
+        "event: done\ndata: {}\n\n",
+      ];
+
+      vi.stubGlobal("fetch", async () => mockFetchResponse(chunks));
+
+      const limits: Array<{ reason: string; message: string; setting: string }> = [];
+      const cb = makeCallbacks({ onLimit: (d) => limits.push(d) });
+
+      await streamChat("q", [], cb);
+      expect(limits).toHaveLength(1);
+      expect(limits[0]).toEqual(limitData);
+    });
+
+    it("handles limit event before done correctly (both fire in order)", async () => {
+      const chunks = [
+        'event: text\ndata: {"content":"Analysis"}\n\n',
+        'event: limit\ndata: {"reason":"stream_timeout","message":"Timed out after 5 minutes.","setting":"Timeout"}\n\n',
+        "event: done\ndata: {}\n\n",
+      ];
+
+      vi.stubGlobal("fetch", async () => mockFetchResponse(chunks));
+
+      const order: string[] = [];
+      const cb = makeCallbacks({
+        onText: () => order.push("text"),
+        onLimit: () => order.push("limit"),
+        onDone: () => order.push("done"),
+      });
+
+      await streamChat("q", [], cb);
+      expect(order).toEqual(["text", "limit", "done"]);
+    });
+
+    it("handles limit event with partial/split chunks across read boundaries", async () => {
+      const json = JSON.stringify({
+        reason: "max_turns",
+        message: "Hit the 30-turn limit.",
+        setting: "Max Turns",
+      });
+      const mid = Math.floor(json.length / 2);
+      const chunks = [
+        `event: limit\ndata: ${json.slice(0, mid)}`,
+        `${json.slice(mid)}\n\n`,
+        "event: done\ndata: {}\n\n",
+      ];
+
+      vi.stubGlobal("fetch", async () => mockFetchResponse(chunks));
+
+      const limits: Array<{ reason: string; message: string; setting: string }> = [];
+      const cb = makeCallbacks({ onLimit: (d) => limits.push(d) });
+
+      await streamChat("q", [], cb);
+      expect(limits).toHaveLength(1);
+      expect(limits[0].reason).toBe("max_turns");
+      expect(limits[0].setting).toBe("Max Turns");
+    });
   });
 });

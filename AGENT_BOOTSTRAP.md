@@ -1,6 +1,6 @@
 # Agent Bootstrap: AI-Powered Narrative Investigation Web App
 
-> **Last verified: 2026-04-06.** If this is more than a few sessions stale, audit sections 3-5 and 8-9 against the actual codebase before relying on them.
+> **Last verified: 2026-04-12.** If this is more than a few sessions stale, audit sections 3-5 and 8-9 against the actual codebase before relying on them.
 
 This document is for quickly bootstrapping a new agent instance into this project.
 
@@ -57,7 +57,10 @@ When discussing current file paths, use real paths. When discussing product iden
 - `server/mcp-config.ts` - user MCP server configuration persistence (CRUD), security blocklists for args/env
 - `server/mcp-probe.ts` - runtime MCP server connectivity probe (test endpoint)
 - `server/health.ts` - health check logic: Splunk connectivity probe + Claude auth validation (CLI or API key)
-- `server/runtime-settings.ts` - runtime settings persistence (`data/runtime-settings.json`): model + effort, hot-reloadable without server restart
+- `server/runtime-settings.ts` - runtime settings persistence (`data/runtime-settings.json`): model, effort, max turns, stream timeout; hot-reloadable without server restart
+- `server/telemetry/index.ts` - TelemetryService singleton, exporter registry, emit/flush/shutdown lifecycle
+- `server/telemetry/splunk-hec.ts` - Splunk HEC exporter with batched event shipping
+- `server/telemetry/otel.ts` - OpenTelemetry span exporter via OTLP/HTTP
 - `server/skills.ts` - skill discovery, toggle, YAML front-matter parsing, `validateSkillsParam` input validation
 - `server/skill-extractor.ts` - skill distillation from conversations (`extractSkill`, `refineSkill`)
 - `server/export.ts` - conversation export to standalone HTML (`renderExportHtml`)
@@ -81,9 +84,9 @@ When discussing current file paths, use real paths. When discussing product iden
 ### Frontend
 - `src/main.tsx` - React entry point: ErrorBoundary, `createRoot`, mounts `App`
 - `src/App.tsx` - top-level layout, owns `selectedSkills`/`allowAdditional` state (reset on conversation new/load/delete), wraps `sendMessage` for ChatView suggestion buttons
-- `src/types.ts` - shared frontend types (`VizType`, `ChartBlock`, `TextBlock`, `SkillBlock`)
+- `src/types.ts` - shared frontend types (`VizType`, `ChartBlock`, `TextBlock`, `SkillBlock`, `LimitBlock`)
 - `src/hooks/useChat.ts` - chat state, stream handling, stop/cancel logic, skill scope routing (strict vs advisory), exports `buildSkillRequest` for testability
-- `src/lib/sse.ts` - SSE parser for text/chart/error/skill/done events
+- `src/lib/sse.ts` - SSE parser for text/chart/skill/usage/context/error/limit/done events
 - `src/lib/api.ts` - conversation CRUD, search, and export API client
 - `src/lib/settings-api.ts` - runtime settings, MCP server, and skills management API client
 - `src/components/ChatView.tsx` - main chat layout with sidebar integration
@@ -93,9 +96,10 @@ When discussing current file paths, use real paths. When discussing product iden
 - `src/components/ChartJSRenderer.tsx` - Chart.js React renderer (default, handles all viz types)
 - `src/components/SplunkVizRenderer.tsx` - Splunk native viz renderer (optional, used when `@splunk/visualizations` is installed)
 - `src/components/Sidebar.tsx` - conversation list sidebar with create/switch/delete and search
-- `src/components/InputBar.tsx` - input UI, submit behavior, hosts SkillPicker
+- `src/components/UsageBar.tsx` - token usage display (in/out, cache read/write, cost) and context window progress bar with color-coded thresholds
+- `src/components/InputBar.tsx` - input UI, submit behavior, hosts SkillPicker and UsageBar
 - `src/components/SkillPicker.tsx` - portal-based skill picker with search, chip selection, keyboard navigation (Arrow/Enter/Escape), "Include additional skills" toggle for strict vs advisory mode
-- `src/components/SettingsPanel.tsx` - settings UI with three tabs: General (system status + runtime model/effort), MCP Servers, Skills
+- `src/components/SettingsPanel.tsx` - settings UI with three tabs: General (system status + runtime model/effort/max turns/timeout), MCP Servers, Skills
 - `src/components/SkillExtractor.tsx` - skill distillation modal (extract from conversation, refine, save)
 
 ### Config
@@ -142,7 +146,7 @@ Both `start` and `dev` automatically stop the other mode first — you never nee
 - Conversation export: `GET /api/conversations/:id/export` (standalone HTML)
 - Conversation cleanup: `POST /api/conversations/cleanup`
 - Config paths: `GET /api/config-paths` (returns MCP config file and skills directory paths)
-- Settings: `GET /api/settings` (runtime model/effort + system info), `PATCH /api/settings` (update model/effort without restart)
+- Settings: `GET /api/settings` (runtime model/effort/maxTurns/streamTimeoutMs + system info), `PATCH /api/settings` (update runtime settings without restart)
 - MCP servers: `GET/POST/PUT/DELETE /api/mcp-servers`, `POST /api/mcp-servers/:name/toggle`, `POST /api/mcp-servers/:name/test`
 - Skills: `GET /api/skills`, `POST /api/skills`, `POST /api/skills/:name/toggle`, `DELETE /api/skills/:name`
 - Skill distillation: `POST /api/skills/extract`, `POST /api/skills/refine`
@@ -181,8 +185,8 @@ Optional: set `CLAUDE_EFFORT` to `low`, `medium`, `high`, or `max` (default: `hi
 - `HOST` (default `127.0.0.1`; use `0.0.0.0` for LAN access)
 - `OPSBLAZE_ALLOWED_ORIGINS` — comma-separated CORS origins (default: `http://localhost:5173,http://localhost:3000`)
 - `OPSBLAZE_RATE_LIMIT` — max requests/minute/IP to `/api/chat` (default `10`)
-- `OPSBLAZE_STREAM_TIMEOUT_MS` — max SSE stream duration before abort (default `300000`)
-- `OPSBLAZE_MAX_TURNS` — max agent turns per request (default `30`)
+- `OPSBLAZE_STREAM_TIMEOUT_MS` — default max SSE stream duration before abort (default `300000`); also configurable in Settings UI
+- `OPSBLAZE_MAX_TURNS` — default max agent turns per request (default `30`); also configurable in Settings UI
 - `OPSBLAZE_MAX_HISTORY` — max conversation exchanges sent to Claude (default `20`)
 - `OPSBLAZE_MAX_MESSAGE_LEN` — max input message length in characters (default `10000`)
 
@@ -191,6 +195,16 @@ Optional: set `CLAUDE_EFFORT` to `low`, `medium`, `high`, or `max` (default: `hi
 - `OPSBLAZE_DATA_DIR` — conversation storage directory (default `./data/conversations`)
 - `OPSBLAZE_RECORD_DIR` — when set, records SDK message streams as JSONL fixtures for replay testing
 - `LOG_LEVEL` — controls verbosity for both Express (pino) and MCP server: `fatal`, `error`, `warn`, `info` (default), `debug`, `trace`
+
+### Telemetry
+
+- `SPLUNK_HEC_URL` — Splunk HEC endpoint (e.g., `https://splunk.local:8088`); both URL and TOKEN required to enable
+- `SPLUNK_HEC_TOKEN` — HEC authentication token
+- `SPLUNK_HEC_INDEX` (default `main`), `SPLUNK_HEC_SOURCE` (default `opsblaze`), `SPLUNK_HEC_SOURCETYPE` (default `opsblaze:agent`)
+- `SPLUNK_HEC_VERIFY_SSL` (default `true`), `SPLUNK_HEC_BATCH_SIZE` (default `10`), `SPLUNK_HEC_FLUSH_MS` (default `5000`)
+- `OTEL_ENABLED` (default `false`) — enable OpenTelemetry trace export
+- `OTEL_EXPORTER_OTLP_ENDPOINT` (default `http://localhost:4318`) — OTLP/HTTP collector endpoint
+- `OTEL_SERVICE_NAME` (default `opsblaze`)
 
 ### MCP Server
 
@@ -202,7 +216,7 @@ Optional: set `CLAUDE_EFFORT` to `low`, `medium`, `high`, or `max` (default: `hi
 ### Data Flow
 
 ```
-Browser <-- SSE (text, chart, skill, error, done) --> Express Server
+Browser <-- SSE (text, chart, skill, usage, context, error, limit, done) --> Express Server
                                                     |
                                           Claude Agent SDK query()
                                                     |
@@ -279,7 +293,10 @@ The SSE stream from `/api/chat` emits these events:
 | `text` | `{ content: string }` | Text delta from the model |
 | `chart` | `{ vizType, dataSources, width, height, spl?, earliest?, latest? }` | Interactive chart data |
 | `skill` | `{ skill: string }` | Name of a skill the model invoked during this turn |
-| `error` | `{ message: string }` | Error message |
+| `usage` | `{ inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, totalCostUsd, modelUsage }` | Token usage and cost for the query |
+| `context` | `{ totalTokens, maxTokens, percentage, categories }` | Context window utilization |
+| `error` | `{ message: string }` | Error message (auth, network, timeout, etc.) |
+| `limit` | `{ reason: "max_turns" \| "stream_timeout", message: string, setting: string }` | Investigation hit a configurable limit; rendered as inline notice with settings reference |
 | `done` | `{}` | Stream complete |
 
 ## 9) Testing
@@ -304,6 +321,9 @@ Tests use Vitest (config in `vitest.config.ts`, includes `**/__tests__/**/*.test
 - `env.test.ts` - environment variable validation
 - `health.test.ts` - Splunk/Claude health check probes (status codes, auth headers, timeouts, overall status derivation)
 - `runtime-settings.test.ts` - runtime settings load/update/defaults, model and effort resolution
+- `pipeline-usage.test.ts` - usage and context event emission from the pipeline
+- `telemetry-service.test.ts` - TelemetryService singleton, exporter lifecycle, emit/flush
+- `splunk-hec.test.ts` - Splunk HEC exporter batching, flush, error handling
 - `mcp-config.test.ts` - MCP server configuration CRUD, security blocklist validation
 - `export.test.ts` - conversation export to standalone HTML
 - `skill-extractor.test.ts` - skill draft parsing from YAML frontmatter
@@ -317,8 +337,13 @@ Tests use Vitest (config in `vitest.config.ts`, includes `**/__tests__/**/*.test
 #### Frontend tests (`src/`)
 - `src/components/__tests__/SkillPicker.test.tsx` - SkillPicker rendering, keyboard navigation, chip selection
 - `src/components/__tests__/InputBar.test.tsx` - InputBar submit behavior, skill scope wiring
+- `src/components/__tests__/UsageBar.test.tsx` - UsageBar rendering, token formatting, context bar thresholds
+- `src/components/__tests__/SettingsPanel.test.tsx` - SettingsPanel controls, save behavior, input clamping
+- `src/components/__tests__/MessageBubble.test.tsx` - MessageBubble rendering including LimitBlock notices
 - `src/hooks/__tests__/useChat-skills.test.ts` - `buildSkillRequest` advisory vs strict routing
-- `src/lib/__tests__/sse.test.ts` - SSE parser event handling including `skills` param
+- `src/hooks/__tests__/useChat-limits.test.ts` - usage/context/limit state management and conversation reset
+- `src/lib/__tests__/sse.test.ts` - SSE parser event handling including `skills` param and `limit` events
+- `src/lib/__tests__/sse-usage.test.ts` - SSE parser usage and context event parsing
 - `src/lib/__tests__/api.test.ts` - conversation CRUD, search, and export API client
 - `src/lib/__tests__/settings-api.test.ts` - MCP server and runtime settings API client
 - `src/__tests__/App.test.tsx` - App-level skill state reset on conversation new/load/delete

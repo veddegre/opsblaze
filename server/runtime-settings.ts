@@ -6,6 +6,8 @@ import { logger } from "./logger.js";
 const runtimeSettingsSchema = z.object({
   claudeModel: z.string().min(1).optional(),
   claudeEffort: z.enum(["low", "medium", "high", "max"]).optional(),
+  maxTurns: z.number().int().min(1).max(200).optional(),
+  streamTimeoutMs: z.number().int().min(30_000).max(1_800_000).optional(),
 });
 
 export type RuntimeSettings = z.infer<typeof runtimeSettingsSchema>;
@@ -63,4 +65,16 @@ export async function getClaudeEffort(): Promise<"low" | "medium" | "high" | "ma
     return effort;
   }
   return "high";
+}
+
+export async function getMaxTurns(): Promise<number> {
+  const settings = await loadRuntimeSettings();
+  return settings.maxTurns || parseInt(process.env.OPSBLAZE_MAX_TURNS ?? "30", 10);
+}
+
+export async function getStreamTimeoutMs(): Promise<number> {
+  const settings = await loadRuntimeSettings();
+  return (
+    settings.streamTimeoutMs || parseInt(process.env.OPSBLAZE_STREAM_TIMEOUT_MS ?? "300000", 10)
+  );
 }

@@ -55,6 +55,31 @@ describe("getSettings", () => {
     expect(result).toEqual(settings);
   });
 
+  it("response includes runtime.maxTurns and runtime.streamTimeoutMs", async () => {
+    const settings = {
+      runtime: {
+        claudeModel: "claude-opus-4-6",
+        claudeEffort: "high",
+        maxTurns: 30,
+        streamTimeoutMs: 300000,
+      },
+      system: {
+        splunkHost: "localhost",
+        splunkPort: 8089,
+        splunkScheme: "https",
+        splunkAuthMethod: "token",
+        serverPort: 3000,
+        bindAddress: "127.0.0.1",
+        claudeAuthMethod: "cli",
+        serverMode: "dev",
+      },
+    };
+    mockFetch(200, settings);
+    const result = await mod.getSettings();
+    expect(result.runtime.maxTurns).toBe(30);
+    expect(result.runtime.streamTimeoutMs).toBe(300000);
+  });
+
   it("throws on error", async () => {
     mockFetch(500);
     await expect(mod.getSettings()).rejects.toThrow("Failed to get settings: 500");
@@ -74,6 +99,26 @@ describe("updateSettings", () => {
       })
     );
     expect(result).toEqual(updated);
+  });
+
+  it("sends maxTurns and streamTimeoutMs in PATCH body when provided", async () => {
+    const updated = {
+      runtime: {
+        claudeModel: "claude-opus-4-6",
+        claudeEffort: "high",
+        maxTurns: 50,
+        streamTimeoutMs: 600000,
+      },
+    };
+    const fn = mockFetch(200, updated);
+    await mod.updateSettings({ maxTurns: 50, streamTimeoutMs: 600000 });
+    expect(fn).toHaveBeenCalledWith(
+      "/api/settings",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ maxTurns: 50, streamTimeoutMs: 600000 }),
+      })
+    );
   });
 
   it("throws with error from response body", async () => {

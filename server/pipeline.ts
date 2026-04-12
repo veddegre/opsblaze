@@ -91,6 +91,23 @@ function extractToolResultText(value: unknown, emitter: PipelineEmitter): void {
   }
 }
 
+export interface QueryUsageData {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  totalCostUsd: number;
+  modelUsage: Record<
+    string,
+    {
+      costUSD: number;
+      inputTokens: number;
+      outputTokens: number;
+      contextWindow: number;
+    }
+  >;
+}
+
 /**
  * Processes a stream of Claude Agent SDK messages, emitting SSE events
  * via the provided emitter. This is the core pipeline logic extracted
@@ -101,7 +118,7 @@ export async function processMessageStream(
   emitter: PipelineEmitter,
   abortSignal?: AbortSignal,
   deniedSkills?: Set<string>
-): Promise<{ turnCount: number; skillsUsed: string[] }> {
+): Promise<{ turnCount: number; skillsUsed: string[]; usage: QueryUsageData | null }> {
   let turnCount = 0;
   let inTool = false;
   let currentToolName = "";
@@ -109,6 +126,7 @@ export async function processMessageStream(
   let bufState: FlushTextState = { textBuffer: "", inChartTag: false };
   const skillsUsed: string[] = [];
   const pendingSkills: string[] = [];
+  let usage: QueryUsageData | null = null;
 
   function flushText(force = false) {
     bufState = processTextBuffer(bufState, force, emitter.emit);
@@ -231,6 +249,35 @@ export async function processMessageStream(
           emitter.log.error({ errorText }, "agent execution error");
           emitter.emit("error", { message: errorText });
         }
+
+        const rawUsage = message.usage as Record<string, number> | undefined;
+        const rawModelUsage = message.modelUsage as
+          | Record<string, Record<string, unknown>>
+          | undefined;
+        const totalCost = (message.total_cost_usd as number) ?? 0;
+
+        usage = {
+          inputTokens: rawUsage?.input_tokens ?? 0,
+          outputTokens: rawUsage?.output_tokens ?? 0,
+          cacheReadTokens: rawUsage?.cache_read_input_tokens ?? 0,
+          cacheCreationTokens: rawUsage?.cache_creation_input_tokens ?? 0,
+          totalCostUsd: totalCost,
+          modelUsage: {},
+        };
+
+        if (rawModelUsage) {
+          for (const [model, mu] of Object.entries(rawModelUsage)) {
+            usage.modelUsage[model] = {
+              costUSD: (mu.costUSD as number) ?? 0,
+              inputTokens: (mu.inputTokens as number) ?? 0,
+              outputTokens: (mu.outputTokens as number) ?? 0,
+              contextWindow: (mu.contextWindow as number) ?? 0,
+            };
+          }
+        }
+
+        emitter.log.debug({ usage }, "emitting usage data");
+        emitter.emit("usage", usage);
       }
     }
 
@@ -249,5 +296,5 @@ export async function processMessageStream(
     }
   }
 
-  return { turnCount, skillsUsed };
+  return { turnCount, skillsUsed, usage };
 }

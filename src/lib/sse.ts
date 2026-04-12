@@ -1,3 +1,22 @@
+export interface UsageData {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  totalCostUsd: number;
+  modelUsage: Record<
+    string,
+    { costUSD: number; inputTokens: number; outputTokens: number; contextWindow: number }
+  >;
+}
+
+export interface ContextData {
+  totalTokens: number;
+  maxTokens: number;
+  percentage: number;
+  categories: Record<string, number>;
+}
+
 export interface SSECallbacks {
   onText: (content: string) => void;
   onChart: (data: {
@@ -10,7 +29,10 @@ export interface SSECallbacks {
     latest?: string;
   }) => void;
   onSkill: (skill: string) => void;
+  onUsage: (data: UsageData) => void;
+  onContext: (data: ContextData) => void;
   onError: (message: string) => void;
+  onLimit: (data: { reason: string; message: string; setting: string }) => void;
   onDone: () => void;
 }
 
@@ -77,8 +99,17 @@ export async function streamChat(
               case "skill":
                 callbacks.onSkill(parsed.skill ?? "unknown");
                 break;
+              case "usage":
+                callbacks.onUsage(parsed);
+                break;
+              case "context":
+                callbacks.onContext(parsed);
+                break;
               case "error":
                 callbacks.onError(parsed.message ?? "Unknown error");
+                break;
+              case "limit":
+                callbacks.onLimit(parsed);
                 break;
               case "done":
                 callbacks.onDone();

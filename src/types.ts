@@ -30,7 +30,14 @@ export interface SkillBlock {
   skill: string;
 }
 
-export type MessageBlock = TextBlock | ChartBlock | SkillBlock;
+export interface LimitBlock {
+  type: "limit";
+  reason: "max_turns" | "stream_timeout";
+  message: string;
+  setting: string;
+}
+
+export type MessageBlock = TextBlock | ChartBlock | SkillBlock | LimitBlock;
 
 export interface Message {
   id: string;

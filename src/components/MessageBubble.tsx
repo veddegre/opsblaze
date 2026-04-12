@@ -4,7 +4,7 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { marked } from "marked";
 import { SplunkChart } from "./SplunkChart";
-import type { Message, ChartBlock, SkillBlock } from "../types";
+import type { Message, ChartBlock, SkillBlock, LimitBlock } from "../types";
 
 const sanitizeSchema = {
   ...defaultSchema,
@@ -244,6 +244,24 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                   height={block.height}
                 />
                 <SplunkQueryDetails block={block} />
+              </div>
+            );
+          }
+
+          if (block.type === "limit") {
+            return (
+              <div
+                key={i}
+                className="my-4 px-4 py-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 text-sm"
+              >
+                <p className="text-yellow-300">{block.message}</p>
+                <p className="text-yellow-300/60 text-xs mt-1">
+                  You can raise this in{" "}
+                  <span className="font-semibold text-yellow-300/80">
+                    Settings &gt; General &gt; {block.setting}
+                  </span>
+                  .
+                </p>
               </div>
             );
           }

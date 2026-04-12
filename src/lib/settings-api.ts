@@ -5,7 +5,7 @@ function headers(): Record<string, string> {
 // --- App settings types ---
 
 export interface AppSettings {
-  runtime: { claudeModel: string; claudeEffort: string };
+  runtime: { claudeModel: string; claudeEffort: string; maxTurns: number; streamTimeoutMs: number };
   system: {
     splunkHost: string;
     splunkPort: number;

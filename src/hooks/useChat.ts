@@ -1,12 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { streamChat } from "../lib/sse";
+import type { UsageData, ContextData } from "../lib/sse";
 import {
   loadConversation,
   createConversation,
   updateConversation,
   deleteConversation as deleteConversationApi,
 } from "../lib/api";
-import type { Message, ChartBlock, SkillBlock, TextBlock } from "../types";
+import type { Message, ChartBlock, SkillBlock, TextBlock, LimitBlock } from "../types";
 
 const ACTIVE_CONV_KEY = "opsblaze_active_conversation";
 
@@ -118,6 +119,28 @@ function appendError(msgs: Message[], id: string, errorMsg: string): Message[] {
   return updated;
 }
 
+export function appendLimit(
+  msgs: Message[],
+  id: string,
+  data: { reason: string; message: string; setting: string }
+): Message[] {
+  const updated = [...msgs];
+  const msg = updated.find((m) => m.id === id);
+  if (!msg) return msgs;
+
+  const blocks = [...msg.blocks];
+  blocks.push({
+    type: "limit" as const,
+    reason: data.reason as LimitBlock["reason"],
+    message: data.message,
+    setting: data.setting,
+  });
+
+  const idx = updated.findIndex((m) => m.id === id);
+  updated[idx] = { ...msg, blocks };
+  return updated;
+}
+
 function markDone(msgs: Message[], id: string): Message[] {
   const updated = [...msgs];
   const msg = updated.find((m) => m.id === id);
@@ -154,6 +177,8 @@ export function useChat() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationTitle, setConversationTitle] = useState<string | null>(null);
+  const [queryUsage, setQueryUsage] = useState<UsageData | null>(null);
+  const [contextUsage, setContextUsage] = useState<ContextData | null>(null);
 
   const convIdRef = useRef<string | null>(null);
   const messagesRef = useRef<Message[]>([]);
@@ -206,6 +231,8 @@ export function useChat() {
     setIsStreaming(false);
     setConversationId(null);
     setConversationTitle(null);
+    setQueryUsage(null);
+    setContextUsage(null);
     localStorage.removeItem(ACTIVE_CONV_KEY);
   }, []);
 
@@ -217,6 +244,8 @@ export function useChat() {
     }
 
     setIsStreaming(false);
+    setQueryUsage(null);
+    setContextUsage(null);
 
     try {
       const conv = await loadConversation(id);
@@ -276,6 +305,8 @@ export function useChat() {
 
       setMessages(local);
       setIsStreaming(true);
+      setQueryUsage(null);
+      setContextUsage(null);
 
       if (activeConvId) {
         saveToDisk(local, activeConvId);
@@ -322,8 +353,24 @@ export function useChat() {
                 setMessages(local);
               }
             },
+            onUsage: (data) => {
+              if (activeConvId && isDisplayed(activeConvId)) {
+                setQueryUsage(data);
+              }
+            },
+            onContext: (data) => {
+              if (activeConvId && isDisplayed(activeConvId)) {
+                setContextUsage(data);
+              }
+            },
             onError: (errorMsg) => {
               local = appendError(local, assistantId, errorMsg);
+              if (activeConvId && isDisplayed(activeConvId)) {
+                setMessages(local);
+              }
+            },
+            onLimit: (data) => {
+              local = appendLimit(local, assistantId, data);
               if (activeConvId && isDisplayed(activeConvId)) {
                 setMessages(local);
               }
@@ -385,6 +432,8 @@ export function useChat() {
       setIsStreaming(false);
       setConversationId(null);
       setConversationTitle(null);
+      setQueryUsage(null);
+      setContextUsage(null);
       localStorage.removeItem(ACTIVE_CONV_KEY);
     }
   }, []);
@@ -394,6 +443,8 @@ export function useChat() {
     isStreaming,
     conversationId,
     conversationTitle,
+    queryUsage,
+    contextUsage,
     sendMessage,
     startNewConversation,
     loadExistingConversation,

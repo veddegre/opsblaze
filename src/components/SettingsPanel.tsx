@@ -203,6 +203,8 @@ function GeneralTab() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("");
+  const [maxTurns, setMaxTurns] = useState(30);
+  const [streamTimeout, setStreamTimeout] = useState(300000);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -213,6 +215,8 @@ function GeneralTab() {
         setSettings(s);
         setModel(s.runtime.claudeModel);
         setEffort(s.runtime.claudeEffort);
+        setMaxTurns(s.runtime.maxTurns);
+        setStreamTimeout(s.runtime.streamTimeoutMs);
       })
       .catch(() => {});
     fetchHealth()
@@ -228,6 +232,9 @@ function GeneralTab() {
       const partial: Record<string, unknown> = {};
       if (model !== settings?.runtime.claudeModel) partial.claudeModel = model;
       if (effort !== settings?.runtime.claudeEffort) partial.claudeEffort = effort;
+      if (maxTurns !== settings?.runtime.maxTurns) partial.maxTurns = maxTurns;
+      if (streamTimeout !== settings?.runtime.streamTimeoutMs)
+        partial.streamTimeoutMs = streamTimeout;
       if (Object.keys(partial).length === 0) {
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
@@ -343,6 +350,39 @@ function GeneralTab() {
               <option value="high">High</option>
               <option value="max">Max</option>
             </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Max Turns</label>
+            <input
+              type="number"
+              value={maxTurns}
+              onChange={(e) =>
+                setMaxTurns(Math.max(1, Math.min(200, parseInt(e.target.value) || 1)))
+              }
+              min={1}
+              max={200}
+              className={inputClass}
+            />
+            <p className="text-[11px] text-gray-600 mt-1">
+              Maximum agent turns per investigation (1–200)
+            </p>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Timeout</label>
+            <select
+              value={streamTimeout}
+              onChange={(e) => setStreamTimeout(parseInt(e.target.value))}
+              className={inputClass}
+            >
+              <option value={120000}>2 minutes</option>
+              <option value={300000}>5 minutes</option>
+              <option value={600000}>10 minutes</option>
+              <option value={900000}>15 minutes</option>
+              <option value={1800000}>30 minutes</option>
+            </select>
+            <p className="text-[11px] text-gray-600 mt-1">
+              Maximum wall-clock time per investigation
+            </p>
           </div>
 
           {error && <p className="text-xs text-red-400">{error}</p>}

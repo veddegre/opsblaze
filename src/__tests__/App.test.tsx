@@ -18,6 +18,8 @@ vi.mock("../hooks/useChat", () => ({
     isStreaming: false,
     conversationId: null,
     conversationTitle: null,
+    queryUsage: null,
+    contextUsage: null,
     sendMessage: mockSendMessage,
     startNewConversation: mockStartNew,
     loadExistingConversation: mockLoadExisting,

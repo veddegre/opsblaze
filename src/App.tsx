@@ -13,6 +13,8 @@ export function App() {
     isStreaming,
     conversationId,
     conversationTitle,
+    queryUsage,
+    contextUsage,
     sendMessage,
     startNewConversation,
     loadExistingConversation,
@@ -100,6 +102,8 @@ export function App() {
         onSelectedSkillsChange={setSelectedSkills}
         allowAdditional={allowAdditional}
         onAllowAdditionalChange={setAllowAdditional}
+        queryUsage={queryUsage}
+        contextUsage={contextUsage}
       />
     </div>
   );

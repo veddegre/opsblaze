@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { SkillPicker } from "./SkillPicker";
+import { UsageBar } from "./UsageBar";
+import type { UsageData, ContextData } from "../lib/sse";
 
 interface InputBarProps {
   onSend: (message: string, skillScope?: { skills: string[]; strict: boolean }) => void;
@@ -9,6 +11,8 @@ interface InputBarProps {
   onSelectedSkillsChange: (skills: string[]) => void;
   allowAdditional: boolean;
   onAllowAdditionalChange: (allow: boolean) => void;
+  queryUsage?: UsageData | null;
+  contextUsage?: ContextData | null;
 }
 
 export function InputBar({
@@ -19,6 +23,8 @@ export function InputBar({
   onSelectedSkillsChange,
   allowAdditional,
   onAllowAdditionalChange,
+  queryUsage,
+  contextUsage,
 }: InputBarProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -116,11 +122,15 @@ export function InputBar({
           onAllowAdditionalChange={onAllowAdditionalChange}
           disabled={isStreaming}
         />
-        <div className="flex items-center justify-center mt-2 h-4">
-          <span className={`text-[10px] ${isStreaming ? "fire-text" : "text-gray-600"}`}>
-            OpsBlaze
-          </span>
-        </div>
+        {queryUsage || contextUsage ? (
+          <UsageBar queryUsage={queryUsage ?? null} contextUsage={contextUsage ?? null} />
+        ) : (
+          <div className="flex items-center justify-center mt-2 h-4">
+            <span className={`text-[10px] ${isStreaming ? "fire-text" : "text-gray-600"}`}>
+              OpsBlaze
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
