@@ -13,6 +13,7 @@ const path = require("path");
 const fs = require("fs");
 
 const ROOT = path.resolve(__dirname, "..");
+const { loadEnvFile } = require("./env-loader.cjs");
 const DATA_DIR = path.join(ROOT, "data");
 const STATE_FILE = path.join(DATA_DIR, ".opsblaze-state.json");
 const OUT_LOG = path.join(DATA_DIR, "opsblaze-out.log");
@@ -91,14 +92,7 @@ function waitForPortFree(port, timeoutMs) {
 
 function startServer() {
   const envPath = path.join(ROOT, ".env");
-  const extraEnv = {};
-  try {
-    const lines = fs.readFileSync(envPath, "utf-8").split("\n");
-    for (const line of lines) {
-      const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
-      if (m) extraEnv[m[1]] = m[2].replace(/^["']|["']$/g, "");
-    }
-  } catch { /* no .env */ }
+  const extraEnv = loadEnvFile(envPath);
 
   const outStream = fs.openSync(OUT_LOG, "a");
   const errStream = fs.openSync(ERR_LOG, "a");

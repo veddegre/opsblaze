@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { fetchHealth, headers } from "../lib/api";
 import type { HealthResponse } from "../lib/api";
+import { healthCheckLabel } from "../lib/health-labels";
 
 interface HeaderProps {
   onClear: () => void;
@@ -81,7 +82,7 @@ function HealthIndicator() {
               <span
                 className={`block w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_COLORS[check.status] ?? "bg-gray-500"}`}
               />
-              <span className="text-xs text-gray-300 capitalize flex-1">{name}</span>
+              <span className="text-xs text-gray-300 flex-1">{healthCheckLabel(name)}</span>
               {check.message && (
                 <span className="text-[10px] text-gray-500 truncate max-w-[120px]">
                   {check.message}

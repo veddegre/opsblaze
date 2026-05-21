@@ -52,6 +52,7 @@ import {
   getMaxTurns,
   getStreamTimeoutMs,
 } from "./runtime-settings.js";
+import { isOpenWebUiMode } from "./llm-config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
@@ -426,16 +427,18 @@ app.get("/api/settings", apiLimiter, async (_req, res) => {
       getMaxTurns(),
       getStreamTimeoutMs(),
     ]);
+    const openWebUi = isOpenWebUiMode();
     res.json({
       runtime: { claudeModel: model, claudeEffort: effort, maxTurns, streamTimeoutMs },
       system: {
+        llmProvider: openWebUi ? "openwebui" : "claude",
         splunkHost: process.env.SPLUNK_HOST ?? "",
         splunkPort: parseInt(process.env.SPLUNK_PORT ?? "8089", 10),
         splunkScheme: process.env.SPLUNK_SCHEME ?? "https",
         splunkAuthMethod: process.env.SPLUNK_TOKEN ? "Token" : "Basic",
         serverPort: PORT,
         bindAddress: HOST,
-        claudeAuthMethod: process.env.OPENWEBUI_BASE_URL?.trim()
+        claudeAuthMethod: openWebUi
           ? "Open WebUI"
           : process.env.ANTHROPIC_API_KEY
             ? "API Key"

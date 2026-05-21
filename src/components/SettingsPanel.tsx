@@ -254,8 +254,8 @@ function GeneralTab() {
 
   const splunkCheck = health?.checks?.splunk;
   const llmCheck = health?.checks?.openwebui ?? health?.checks?.claude;
-  const llmLabel =
-    settings?.system.claudeAuthMethod === "Open WebUI" ? "Open WebUI" : "Claude";
+  const useOpenWebUi = settings?.system.llmProvider === "openwebui";
+  const llmLabel = useOpenWebUi ? "Open WebUI" : "Claude";
 
   return (
     <div className="divide-y divide-border-subtle">
@@ -319,9 +319,17 @@ function GeneralTab() {
           </div>
         </div>
         <p className="text-[11px] text-gray-600 mt-2.5">
-          To change Splunk connection settings, edit <span className="font-mono">.env</span> and run{" "}
+          To change Splunk or LLM backend settings, edit <span className="font-mono">.env</span> and run{" "}
           <span className="font-mono">node bin/opsblaze.cjs restart</span>, or re-run{" "}
           <span className="font-mono">node bin/setup.cjs</span>.
+          {!useOpenWebUi && (
+            <>
+              {" "}
+              For Open WebUI, set <span className="font-mono">OPENWEBUI_BASE_URL</span>,{" "}
+              <span className="font-mono">OPENWEBUI_API_KEY</span>, and{" "}
+              <span className="font-mono">OPENWEBUI_MODEL</span>.
+            </>
+          )}
         </p>
       </div>
 
@@ -332,27 +340,31 @@ function GeneralTab() {
         </h3>
         <div className="space-y-3">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Claude Model</label>
+            <label className="block text-xs text-gray-500 mb-1">
+              {useOpenWebUi ? "Open WebUI Model ID" : "Claude Model"}
+            </label>
             <input
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              placeholder="claude-opus-4-6"
+              placeholder={useOpenWebUi ? "model-id-from-open-webui" : "claude-opus-4-6"}
               className={monoInputClass}
             />
           </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Thinking Effort</label>
-            <select
-              value={effort}
-              onChange={(e) => setEffort(e.target.value)}
-              className={inputClass}
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="max">Max</option>
-            </select>
-          </div>
+          {!useOpenWebUi && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Thinking Effort</label>
+              <select
+                value={effort}
+                onChange={(e) => setEffort(e.target.value)}
+                className={inputClass}
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="max">Max</option>
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-xs text-gray-500 mb-1">Max Turns</label>
             <input

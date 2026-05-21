@@ -8,6 +8,7 @@ const ROOT = path.resolve(__dirname, "..");
 const SUPERVISOR_SCRIPT = path.join(__dirname, "supervisor.cjs");
 const DATA_DIR = path.join(ROOT, "data");
 const ENV_FILE = path.join(ROOT, ".env");
+const { loadEnvFile } = require("./env-loader.cjs");
 const DIST_SERVER = path.join(ROOT, "dist", "server", "index.js");
 const STATE_FILE = path.join(DATA_DIR, ".opsblaze-state.json");
 const OUT_LOG = path.join(DATA_DIR, "opsblaze-out.log");
@@ -397,6 +398,7 @@ function startDev() {
     cwd: ROOT,
     stdio: "inherit",
     detached: true,
+    env: { ...process.env, ...loadEnvFile(ENV_FILE) },
   });
 
   writeState("dev", child.pid);
@@ -572,9 +574,10 @@ function check() {
     allOk = false;
   }
 
-  if (fs.existsSync(ENV_FILE)) {
-    const envContent = fs.readFileSync(ENV_FILE, "utf-8");
-    if (/^SPLUNK_HOST=/m.test(envContent)) {
+  const fileEnv = fs.existsSync(ENV_FILE) ? loadEnvFile(ENV_FILE) : null;
+
+  if (fileEnv) {
+    if (fileEnv.SPLUNK_HOST) {
       ok(".env file with SPLUNK_HOST");
     } else {
       fail(".env exists but SPLUNK_HOST is not set");
@@ -585,14 +588,12 @@ function check() {
     allOk = false;
   }
 
-  if (fs.existsSync(ENV_FILE)) {
-    const envContent = fs.readFileSync(ENV_FILE, "utf-8");
-    const openWebUiMatch = envContent.match(/^OPENWEBUI_BASE_URL=(.+)$/m);
-    if (openWebUiMatch) {
-      const baseUrl = openWebUiMatch[1].trim();
-      if (/^OPENWEBUI_API_KEY=.+/m.test(envContent)) {
-        ok(`LLM: Open WebUI (${baseUrl})`);
-        if (!/^OPENWEBUI_MODEL=.+/m.test(envContent)) {
+  if (fileEnv) {
+    const openWebUiUrl = fileEnv.OPENWEBUI_BASE_URL?.trim();
+    if (openWebUiUrl) {
+      if (fileEnv.OPENWEBUI_API_KEY?.trim()) {
+        ok(`LLM: Open WebUI (${openWebUiUrl})`);
+        if (!fileEnv.OPENWEBUI_MODEL?.trim()) {
           warn("OPENWEBUI_MODEL is not set");
         }
       } else {
@@ -600,20 +601,28 @@ function check() {
         allOk = false;
       }
     } else {
-      try {
-        const ver = execFileSync("claude", ["--version"], {
-          encoding: "utf-8",
-          timeout: 5000,
-          stdio: "pipe",
-        }).trim();
-        ok(`Claude CLI: ${ver || "found"}`);
-      } catch {
-        if (/^ANTHROPIC_API_KEY=.+/m.test(envContent)) {
-          ok("Claude auth: API key (ANTHROPIC_API_KEY)");
-        } else {
+      const nearMiss = Object.keys(fileEnv).filter((k) => /WEBUI|OPEN_WEB/i.test(k));
+      if (nearMiss.length > 0) {
+        warn(
+          `Found ${nearMiss.join(", ")} in .env — use OPENWEBUI_BASE_URL (not OPEN_WEBUI or similar)`
+        );
+      }
+      if (fileEnv.ANTHROPIC_API_KEY?.trim()) {
+        ok("Claude auth: API key (ANTHROPIC_API_KEY)");
+      } else {
+        try {
+          const ver = execFileSync("claude", ["--version"], {
+            encoding: "utf-8",
+            timeout: 5000,
+            stdio: "pipe",
+          }).trim();
+          ok(`Claude CLI: ${ver || "found"}`);
+        } catch {
           fail("LLM not configured — set Open WebUI or Claude auth in .env");
           console.log(`    ${DIM}Open WebUI: OPENWEBUI_BASE_URL + OPENWEBUI_API_KEY${RESET}`);
-          console.log(`    ${DIM}Claude CLI: npm i -g @anthropic-ai/claude-code && claude auth login${RESET}`);
+          console.log(
+            `    ${DIM}Claude CLI: npm i -g @anthropic-ai/claude-code && claude auth login${RESET}`
+          );
           allOk = false;
         }
       }

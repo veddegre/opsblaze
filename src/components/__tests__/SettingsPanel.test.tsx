@@ -14,6 +14,7 @@ const mockSettings = {
     streamTimeoutMs: 300000,
   },
   system: {
+    llmProvider: "claude" as const,
     splunkHost: "localhost",
     splunkPort: 8089,
     splunkScheme: "https",

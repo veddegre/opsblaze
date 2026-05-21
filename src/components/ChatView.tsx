@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { MessageBubble } from "./MessageBubble";
 import { fetchHealth } from "../lib/api";
 import type { HealthResponse, HealthCheck } from "../lib/api";
+import { healthCheckLabel } from "../lib/health-labels";
 import type { Message } from "../types";
 
 interface ChatViewProps {
@@ -48,15 +49,12 @@ function SystemStatusCard() {
   if (allOk) {
     return (
       <div className="mt-5 inline-flex items-center gap-3 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
-        {Object.keys(health.checks).map((name) => {
-          const label = name.charAt(0).toUpperCase() + name.slice(1);
-          return (
-            <span key={name} className="inline-flex items-center gap-1.5">
-              <span className="block w-1.5 h-1.5 rounded-full bg-green-400" />
-              <span className="text-xs text-green-400/80">{label} connected</span>
-            </span>
-          );
-        })}
+        {Object.keys(health.checks).map((name) => (
+          <span key={name} className="inline-flex items-center gap-1.5">
+            <span className="block w-1.5 h-1.5 rounded-full bg-green-400" />
+            <span className="text-xs text-green-400/80">{healthCheckLabel(name)} connected</span>
+          </span>
+        ))}
       </div>
     );
   }
@@ -72,7 +70,7 @@ function SystemStatusCard() {
                 className={`block w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${STATUS_COLORS[check.status] ?? "bg-gray-500"}`}
               />
               <div className="min-w-0">
-                <span className="text-xs text-gray-300 capitalize">{name}</span>
+                <span className="text-xs text-gray-300">{healthCheckLabel(name)}</span>
                 {check.message && (
                   <span className="text-xs text-gray-500 ml-1.5">{check.message}</span>
                 )}

@@ -7,6 +7,7 @@ function headers(): Record<string, string> {
 export interface AppSettings {
   runtime: { claudeModel: string; claudeEffort: string; maxTurns: number; streamTimeoutMs: number };
   system: {
+    llmProvider: "openwebui" | "claude";
     splunkHost: string;
     splunkPort: number;
     splunkScheme: string;
