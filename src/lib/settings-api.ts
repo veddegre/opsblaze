@@ -37,6 +37,23 @@ export async function getSettings(): Promise<AppSettings> {
   return res.json();
 }
 
+export interface OpenWebUiModelOption {
+  id: string;
+  label: string;
+}
+
+export async function fetchOpenWebUiModels(): Promise<OpenWebUiModelOption[]> {
+  const res = await fetch("/api/openwebui/models", fetchInit({ headers: headers() }));
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(
+      (data as { error?: string }).error ?? `Failed to load Open WebUI models: ${res.status}`
+    );
+  }
+  const data = (await res.json()) as { models: OpenWebUiModelOption[] };
+  return data.models ?? [];
+}
+
 export async function updateSettings(
   partial: Record<string, unknown>
 ): Promise<{ runtime: AppSettings["runtime"] }> {

@@ -35,7 +35,7 @@ export type SettingsSection =
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
   account: "My account",
-  preferences: "Preferences",
+  preferences: "Runtime settings",
   "admin-system": "System health",
   "admin-mcp": "MCP servers",
   "admin-skills": "Skills",
@@ -1066,7 +1066,7 @@ export function SettingsPanel({
               active={section === "preferences"}
               onClick={() => setSection("preferences")}
             >
-              Preferences
+              Runtime settings
             </NavItem>
 
             {isAdmin && (

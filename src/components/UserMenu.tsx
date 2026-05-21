@@ -83,7 +83,7 @@ export function UserMenu({ user, onOpenAccount, onOpenPreferences }: UserMenuPro
             onClick={() => openSection(onOpenPreferences)}
             className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-surface-3 transition-colors"
           >
-            Preferences
+            Runtime settings
           </button>
           <div className="my-1 border-t border-border-subtle" />
           <button

@@ -19,6 +19,7 @@ const mockSettings = {
     claudeEffort: "high",
     maxTurns: 30,
     streamTimeoutMs: 300000,
+    llmProvider: "claude" as const,
   },
   system: {
     llmProvider: "claude" as const,
@@ -41,9 +42,12 @@ vi.mock("../../lib/auth", () => ({
   logout: vi.fn(),
 }));
 
+const fetchOpenWebUiModelsMock = vi.fn().mockResolvedValue([]);
+
 vi.mock("../../lib/settings-api", () => ({
   getSettings: (...args: unknown[]) => getSettingsMock(...args),
   updateSettings: (...args: unknown[]) => updateSettingsMock(...args),
+  fetchOpenWebUiModels: (...args: unknown[]) => fetchOpenWebUiModelsMock(...args),
   listMcpServers: vi.fn().mockResolvedValue([]),
   addMcpServer: vi.fn(),
   updateMcpServer: vi.fn(),
@@ -63,9 +67,9 @@ function renderPanel() {
 }
 
 async function openPreferences() {
-  fireEvent.click(screen.getByRole("button", { name: /Preferences/i }));
+  fireEvent.click(screen.getByRole("button", { name: /Runtime settings/i }));
   await waitFor(() => {
-    expect(screen.getByText("Investigation defaults")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Runtime settings" })).toBeInTheDocument();
   });
 }
 
@@ -73,6 +77,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getSettingsMock.mockResolvedValue(mockSettings);
   updateSettingsMock.mockResolvedValue({ runtime: mockSettings.runtime });
+  fetchOpenWebUiModelsMock.mockResolvedValue([]);
 });
 
 describe("SettingsPanel: Preferences", () => {
@@ -101,7 +106,7 @@ describe("SettingsPanel: Preferences", () => {
     const input = screen.getByDisplayValue("30") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "50" } });
 
-    fireEvent.click(screen.getByRole("button", { name: /Save preferences/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Save runtime settings/i }));
 
     await waitFor(() => {
       expect(updateSettingsMock).toHaveBeenCalledWith({ maxTurns: 50 });
@@ -118,7 +123,7 @@ describe("SettingsPanel: Preferences", () => {
     const select = screen.getByDisplayValue("5 minutes") as HTMLSelectElement;
     fireEvent.change(select, { target: { value: "600000" } });
 
-    fireEvent.click(screen.getByRole("button", { name: /Save preferences/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Save runtime settings/i }));
 
     await waitFor(() => {
       expect(updateSettingsMock).toHaveBeenCalledWith({ streamTimeoutMs: 600000 });
@@ -141,7 +146,7 @@ describe("SettingsPanel: Preferences", () => {
     renderPanel();
     await openPreferences();
 
-    fireEvent.click(screen.getByRole("button", { name: /Save preferences/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Save runtime settings/i }));
 
     await waitFor(() => {
       expect(screen.getByText("Saved")).toBeInTheDocument();
@@ -172,7 +177,30 @@ describe("SettingsPanel: navigation", () => {
       <SettingsPanel isOpen={true} onClose={vi.fn()} user={mockUser} initialSection="preferences" />
     );
     await waitFor(() => {
-      expect(screen.getByText("Investigation defaults")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Runtime settings" })).toBeInTheDocument();
+    });
+  });
+
+  it("shows Open WebUI model dropdown when models are returned", async () => {
+    getSettingsMock.mockResolvedValue({
+      ...mockSettings,
+      runtime: {
+        ...mockSettings.runtime,
+        claudeModel: "gemma4:31b",
+        llmProvider: "openwebui",
+      },
+    });
+    fetchOpenWebUiModelsMock.mockResolvedValue([
+      { id: "gemma4:31b", label: "Gemma 4" },
+      { id: "llama3.1", label: "Llama 3.1" },
+    ]);
+
+    renderPanel();
+    await openPreferences();
+
+    await waitFor(() => {
+      expect(screen.getByRole("option", { name: /Gemma 4/ })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: /Llama 3.1/ })).toBeInTheDocument();
     });
   });
 });

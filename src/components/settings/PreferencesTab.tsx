@@ -1,5 +1,10 @@
-import React, { useEffect, useState } from "react";
-import { getSettings, updateSettings } from "../../lib/settings-api";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  fetchOpenWebUiModels,
+  getSettings,
+  updateSettings,
+  type OpenWebUiModelOption,
+} from "../../lib/settings-api";
 import type { AppSettings } from "../../lib/settings-api";
 import {
   FieldLabel,
@@ -19,6 +24,14 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [openWebUiModels, setOpenWebUiModels] = useState<OpenWebUiModelOption[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+
+  const useOpenWebUi =
+    settings?.runtime.llmProvider === "openwebui" ||
+    settings?.system?.llmProvider === "openwebui";
+
   useEffect(() => {
     getSettings()
       .then((s) => {
@@ -30,6 +43,45 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!useOpenWebUi) {
+      setOpenWebUiModels([]);
+      setModelsError(null);
+      setModelsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setModelsLoading(true);
+    setModelsError(null);
+
+    fetchOpenWebUiModels()
+      .then((models) => {
+        if (!cancelled) setOpenWebUiModels(models);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setOpenWebUiModels([]);
+          setModelsError((err as Error).message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setModelsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [useOpenWebUi]);
+
+  const modelOptions = useMemo(() => {
+    const opts = [...openWebUiModels];
+    if (model && !opts.some((o) => o.id === model)) {
+      opts.unshift({ id: model, label: model });
+    }
+    return opts;
+  }, [openWebUiModels, model]);
 
   const handleSave = async () => {
     if (!isAdmin) return;
@@ -59,18 +111,68 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  const useOpenWebUi =
-    settings?.runtime.llmProvider === "openwebui" ||
-    settings?.system?.llmProvider === "openwebui";
+  const modelField = useOpenWebUi ? (
+    <>
+      {modelsError && (
+        <InfoBanner>
+          Could not load models from Open WebUI ({modelsError}). Check server connectivity and
+          API key, or type a model ID manually below.
+        </InfoBanner>
+      )}
+      {modelsLoading ? (
+        <p className="text-xs text-gray-500 py-1">Loading models from Open WebUI…</p>
+      ) : modelOptions.length > 0 ? (
+        <select
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          disabled={!isAdmin}
+          className={inputClass}
+        >
+          {!model && (
+            <option value="" disabled>
+              Select a model…
+            </option>
+          )}
+          {modelOptions.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label === m.id ? m.id : `${m.label} (${m.id})`}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          disabled={!isAdmin}
+          placeholder="e.g. gemma4:31b"
+          className={monoInputClass}
+        />
+      )}
+      {!modelsLoading && modelOptions.length > 0 && (
+        <p className="text-[11px] text-gray-600">
+          {modelOptions.length} model{modelOptions.length !== 1 ? "s" : ""} from your Open WebUI
+          instance. Changes apply on the next investigation.
+        </p>
+      )}
+    </>
+  ) : (
+    <input
+      value={model}
+      onChange={(e) => setModel(e.target.value)}
+      disabled={!isAdmin}
+      placeholder="claude-opus-4-6"
+      className={monoInputClass}
+    />
+  );
 
   return (
     <div>
       <Section
-        title="Investigation defaults"
+        title="Runtime settings"
         description={
           isAdmin
-            ? "These apply to new queries for everyone using this server. Changes take effect on the next message."
-            : "Current defaults for investigations on this server (set by an administrator)."
+            ? "Defaults for new investigations on this server. Changes take effect on the next message."
+            : "Current runtime defaults (configured by an administrator)."
         }
       >
         {!isAdmin && (
@@ -82,19 +184,13 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
         <FieldLabel
           hint={
             useOpenWebUi
-              ? "The model ID from your Open WebUI instance."
+              ? "Model from your Open WebUI instance (loaded automatically when available)."
               : "Which Claude model powers investigations."
           }
         >
-          {useOpenWebUi ? "AI model" : "Claude model"}
+          {useOpenWebUi ? "Open WebUI model" : "Claude model"}
         </FieldLabel>
-        <input
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          disabled={!isAdmin}
-          placeholder={useOpenWebUi ? "e.g. gemma4:31b" : "claude-opus-4-6"}
-          className={monoInputClass}
-        />
+        {modelField}
 
         {!useOpenWebUi && (
           <>
@@ -153,10 +249,10 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
             <button
               type="button"
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || (useOpenWebUi && !model)}
               className="text-sm px-4 py-2 rounded-lg bg-accent text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              {saving ? "Saving…" : "Save preferences"}
+              {saving ? "Saving…" : "Save runtime settings"}
             </button>
             {saved && <span className="text-xs text-green-400">Saved</span>}
           </div>

@@ -54,6 +54,8 @@ import {
   getStreamTimeoutMs,
 } from "./runtime-settings.js";
 import { isOpenWebUiMode } from "./llm-config.js";
+import { listOpenWebUiModelOptions } from "./openwebui-models.js";
+import { OpenWebUiError } from "./openwebui-client.js";
 import { getRequestUserId, isRequestAdmin, requireAdmin, setupAuth } from "./auth/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -487,6 +489,24 @@ app.get("/api/settings", apiLimiter, async (req, res) => {
   } catch (err) {
     logger.error({ err }, "failed to get settings");
     res.status(500).json({ error: "Failed to get settings" });
+  }
+});
+
+app.get("/api/openwebui/models", apiLimiter, async (_req, res) => {
+  if (!isOpenWebUiMode()) {
+    res.status(404).json({ error: "Open WebUI is not configured" });
+    return;
+  }
+  try {
+    const models = await listOpenWebUiModelOptions(AbortSignal.timeout(15_000));
+    res.json({ models });
+  } catch (err) {
+    const message =
+      err instanceof OpenWebUiError
+        ? err.message
+        : (err as Error).message || "Failed to load models from Open WebUI";
+    logger.warn({ err }, "failed to list Open WebUI models");
+    res.status(502).json({ error: message.slice(0, 300) });
   }
 });
 

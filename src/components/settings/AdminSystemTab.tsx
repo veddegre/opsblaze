@@ -71,12 +71,17 @@ export function AdminSystemTab() {
           file on the server host, then run{" "}
           <span className="font-mono">node bin/opsblaze.cjs restart</span>.
         </InfoBanner>
-        {!useOpenWebUi && (
+        {useOpenWebUi ? (
+          <InfoBanner variant="tip">
+            The active Open WebUI model is selected under{" "}
+            <span className="text-gray-300">Settings → Runtime settings</span>. Connection URL and
+            API key remain in <span className="font-mono">.env</span>.
+          </InfoBanner>
+        ) : (
           <InfoBanner>
             To use Open WebUI instead of Claude, set{" "}
-            <span className="font-mono">OPENWEBUI_BASE_URL</span>,{" "}
-            <span className="font-mono">OPENWEBUI_API_KEY</span>, and{" "}
-            <span className="font-mono">OPENWEBUI_MODEL</span> in <span className="font-mono">.env</span>.
+            <span className="font-mono">OPENWEBUI_BASE_URL</span> and{" "}
+            <span className="font-mono">OPENWEBUI_API_KEY</span> in <span className="font-mono">.env</span>.
           </InfoBanner>
         )}
       </Section>

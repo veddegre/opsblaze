@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Open WebUI model picker** in Settings → Runtime settings: loads models from `GET /api/openwebui/models` and saves the selection via runtime settings (no `.env` edit required).
 - **OIDC authentication** with per-user conversation storage (`server/auth/`, `OPSBLAZE_OIDC_*` env vars). Admins (`OPSBLAZE_OIDC_ADMIN_EMAILS`) can manage MCP servers, skills, and runtime settings.
 - **Open WebUI** as an LLM backend: set `OPENWEBUI_BASE_URL`, `OPENWEBUI_API_KEY`, and `OPENWEBUI_MODEL` to route investigations through any model configured in Open WebUI.
 - Native MCP tool loop (`server/openwebui-agent.ts`, `server/mcp-runtime.ts`) so Splunk and user-defined MCP servers work without the Claude Agent SDK.
