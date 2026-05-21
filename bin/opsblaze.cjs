@@ -8,7 +8,35 @@ const ROOT = path.resolve(__dirname, "..");
 const SUPERVISOR_SCRIPT = path.join(__dirname, "supervisor.cjs");
 const DATA_DIR = path.join(ROOT, "data");
 const ENV_FILE = path.join(ROOT, ".env");
-const { loadEnvFile } = require("./env-loader.cjs");
+
+/** @returns {Record<string, string>} */
+function loadEnvFile(envPath) {
+  try {
+    return require("./env-loader.cjs").loadEnvFile(envPath);
+  } catch {
+    /* fallback when env-loader.cjs is not deployed yet */
+  }
+  const extraEnv = {};
+  if (!fs.existsSync(envPath)) return extraEnv;
+  for (const line of fs.readFileSync(envPath, "utf-8").split("\n")) {
+    let trimmed = line.trim();
+    if (trimmed.startsWith("\ufeff")) trimmed = trimmed.slice(1);
+    if (trimmed.startsWith("export ")) trimmed = trimmed.slice(7).trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (/^[A-Z_][A-Z0-9_]*$/.test(key)) extraEnv[key] = value;
+  }
+  return extraEnv;
+}
 const DIST_SERVER = path.join(ROOT, "dist", "server", "index.js");
 const STATE_FILE = path.join(DATA_DIR, ".opsblaze-state.json");
 const OUT_LOG = path.join(DATA_DIR, "opsblaze-out.log");
