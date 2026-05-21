@@ -3,6 +3,7 @@ import http from "http";
 import { execFile as execFileCb } from "child_process";
 import { promisify } from "util";
 import type { IncomingMessage, ClientRequest, RequestOptions } from "http";
+import { normalizeOpenWebUiBaseUrl } from "./llm-config.js";
 
 const execFile = promisify(execFileCb);
 
@@ -88,6 +89,42 @@ export function checkSplunk(opts: {
   });
 }
 
+export async function checkOpenWebUi(opts: {
+  baseUrl?: string;
+  apiKey?: string;
+  _fetch?: typeof fetch;
+}): Promise<HealthCheck> {
+  const baseUrl = opts.baseUrl?.trim();
+  if (!baseUrl) {
+    return { status: "error", message: "not configured" };
+  }
+  if (!opts.apiKey?.trim()) {
+    return { status: "error", message: "API key missing" };
+  }
+
+  const apiBase = `${normalizeOpenWebUiBaseUrl(baseUrl)}/api`;
+  const doFetch = opts._fetch ?? fetch;
+
+  try {
+    const res = await doFetch(`${apiBase}/models`, {
+      headers: { Authorization: `Bearer ${opts.apiKey}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.ok) {
+      return { status: "ok", message: "API Key" };
+    }
+    if (res.status === 401 || res.status === 403) {
+      return { status: "error", message: "invalid API key" };
+    }
+    if (res.status === 429) {
+      return { status: "degraded", message: "rate limited" };
+    }
+    return { status: "degraded", message: `HTTP ${res.status}` };
+  } catch {
+    return { status: "error", message: "unreachable" };
+  }
+}
+
 export async function checkClaude(opts: {
   apiKey?: string;
   _requester?: Requester;
@@ -156,7 +193,10 @@ export async function checkClaude(opts: {
 }
 
 export async function runHealthChecks(): Promise<HealthResult> {
-  const [splunk, claude] = await Promise.all([
+  const openWebUiBase = process.env.OPENWEBUI_BASE_URL?.trim();
+  const openWebUiKey = process.env.OPENWEBUI_API_KEY?.trim();
+
+  const [splunk, llm] = await Promise.all([
     checkSplunk({
       host: process.env.SPLUNK_HOST,
       port: parseInt(process.env.SPLUNK_PORT ?? "8089", 10),
@@ -166,12 +206,18 @@ export async function runHealthChecks(): Promise<HealthResult> {
       username: process.env.SPLUNK_USERNAME,
       password: process.env.SPLUNK_PASSWORD,
     }),
-    checkClaude({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    }),
+    openWebUiBase
+      ? checkOpenWebUi({
+          baseUrl: openWebUiBase,
+          apiKey: openWebUiKey,
+        })
+      : checkClaude({
+          apiKey: process.env.ANTHROPIC_API_KEY,
+        }),
   ]);
 
-  const checks: Record<string, HealthCheck> = { splunk, claude };
+  const llmKey = openWebUiBase ? "openwebui" : "claude";
+  const checks: Record<string, HealthCheck> = { splunk, [llmKey]: llm };
 
   const overall = Object.values(checks).every((c) => c.status === "ok")
     ? "ok"

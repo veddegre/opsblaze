@@ -6,7 +6,7 @@
 
 AI-driven narrative investigation for Splunk. Ask questions in natural language, and OpsBlaze queries your Splunk instance, analyzes the results, and presents findings as a rich narrative with interactive charts.
 
-Powered by Claude (via the Claude Agent SDK). Connects to Splunk via its REST API.
+OpsBlaze connects to Splunk via its REST API and runs investigations through an LLM backend. **Open WebUI** is the recommended backend for institutional deployments (any model your Open WebUI instance exposes). **Claude** (via the Claude Agent SDK) remains supported when Open WebUI is not configured.
 
 ## Supported Platforms
 
@@ -20,10 +20,31 @@ Powered by Claude (via the Claude Agent SDK). Connects to Splunk via its REST AP
 | Requirement | How to get it |
 |---|---|
 | Node.js 20+ | [nodejs.org](https://nodejs.org) |
-| Claude auth | Claude CLI (`npm install -g @anthropic-ai/claude-code` then run `claude auth login`) **or** an [Anthropic API key](https://console.anthropic.com/) |
+| LLM backend | **Open WebUI** (base URL + API key from Settings → Account) **or** Claude CLI / [Anthropic API key](https://console.anthropic.com/) |
 | Splunk access | Management port (default 8089) |
 
-The Claude CLI uses OAuth with a Claude Pro/Max subscription. Alternatively, set `ANTHROPIC_API_KEY` in `.env` for pay-per-use API billing.
+### Open WebUI (recommended)
+
+Point OpsBlaze at your Open WebUI instance. The Splunk MCP server runs locally inside OpsBlaze; the model calls `splunk_query` through Open WebUI’s tool-calling API.
+
+1. Copy your API key from **Open WebUI → Settings → Account**
+2. Find a model id (Settings → Models, or `GET /api/models` on your instance)
+3. Set `OPENWEBUI_BASE_URL`, `OPENWEBUI_API_KEY`, and `OPENWEBUI_MODEL` in `.env`
+
+Example (GVSU):
+
+```env
+OPENWEBUI_BASE_URL=https://openwebui.server.gvsu.edu
+OPENWEBUI_API_KEY=your-api-key
+OPENWEBUI_MODEL=your-model-id
+```
+
+### Claude (alternative)
+
+If `OPENWEBUI_BASE_URL` is **not** set, OpsBlaze uses the Claude Agent SDK:
+
+- **Default:** Claude CLI OAuth (`npm install -g @anthropic-ai/claude-code`, then `claude auth login`)
+- **Alternative:** `ANTHROPIC_API_KEY` in `.env` for pay-per-use API billing
 
 ## Quick Start
 
@@ -38,7 +59,7 @@ node bin/opsblaze.cjs start
 open http://localhost:3000
 ```
 
-The setup wizard walks you through connecting to Splunk, setting the server port, and optionally securing the API endpoint.
+The setup wizard walks you through the LLM backend, Splunk connection, and server port.
 
 ## Commands
 
@@ -87,18 +108,39 @@ All configuration lives in `.env` (created by the setup wizard). Key variables:
 | `SPLUNK_USERNAME` | — | Splunk username (alternative to token) |
 | `SPLUNK_PASSWORD` | — | Splunk password (alternative to token) |
 | `SPLUNK_VERIFY_SSL` | `true` | Verify Splunk's SSL certificate |
-| `ANTHROPIC_API_KEY` | — | Anthropic API key (optional alternative to Claude CLI) |
+| `OPENWEBUI_BASE_URL` | — | Open WebUI instance URL (enables Open WebUI backend when set) |
+| `OPENWEBUI_API_KEY` | — | API key from Open WebUI Settings → Account (required with base URL) |
+| `OPENWEBUI_MODEL` | — | Model id as shown in Open WebUI |
+| `ANTHROPIC_API_KEY` | — | Anthropic API key (Claude backend only; optional alternative to CLI) |
 | `PORT` | `3000` | Server port |
 | `HOST` | `127.0.0.1` | Bind address (use `0.0.0.0` for LAN access) |
 | `OPSBLAZE_RATE_LIMIT` | `10` | Max chat requests per minute per IP |
 | `OPSBLAZE_STREAM_TIMEOUT_MS` | `300000` | Max streaming duration (5 minutes) |
-| `CLAUDE_MODEL` | `claude-opus-4-6` | Claude model to use |
-| `CLAUDE_EFFORT` | `high` | Thinking effort: `low`, `medium`, `high`, or `max` |
+| `CLAUDE_MODEL` | `claude-opus-4-6` | Model id (Open WebUI model when using Open WebUI; Claude model otherwise) |
+| `CLAUDE_EFFORT` | `high` | Thinking effort for Claude backend only: `low`, `medium`, `high`, or `max` |
 | `LOG_LEVEL` | `info` | Log verbosity: `fatal`, `error`, `warn`, `info`, `debug`, or `trace` |
+
+When `OPENWEBUI_BASE_URL` is set, Claude CLI and `ANTHROPIC_API_KEY` are not required. The Settings UI **Model** field sets the Open WebUI model id in that mode.
 
 See `.env.example` for the complete list of all available options with inline descriptions.
 
 To configure manually instead of using the wizard, copy `.env.example` to `.env` and fill in the required values.
+
+## Architecture
+
+```
+Browser  ←── SSE ──→  OpsBlaze (Express)
+                         │
+            ┌────────────┴────────────┐
+            ▼                         ▼
+     Open WebUI API            MCP (stdio/http/sse)
+     /api/chat/completions          │
+            │                  Splunk MCP Server
+            ▼                         ▼
+     Your LLM model              Splunk REST API
+```
+
+With the Claude backend, the Agent SDK orchestrates MCP tools internally. With Open WebUI, OpsBlaze runs the tool loop itself and registers MCP tools with each chat completion request.
 
 ## Troubleshooting
 
@@ -115,16 +157,24 @@ lsof -i :3000
 
 Or edit `.env` and change the `PORT` value to a different port (e.g. `PORT=3001`).
 
+### Open WebUI authentication failed
+
+- Confirm `OPENWEBUI_API_KEY` matches the key from **Settings → Account** in Open WebUI
+- Confirm `OPENWEBUI_BASE_URL` is the site root (e.g. `https://openwebui.server.gvsu.edu`), not `/api`
+- List models: `curl -H "Authorization: Bearer $OPENWEBUI_API_KEY" "$OPENWEBUI_BASE_URL/api/models"`
+- Ensure `OPENWEBUI_MODEL` matches a model id from that list
+- Check `/api/health` — the `openwebui` check should show `ok`
+
 ### Claude CLI not authenticated
 
-If you see "Claude CLI not found or not authenticated" at startup:
+Only applies when **not** using Open WebUI. If you see "Claude CLI not found or not authenticated" at startup:
 
 ```bash
 # Install the CLI
 npm install -g @anthropic-ai/claude-code
 
 # Authenticate (opens browser for OAuth)
-claude
+claude auth login
 ```
 
 Alternatively, set `ANTHROPIC_API_KEY` in `.env` to use API key authentication instead of the CLI.
@@ -135,6 +185,12 @@ Verify your Splunk settings in `.env`:
 - Is the host reachable? `curl -k https://your-splunk-host:8089/services/server/info`
 - Is the port correct? Default management port is 8089, not 8000.
 - Are credentials valid? Try logging into Splunk's web UI with the same credentials.
+
+### Investigations run but no charts appear
+
+- Confirm the model supports tool/function calling (required for `splunk_query`)
+- Check server logs for MCP connection errors
+- Test the built-in Splunk MCP server in **Settings → MCP Servers → Test**
 
 ### Build not found
 

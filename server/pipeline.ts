@@ -1,6 +1,7 @@
 import type { Logger } from "pino";
 import { chartHasData, processTextBuffer } from "./sse-helpers.js";
 import type { FlushTextState } from "./sse-helpers.js";
+import { isOpenWebUiMode } from "./llm-config.js";
 
 const AUTH_PATTERNS = [
   /unauthorized/i,
@@ -20,17 +21,23 @@ export function classifyAgentError(err: unknown): string {
       ? `${err.message} ${(err as Error & { stderr?: string }).stderr ?? ""}`
       : String(err);
 
+  const provider = isOpenWebUiMode() ? "Open WebUI" : "Claude";
+
   if (AUTH_PATTERNS.some((p) => p.test(msg))) {
-    return "Claude authentication failed. If using Claude CLI OAuth, run 'claude auth login' to re-authenticate.";
+    return isOpenWebUiMode()
+      ? "Open WebUI authentication failed. Check OPENWEBUI_API_KEY in .env (Settings → Account in Open WebUI)."
+      : "Claude authentication failed. If using Claude CLI OAuth, run 'claude auth login' to re-authenticate.";
   }
   if (RATE_LIMIT_PATTERNS.some((p) => p.test(msg))) {
-    return "Claude rate limit reached. Please wait a moment and try again.";
+    return `${provider} rate limit reached. Please wait a moment and try again.`;
   }
   if (/ECONNREFUSED|ENOTFOUND|unreachable|network/i.test(msg)) {
-    return "Could not reach the Claude API. Check your network connection and try again.";
+    return isOpenWebUiMode()
+      ? "Could not reach Open WebUI. Check OPENWEBUI_BASE_URL and your network connection."
+      : "Could not reach the Claude API. Check your network connection and try again.";
   }
   if (/timeout|ETIMEDOUT/i.test(msg)) {
-    return "The request to Claude timed out. Please try again.";
+    return `The request to ${provider} timed out. Please try again.`;
   }
   return "An error occurred during the investigation.";
 }

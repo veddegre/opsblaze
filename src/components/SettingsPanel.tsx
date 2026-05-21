@@ -253,7 +253,9 @@ function GeneralTab() {
   };
 
   const splunkCheck = health?.checks?.splunk;
-  const claudeCheck = health?.checks?.claude;
+  const llmCheck = health?.checks?.openwebui ?? health?.checks?.claude;
+  const llmLabel =
+    settings?.system.claudeAuthMethod === "Open WebUI" ? "Open WebUI" : "Claude";
 
   return (
     <div className="divide-y divide-border-subtle">
@@ -289,13 +291,13 @@ function GeneralTab() {
 
           <div className="flex items-center gap-2.5">
             <span
-              className={`block w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[claudeCheck?.status ?? "error"] ?? "bg-gray-500"}`}
+              className={`block w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[llmCheck?.status ?? "error"] ?? "bg-gray-500"}`}
             />
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-gray-300">Claude</p>
+              <p className="text-xs text-gray-300">{llmLabel}</p>
             </div>
             <span className="text-[10px] text-gray-600">
-              {claudeCheck?.message ?? settings?.system.claudeAuthMethod}
+              {llmCheck?.message ?? settings?.system.claudeAuthMethod}
             </span>
           </div>
 

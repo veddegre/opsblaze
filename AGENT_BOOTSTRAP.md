@@ -1,6 +1,6 @@
 # Agent Bootstrap: AI-Powered Narrative Investigation Web App
 
-> **Last verified: 2026-04-12.** If this is more than a few sessions stale, audit sections 3-5 and 8-9 against the actual codebase before relying on them.
+> **Last verified: 2026-05-21.** If this is more than a few sessions stale, audit sections 3-5 and 8-9 against the actual codebase before relying on them.
 
 This document is for quickly bootstrapping a new agent instance into this project.
 
@@ -29,13 +29,15 @@ When discussing current file paths, use real paths. When discussing product iden
 
 - Backend: Node + Express 5 + TypeScript (`server/`)
 - Frontend: React 18 + Vite + Tailwind (`src/`)
-- Agent runtime: `@anthropic-ai/claude-agent-sdk` (Claude Agent SDK)
-- Model: Claude (configurable via `CLAUDE_MODEL` env var)
-- Auth: Claude CLI OAuth (default) or optional `ANTHROPIC_API_KEY`
-- MCP Server: `mcp-server/` — Splunk query + data transform via `@modelcontextprotocol/sdk`
+- LLM backend (choose one via env):
+  - **Open WebUI** (when `OPENWEBUI_BASE_URL` is set): `server/openwebui-agent.ts` + `server/openwebui-client.ts` — OpenAI-compatible `/api/chat/completions` with a local MCP tool loop
+  - **Claude** (default otherwise): `@anthropic-ai/claude-agent-sdk` — Agent SDK manages MCP and streams Anthropic-format messages through `server/pipeline.ts`
+- Model: `OPENWEBUI_MODEL` or Settings UI model field (Open WebUI); `CLAUDE_MODEL` + `CLAUDE_EFFORT` (Claude)
+- Auth: Open WebUI API key; or Claude CLI OAuth; or `ANTHROPIC_API_KEY`
+- MCP Server: `mcp-server/` — Splunk query + data transform via `@modelcontextprotocol/sdk`; orchestrated by Agent SDK (Claude) or `server/mcp-runtime.ts` (Open WebUI)
 - Charts: Chart.js (default) or `@splunk/visualizations` (optional, auto-detected at build time)
 - Transport: SSE from `/api/chat`
-- Skills: `.claude/skills/` — auto-discovered, toggleable from the UI
+- Skills: `.claude/skills/` — auto-discovered, toggleable from the UI; injected into system prompt (Open WebUI) or via Agent SDK `Skill` tool (Claude)
 - License: Apache-2.0
 
 ## 4) Current Project Structure (Important Files)
@@ -49,14 +51,18 @@ When discussing current file paths, use real paths. When discussing product iden
 ### Server
 - `server/index.ts` - server startup, Express routes (chat, conversations, MCP servers, skills, health, settings), SSE wiring, duplicate-shutdown guard, `.env` permission check
 - `server/env.ts` - environment variable validation (`validateEnv`)
-- `server/agent.ts` - `runAgent()`: invokes Claude Agent SDK `query()`, MCP server config, optional recording, skill scoping (`PreToolUse` hook for strict mode)
-- `server/pipeline.ts` - message stream processing loop (extracted for testability and replay); deferred skill emission in strict mode; `classifyAgentError` for user-facing error messages (auth, rate limit, network, timeout)
+- `server/llm-config.ts` - provider detection (`openwebui` vs `claude`), Open WebUI URL normalization
+- `server/agent.ts` - `runAgent()`: dispatches to Open WebUI or Claude Agent SDK `query()`; MCP config, optional recording, skill scoping (`PreToolUse` hook for strict mode on Claude path)
+- `server/openwebui-agent.ts` - Open WebUI investigation loop: chat completions + MCP tool calls + SSE emission
+- `server/openwebui-client.ts` - HTTP client for Open WebUI `/api/chat/completions` and `/api/models`
+- `server/mcp-runtime.ts` - MCP client sessions for Open WebUI tool loop (connect, `callTool`, OpenAI tool schema)
+- `server/pipeline.ts` - Claude SDK message stream processing (extracted for testability and replay); deferred skill emission in strict mode; `classifyAgentError` for user-facing error messages
 - `server/sse-helpers.ts` - SSE formatting, chart validation, text buffer processing
 - `server/recorder.ts` - JSONL recording of SDK message streams for replay testing
 - `server/conversations.ts` - file-based conversation persistence (CRUD, search, listing)
 - `server/mcp-config.ts` - user MCP server configuration persistence (CRUD), security blocklists for args/env
 - `server/mcp-probe.ts` - runtime MCP server connectivity probe (test endpoint)
-- `server/health.ts` - health check logic: Splunk connectivity probe + Claude auth validation (CLI or API key)
+- `server/health.ts` - health check logic: Splunk connectivity + Open WebUI (`/api/models`) or Claude auth (CLI or API key)
 - `server/runtime-settings.ts` - runtime settings persistence (`data/runtime-settings.json`): model, effort, max turns, stream timeout; hot-reloadable without server restart
 - `server/telemetry/index.ts` - TelemetryService singleton, exporter registry, emit/flush/shutdown lifecycle
 - `server/telemetry/splunk-hec.ts` - Splunk HEC exporter with batched event shipping
@@ -114,7 +120,7 @@ When discussing current file paths, use real paths. When discussing product iden
 - First-time setup: `node bin/setup.cjs`
 - Dev mode: `node bin/opsblaze.cjs dev` (Vite at `:5173`, server at `:3000`)
 - Production: `node bin/opsblaze.cjs start` / `stop` / `restart` / `status` / `logs`
-- Health check: `node bin/opsblaze.cjs check` (validates Node, `.env`, Claude CLI, build, port)
+- Health check: `node bin/opsblaze.cjs check` (validates Node, `.env`, LLM backend, build, port)
 - Splunk viz: `node bin/opsblaze.cjs install-splunk-viz` (installs optional `@splunk/visualizations`)
 
 ### Splunk Packages and npm Operations
@@ -139,7 +145,7 @@ Both `start` and `dev` automatically stop the other mode first — you never nee
 `restart` preserves the current mode. If no state file exists, it defaults to prod. `stop` cleans up both tracked processes and orphans on ports 3000/5173.
 
 ### API
-- Health: `GET /api/health` (returns `{ status, checks: { splunk, claude } }`)
+- Health: `GET /api/health` (returns `{ status, checks: { splunk, openwebui | claude } }`)
 - Chat stream: `POST /api/chat` (SSE response)
 - Conversations: `GET/POST/PUT/DELETE /api/conversations`
 - Conversation search: `GET /api/conversations/search?q=`
@@ -166,7 +172,19 @@ All env vars are documented in `.env.example`. The full set with defaults:
 - `SPLUNK_VERIFY_SSL` (`true` default; set `false` for local/self-signed)
 - `SPLUNK_TIMEOUT_MS` (default `60000`) — MCP server query timeout
 
-### Claude Auth
+### LLM Backend Selection
+
+If `OPENWEBUI_BASE_URL` is set, the Open WebUI backend is used and Claude is not required.
+
+### Open WebUI Auth
+
+1. Set `OPENWEBUI_BASE_URL` to the instance root (e.g. `https://openwebui.server.gvsu.edu`)
+2. Set `OPENWEBUI_API_KEY` from **Settings → Account** in Open WebUI
+3. Set `OPENWEBUI_MODEL` to a model id from Open WebUI (or use the Settings UI model field / `CLAUDE_MODEL` runtime setting as the model id)
+
+OpsBlaze calls `POST {base}/api/chat/completions` with tools derived from connected MCP servers. The model must support tool/function calling for Splunk investigations to work.
+
+### Claude Auth (when Open WebUI is not configured)
 
 **Default**: Uses Claude CLI OAuth (Claude Pro/Max subscription).
 1. Install Claude Code CLI: `npm install -g @anthropic-ai/claude-code`
@@ -177,7 +195,7 @@ All env vars are documented in `.env.example`. The full set with defaults:
 If `ANTHROPIC_API_KEY` is set, it takes precedence over CLI OAuth.
 
 Optional: set `CLAUDE_MODEL` in `.env` to override the default model (default: `claude-opus-4-6`).
-Optional: set `CLAUDE_EFFORT` to `low`, `medium`, `high`, or `max` (default: `high`) to control adaptive thinking depth.
+Optional: set `CLAUDE_EFFORT` to `low`, `medium`, `high`, or `max` (default: `high`) to control adaptive thinking depth (Claude backend only).
 
 ### Server
 
@@ -187,7 +205,7 @@ Optional: set `CLAUDE_EFFORT` to `low`, `medium`, `high`, or `max` (default: `hi
 - `OPSBLAZE_RATE_LIMIT` — max requests/minute/IP to `/api/chat` (default `10`)
 - `OPSBLAZE_STREAM_TIMEOUT_MS` — default max SSE stream duration before abort (default `300000`); also configurable in Settings UI
 - `OPSBLAZE_MAX_TURNS` — default max agent turns per request (default `30`); also configurable in Settings UI
-- `OPSBLAZE_MAX_HISTORY` — max conversation exchanges sent to Claude (default `20`)
+- `OPSBLAZE_MAX_HISTORY` — max conversation exchanges sent to the LLM (default `20`)
 - `OPSBLAZE_MAX_MESSAGE_LEN` — max input message length in characters (default `10000`)
 
 ### Data & Diagnostics
@@ -215,27 +233,40 @@ Optional: set `CLAUDE_EFFORT` to `low`, `medium`, `high`, or `max` (default: `hi
 
 ### Data Flow
 
+**Open WebUI backend** (`OPENWEBUI_BASE_URL` set):
+
 ```
-Browser <-- SSE (text, chart, skill, usage, context, error, limit, done) --> Express Server
-                                                    |
-                                          Claude Agent SDK query()
-                                                    |
-                                              Claude API
-                                                    |
-                                          MCP tool call (stdio)
-                                                    |
-                                          Splunk MCP Server
-                                                    |
-                                          Splunk REST API
+Browser <-- SSE --> Express (openwebui-agent)
+                         |
+              POST /api/chat/completions
+                         |
+                    Open WebUI → model
+                         ^
+                         | tool_calls
+              McpRuntime (stdio MCP)
+                         |
+              Splunk MCP Server → Splunk REST API
+```
+
+**Claude backend** (default):
+
+```
+Browser <-- SSE --> Express (agent → pipeline)
+                         |
+              Claude Agent SDK query()
+                         |
+                    Claude API
+                         |
+              MCP tool call (stdio) → Splunk MCP → Splunk REST API
 ```
 
 ### How Chart Data Reaches the Browser
 
-1. Claude calls the `splunk_query` MCP tool
+1. The model calls the `splunk_query` MCP tool (via Open WebUI tool loop or Claude Agent SDK)
 2. MCP server runs SPL, transforms data, returns JSON with `summary` + `chart` (dataSources)
-3. Express server intercepts the tool result from the Agent SDK message stream
-4. Chart data is extracted and emitted as an SSE `chart` event to the browser
-5. Only the text summary is used by Claude for its next reasoning step
+3. Express extracts chart data from the tool result (pipeline for Claude; `openwebui-agent` for Open WebUI)
+4. Chart data is emitted as an SSE `chart` event to the browser
+5. Only the text summary is returned to the model for the next reasoning step
 6. Browser renders interactive charts using Chart.js (default) or `@splunk/visualizations` (if installed)
 
 ### MCP Server Design
@@ -249,7 +280,7 @@ The MCP server (`mcp-server/`) is a standalone stdio-transport MCP server that:
 
 ### Skills
 
-Skills are Claude-compatible markdown files (`.claude/skills/*/SKILL.md`) with YAML front-matter for metadata. The system auto-discovers all skills in the `.claude/skills/` directory and injects enabled skills into the agent's system prompt at inference time.
+Skills are markdown files (`.claude/skills/*/SKILL.md`) with YAML front-matter for metadata. Enabled skills are injected into the system prompt (Open WebUI) or available via the Agent SDK `Skill` tool (Claude).
 
 The core skill (`splunk-analyst`) includes:
 - Narrative investigation structure (journalistic arc)
@@ -264,13 +295,16 @@ Skills are managed via the Settings panel in the UI (`/api/skills` endpoints). U
 Users can scope which skills the model is allowed to use per-request via the SkillPicker in the InputBar:
 
 - **Advisory mode** (toggle ON — "Include additional skills"): Selected skill names are prepended to the prompt text as a hint. The model can still use other skills.
-- **Strict mode** (toggle OFF): The frontend sends `skills: string[]` in the POST body. The backend installs a `PreToolUse` hook (matcher: `"Skill"`) that denies any skill not in the allowed set and appends a system prompt directive. The pipeline defers `skill` SSE events in strict mode, buffering them in `pendingSkills` and draining at two points: (1) on `hook_response` system messages, and (2) at user turn boundaries (`message.type === "user"`) to handle SDKs that don't emit hook_response (e.g. `bypassPermissions` mode). Denied skills are suppressed; allowed skills are emitted. A final sweep catches any remaining pending skills at stream end. The frontend prepends skill blocks so they always render at the top of the chat regardless of arrival time.
+- **Strict mode** (toggle OFF): The frontend sends `skills: string[]` in the POST body.
+  - **Claude**: `PreToolUse` hook denies disallowed `Skill` tool calls; pipeline defers `skill` SSE events as described below.
+  - **Open WebUI**: Only the listed skills are included in the system prompt; `skill` SSE events are emitted for each included skill at request start.
+- **Claude strict-mode pipeline detail**: `pendingSkills` drained on `hook_response` and at `message.type === "user"` boundaries for SDKs without `hook_response` (e.g. `bypassPermissions`).
 
 ### Skill Distillation
 
 Users can create new skills from completed investigations. The flow:
 1. User clicks the lightbulb icon in the header on a conversation
-2. `POST /api/skills/extract` sends conversation messages to Claude with a structured extraction prompt
+2. `POST /api/skills/extract` sends conversation messages to the configured LLM with a structured extraction prompt
 3. The model returns a draft skill (title, description, content) based on the investigation patterns
 4. User can refine via `POST /api/skills/refine` with natural-language feedback
 5. Saving writes the skill to `.claude/skills/<slug>/SKILL.md` with proper YAML front-matter
@@ -319,7 +353,9 @@ Tests use Vitest (config in `vitest.config.ts`, includes `**/__tests__/**/*.test
 - `sse-helpers.test.ts` - SSE formatting and text buffer processing
 - `conversations.test.ts` - conversation persistence CRUD
 - `env.test.ts` - environment variable validation
-- `health.test.ts` - Splunk/Claude health check probes (status codes, auth headers, timeouts, overall status derivation)
+- `health.test.ts` - Splunk/Open WebUI/Claude health check probes
+- `llm-config.test.ts` - Open WebUI URL normalization and provider detection
+- `mcp-runtime.test.ts` - MCP qualified tool name parsing
 - `runtime-settings.test.ts` - runtime settings load/update/defaults, model and effort resolution
 - `pipeline-usage.test.ts` - usage and context event emission from the pipeline
 - `telemetry-service.test.ts` - TelemetryService singleton, exporter lifecycle, emit/flush
@@ -376,15 +412,16 @@ The pipeline logic lives in `server/pipeline.ts` as a pure function (`processMes
 
 ## 10) Known Limitations
 
-1. The Agent SDK manages MCP tool execution internally. Chart data is extracted from the structured JSON tool result as it flows through the message stream.
-2. Claude Max subscription rate limits apply to all inference when using CLI OAuth. API key billing applies when using `ANTHROPIC_API_KEY`.
-3. `@splunk/visualizations` is proprietary and cannot be redistributed. It is an optional peer dependency; Chart.js is the default renderer.
-4. Conversation export produces a self-contained HTML file (not PDF). Chart data is re-rendered client-side via Chart.js in the export.
+1. **Open WebUI**: The selected model must support tool/function calling. Context usage events (`context` SSE) are not available on the Open WebUI path. Cost reporting in `usage` events is zero unless the upstream API provides billing metadata.
+2. **Claude**: The Agent SDK manages MCP tool execution internally. `OPSBLAZE_RECORD_DIR` replay fixtures apply to the Claude SDK message format only.
+3. Claude Max subscription rate limits apply when using CLI OAuth. API key billing applies when using `ANTHROPIC_API_KEY`.
+4. `@splunk/visualizations` is proprietary and cannot be redistributed. It is an optional peer dependency; Chart.js is the default renderer.
+5. Conversation export produces a self-contained HTML file (not PDF). Chart data is re-rendered client-side via Chart.js in the export.
 
 ## 11) First 30 Minutes Checklist for a New Agent
 
-1. Verify Claude Code auth works (`claude --version` and check credentials exist).
-2. Verify server health (`/api/health`).
+1. Verify LLM backend: Open WebUI (`openwebui` check on `/api/health`) or Claude (`claude --version` / API key).
+2. Verify server health (`/api/health` — both `splunk` and LLM checks `ok`).
 3. Verify simple chat stream (`Say hello`) returns `text` + `done`.
 4. Verify one tool call emits a `chart` event.
 5. Verify footer shows "OpsBlaze" (idle) or fire-animated "OpsBlaze" (streaming).

@@ -585,30 +585,42 @@ function check() {
     allOk = false;
   }
 
-  try {
-    const ver = execFileSync("claude", ["--version"], {
-      encoding: "utf-8",
-      timeout: 5000,
-      stdio: "pipe",
-    }).trim();
-    ok(`Claude CLI: ${ver || "found"}`);
-  } catch {
-    if (fs.existsSync(ENV_FILE)) {
-      const envContent = fs.readFileSync(ENV_FILE, "utf-8");
-      if (/^ANTHROPIC_API_KEY=.+/m.test(envContent)) {
-        ok("Claude auth: API key (ANTHROPIC_API_KEY)");
+  if (fs.existsSync(ENV_FILE)) {
+    const envContent = fs.readFileSync(ENV_FILE, "utf-8");
+    const openWebUiMatch = envContent.match(/^OPENWEBUI_BASE_URL=(.+)$/m);
+    if (openWebUiMatch) {
+      const baseUrl = openWebUiMatch[1].trim();
+      if (/^OPENWEBUI_API_KEY=.+/m.test(envContent)) {
+        ok(`LLM: Open WebUI (${baseUrl})`);
+        if (!/^OPENWEBUI_MODEL=.+/m.test(envContent)) {
+          warn("OPENWEBUI_MODEL is not set");
+        }
       } else {
-        fail("Claude CLI not found or not authenticated");
-        console.log(`    ${DIM}Install: npm i -g @anthropic-ai/claude-code${RESET}`);
-        console.log(`    ${DIM}Then run: claude auth login${RESET}`);
+        fail("OPENWEBUI_API_KEY is required when OPENWEBUI_BASE_URL is set");
         allOk = false;
       }
     } else {
-      fail("Claude CLI not found or not authenticated");
-      console.log(`    ${DIM}Install: npm i -g @anthropic-ai/claude-code${RESET}`);
-      console.log(`    ${DIM}Then run: claude auth login${RESET}`);
-      allOk = false;
+      try {
+        const ver = execFileSync("claude", ["--version"], {
+          encoding: "utf-8",
+          timeout: 5000,
+          stdio: "pipe",
+        }).trim();
+        ok(`Claude CLI: ${ver || "found"}`);
+      } catch {
+        if (/^ANTHROPIC_API_KEY=.+/m.test(envContent)) {
+          ok("Claude auth: API key (ANTHROPIC_API_KEY)");
+        } else {
+          fail("LLM not configured — set Open WebUI or Claude auth in .env");
+          console.log(`    ${DIM}Open WebUI: OPENWEBUI_BASE_URL + OPENWEBUI_API_KEY${RESET}`);
+          console.log(`    ${DIM}Claude CLI: npm i -g @anthropic-ai/claude-code && claude auth login${RESET}`);
+          allOk = false;
+        }
+      }
     }
+  } else {
+    fail("Cannot check LLM — .env not found");
+    allOk = false;
   }
 
   const hasServer = fs.existsSync(DIST_SERVER);

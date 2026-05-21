@@ -527,17 +527,34 @@ async function main() {
     }
   }
 
-  // --- Claude Authentication ---
-  heading("2. Claude authentication");
+  // --- LLM backend ---
+  heading("2. LLM backend");
 
-  const claudeAuthMethod = await askChoice("How would you like to authenticate with Claude?", [
+  const llmBackend = await askChoice("How should OpsBlaze connect to a language model?", [
+    { label: "Open WebUI (institutional / self-hosted)", value: "openwebui" },
     { label: "Claude CLI OAuth (Claude Pro/Max subscription)", value: "cli" },
     { label: "Anthropic API key (pay-per-use billing)", value: "apikey" },
   ]);
 
   let anthropicKey = "";
+  let openWebUi = { baseUrl: "", apiKey: "", model: "" };
 
-  if (claudeAuthMethod === "cli") {
+  if (llmBackend === "openwebui") {
+    openWebUi.baseUrl = await ask("Open WebUI base URL", "https://openwebui.server.gvsu.edu");
+    openWebUi.apiKey = await ask("Open WebUI API key (Settings \u2192 Account)");
+    if (!openWebUi.apiKey) {
+      fail("API key cannot be empty");
+      rl.close();
+      process.exit(1);
+    }
+    openWebUi.model = await ask("Open WebUI model ID (as shown in Models or GET /api/models)");
+    if (!openWebUi.model) {
+      warn("Model ID not set \u2014 set OPENWEBUI_MODEL in .env before investigating");
+    } else {
+      ok(`Model: ${openWebUi.model}`);
+    }
+    ok("Open WebUI configured");
+  } else if (llmBackend === "cli") {
     const claudeOk = checkClaude();
     if (!claudeOk) {
       const proceed = await askYesNo(
@@ -587,7 +604,7 @@ async function main() {
         }
       }
     }
-  } else {
+  } else if (llmBackend === "apikey") {
     anthropicKey = await ask("Anthropic API key");
     if (!anthropicKey) {
       fail("API key cannot be empty");
@@ -615,7 +632,9 @@ async function main() {
   console.log("");
 
   const host = await ask("Bind address (use 0.0.0.0 for remote access)", "127.0.0.1");
-  const claudeModel = await ask("Claude model", "claude-opus-4-6");
+  const defaultModel = openWebUi.baseUrl ? openWebUi.model || "" : "claude-opus-4-6";
+  const modelPrompt = openWebUi.baseUrl ? "Model ID (Open WebUI)" : "Claude model";
+  const chosenModel = await ask(modelPrompt, defaultModel);
 
   // --- Write .env ---
   heading("6. Writing configuration");
@@ -639,9 +658,19 @@ async function main() {
   envLines.push("# Server");
   envLines.push(`PORT=${port}`);
 
+  if (openWebUi.baseUrl) {
+    envLines.push("");
+    envLines.push("# LLM: Open WebUI");
+    envLines.push(`OPENWEBUI_BASE_URL=${openWebUi.baseUrl}`);
+    envLines.push(`OPENWEBUI_API_KEY=${openWebUi.apiKey}`);
+    if (openWebUi.model) {
+      envLines.push(`OPENWEBUI_MODEL=${openWebUi.model}`);
+    }
+  }
+
   if (anthropicKey) {
     envLines.push("");
-    envLines.push("# Claude authentication");
+    envLines.push("# LLM: Claude (Anthropic API key)");
     envLines.push(`ANTHROPIC_API_KEY=${anthropicKey}`);
   }
 
@@ -649,8 +678,14 @@ async function main() {
     envLines.push(`HOST=${host}`);
   }
 
-  if (claudeModel && claudeModel !== "claude-opus-4-6") {
-    envLines.push(`CLAUDE_MODEL=${claudeModel}`);
+  if (chosenModel) {
+    if (openWebUi.baseUrl) {
+      if (chosenModel !== openWebUi.model) {
+        envLines.push(`OPENWEBUI_MODEL=${chosenModel}`);
+      }
+    } else if (chosenModel !== "claude-opus-4-6") {
+      envLines.push(`CLAUDE_MODEL=${chosenModel}`);
+    }
   }
 
   envLines.push("");

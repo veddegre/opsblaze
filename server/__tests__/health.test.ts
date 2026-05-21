@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { EventEmitter } from "events";
 import type { IncomingMessage, ClientRequest, RequestOptions } from "http";
-import { checkSplunk, checkClaude } from "../health.js";
+import { checkSplunk, checkClaude, checkOpenWebUi } from "../health.js";
 import type { Requester } from "../health.js";
 
 function makeReq(): ClientRequest {
@@ -148,6 +148,39 @@ describe("checkSplunk", () => {
     };
     await checkSplunk({ ...splunkBase, _requester: capturing });
     expect(capturedOpts?.headers).toBeUndefined();
+  });
+});
+
+describe("checkOpenWebUi", () => {
+  it("returns error when base URL is missing", async () => {
+    const result = await checkOpenWebUi({ baseUrl: undefined, apiKey: "key" });
+    expect(result).toEqual({ status: "error", message: "not configured" });
+  });
+
+  it("returns ok for successful models fetch", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    const result = await checkOpenWebUi({
+      baseUrl: "https://openwebui.server.gvsu.edu",
+      apiKey: "test-key",
+      _fetch: mockFetch,
+    });
+    expect(result).toEqual({ status: "ok", message: "API Key" });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://openwebui.server.gvsu.edu/api/models",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer test-key" },
+      })
+    );
+  });
+
+  it("returns error for 401", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+    const result = await checkOpenWebUi({
+      baseUrl: "https://openwebui.example.com",
+      apiKey: "bad",
+      _fetch: mockFetch,
+    });
+    expect(result).toEqual({ status: "error", message: "invalid API key" });
   });
 });
 

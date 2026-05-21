@@ -9,8 +9,8 @@ This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.
 ## Getting Started
 
 1. Fork the repository and clone your fork
-2. Run `node bin/setup.cjs` to configure your environment
-3. Run `node bin/opsblaze.cjs check` to validate prerequisites
+2. Run `node bin/setup.cjs` to configure your environment (Open WebUI or Claude backend, plus Splunk)
+3. Run `node bin/opsblaze.cjs check` to validate prerequisites (LLM backend, Splunk, build)
 4. Run `node bin/opsblaze.cjs dev` to start the development server (Vite + tsx watch)
 5. The frontend is available at `http://localhost:5173`, backend at `http://localhost:3000`
 

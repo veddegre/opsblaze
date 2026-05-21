@@ -1,6 +1,8 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { logger } from "./logger.js";
 import { getClaudeModel, getClaudeEffort } from "./runtime-settings.js";
+import { isOpenWebUiMode } from "./llm-config.js";
+import { chatComplete } from "./openwebui-client.js";
 
 const PROJECT_ROOT = process.cwd();
 
@@ -177,9 +179,23 @@ class AbortedError extends Error {
 
 async function collectText(prompt: string, signal?: AbortSignal): Promise<string> {
   const model = await getClaudeModel();
-  const effort = await getClaudeEffort();
 
   if (signal?.aborted) throw new AbortedError();
+
+  if (isOpenWebUiMode()) {
+    if (!model) {
+      throw new Error(
+        "OPENWEBUI_MODEL is not set. Set it in .env to the model ID shown in Open WebUI."
+      );
+    }
+    return chatComplete({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      signal,
+    });
+  }
+
+  const effort = await getClaudeEffort();
 
   const messageSource = query({
     prompt,

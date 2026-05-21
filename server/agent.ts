@@ -15,6 +15,8 @@ import {
   getStreamTimeoutMs,
 } from "./runtime-settings.js";
 import { telemetry } from "./telemetry/index.js";
+import { isOpenWebUiMode } from "./llm-config.js";
+import { runOpenWebUiAgent } from "./openwebui-agent.js";
 
 const PROJECT_ROOT = process.cwd();
 
@@ -97,6 +99,10 @@ export async function runAgent(
   log?: Logger,
   requestedSkills?: string[]
 ): Promise<void> {
+  if (isOpenWebUiMode()) {
+    return runOpenWebUiAgent(userMessage, history, res, abortSignal, log, requestedSkills);
+  }
+
   const agentLog = log ?? rootLogger;
   const prompt = buildPrompt(userMessage, history);
 

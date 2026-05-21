@@ -22,6 +22,12 @@ const envSchema = z.object({
     .transform((v) => v === "true"),
 
   ANTHROPIC_API_KEY: z.string().optional(),
+
+  // Open WebUI (when set, replaces Claude/Anthropic as the LLM backend)
+  OPENWEBUI_BASE_URL: z.string().url().optional(),
+  OPENWEBUI_API_KEY: z.string().optional(),
+  OPENWEBUI_MODEL: z.string().optional(),
+
   CLAUDE_MODEL: z.string().default("claude-opus-4-6"),
   CLAUDE_EFFORT: z.enum(["low", "medium", "high", "max"]).default("high"),
 
@@ -61,6 +67,16 @@ const envSchema = z.object({
     .transform((v) => v === "true" || v === "1"),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
   OTEL_SERVICE_NAME: z.string().default("opsblaze"),
+}).superRefine((data, ctx) => {
+  if (data.OPENWEBUI_BASE_URL?.trim()) {
+    if (!data.OPENWEBUI_API_KEY?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["OPENWEBUI_API_KEY"],
+        message: "OPENWEBUI_API_KEY is required when OPENWEBUI_BASE_URL is set",
+      });
+    }
+  }
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

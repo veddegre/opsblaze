@@ -435,7 +435,11 @@ app.get("/api/settings", apiLimiter, async (_req, res) => {
         splunkAuthMethod: process.env.SPLUNK_TOKEN ? "Token" : "Basic",
         serverPort: PORT,
         bindAddress: HOST,
-        claudeAuthMethod: process.env.ANTHROPIC_API_KEY ? "API Key" : "CLI",
+        claudeAuthMethod: process.env.OPENWEBUI_BASE_URL?.trim()
+          ? "Open WebUI"
+          : process.env.ANTHROPIC_API_KEY
+            ? "API Key"
+            : "CLI",
         serverMode: process.env.NODE_ENV === "production" ? "Prod" : "Dev",
       },
     });
@@ -781,7 +785,21 @@ function validateStartup(): boolean {
     /* .env may not exist */
   }
 
-  if (process.env.ANTHROPIC_API_KEY) {
+  const openWebUiUrl = process.env.OPENWEBUI_BASE_URL?.trim();
+  if (openWebUiUrl) {
+    if (!process.env.OPENWEBUI_API_KEY?.trim()) {
+      logger.error("OPENWEBUI_API_KEY is required when OPENWEBUI_BASE_URL is set");
+      ok = false;
+    } else {
+      const model = process.env.OPENWEBUI_MODEL?.trim();
+      if (!model) {
+        logger.warn(
+          "OPENWEBUI_MODEL is not set — set it to a model ID from Open WebUI (Settings or GET /api/models)"
+        );
+      }
+      logger.info({ baseUrl: openWebUiUrl, model: model || "(configure OPENWEBUI_MODEL)" }, "LLM: Open WebUI");
+    }
+  } else if (process.env.ANTHROPIC_API_KEY) {
     logger.info("Claude auth: API key");
   } else {
     try {
@@ -890,12 +908,20 @@ try {
 
 const server = app.listen(PORT, HOST, async () => {
   logger.info({ port: PORT, host: HOST }, "OpsBlaze server running");
+  const openWebUi = process.env.OPENWEBUI_BASE_URL?.trim();
   logger.info(
-    {
-      model: process.env.CLAUDE_MODEL || "claude-opus-4-6",
-      effort: process.env.CLAUDE_EFFORT || "high",
-    },
-    "Claude Agent SDK configured"
+    openWebUi
+      ? {
+          provider: "openwebui",
+          baseUrl: openWebUi,
+          model: process.env.OPENWEBUI_MODEL || process.env.CLAUDE_MODEL || "(unset)",
+        }
+      : {
+          provider: "claude",
+          model: process.env.CLAUDE_MODEL || "claude-opus-4-6",
+          effort: process.env.CLAUDE_EFFORT || "high",
+        },
+    openWebUi ? "Open WebUI LLM configured" : "Claude Agent SDK configured"
   );
 
   try {

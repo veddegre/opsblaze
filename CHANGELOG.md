@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Open WebUI** as an LLM backend: set `OPENWEBUI_BASE_URL`, `OPENWEBUI_API_KEY`, and `OPENWEBUI_MODEL` to route investigations through any model configured in Open WebUI.
+- Native MCP tool loop (`server/openwebui-agent.ts`, `server/mcp-runtime.ts`) so Splunk and user-defined MCP servers work without the Claude Agent SDK.
+- Open WebUI health check (`GET /api/health` reports `openwebui` instead of `claude` when configured).
+- Setup wizard and `opsblaze check` support for Open WebUI configuration.
+
+### Changed
+
+- When `OPENWEBUI_BASE_URL` is set, Claude CLI and `ANTHROPIC_API_KEY` are not required.
+- Skills are injected into the system prompt under Open WebUI (no Claude `Skill` tool).
+- Settings UI shows Open WebUI status when that backend is active.
+
 ## [0.1.0] - 2026-03-04
 
 ### Added

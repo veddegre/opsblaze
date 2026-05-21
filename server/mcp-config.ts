@@ -323,7 +323,7 @@ export async function toggleMcpServer(name: string, enabled: boolean): Promise<v
 /**
  * Returns all servers with unredacted credentials (for internal use only).
  */
-async function listMcpServersRaw(): Promise<McpServerInfo[]> {
+export async function listMcpServersRaw(): Promise<McpServerInfo[]> {
   const config = await readConfig();
   const servers: McpServerInfo[] = [];
 
