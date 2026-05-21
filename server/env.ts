@@ -27,6 +27,8 @@ const envSchema = z.object({
   OPENWEBUI_BASE_URL: z.string().url().optional(),
   OPENWEBUI_API_KEY: z.string().optional(),
   OPENWEBUI_MODEL: z.string().optional(),
+  /** Chat API path prefix, e.g. ollama/v1 when /api/chat/completions 404s */
+  OPENWEBUI_CHAT_API_PREFIX: z.string().optional(),
 
   CLAUDE_MODEL: z.string().default("claude-opus-4-6"),
   CLAUDE_EFFORT: z.enum(["low", "medium", "high", "max"]).default("high"),

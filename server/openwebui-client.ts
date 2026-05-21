@@ -1,4 +1,4 @@
-import { getOpenWebUiConfig } from "./llm-config.js";
+import { getOpenWebUiConfig, resolveOpenWebUiChatApiBase } from "./llm-config.js";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
@@ -140,7 +140,8 @@ export async function chatComplete(options: ChatCompletionOptions): Promise<stri
   const config = getOpenWebUiConfig();
   if (!config) throw new OpenWebUiError("Open WebUI is not configured");
 
-  const res = await fetch(`${config.apiBase}/chat/completions`, {
+  const chatApiBase = await resolveOpenWebUiChatApiBase(config, { model: options.model });
+  const res = await fetch(`${chatApiBase}/chat/completions`, {
     method: "POST",
     headers: authHeaders(config.apiKey),
     body: JSON.stringify(buildRequestBody(options, false)),
@@ -186,7 +187,8 @@ export async function chatCompleteStream(
   const config = getOpenWebUiConfig();
   if (!config) throw new OpenWebUiError("Open WebUI is not configured");
 
-  const res = await fetch(`${config.apiBase}/chat/completions`, {
+  const chatApiBase = await resolveOpenWebUiChatApiBase(config, { model: options.model });
+  const res = await fetch(`${chatApiBase}/chat/completions`, {
     method: "POST",
     headers: authHeaders(config.apiKey),
     body: JSON.stringify(buildRequestBody(options, true)),

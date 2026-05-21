@@ -3,7 +3,11 @@ import http from "http";
 import { execFile as execFileCb } from "child_process";
 import { promisify } from "util";
 import type { IncomingMessage, ClientRequest, RequestOptions } from "http";
-import { normalizeOpenWebUiBaseUrl } from "./llm-config.js";
+import {
+  getOpenWebUiConfig,
+  normalizeOpenWebUiBaseUrl,
+  resolveOpenWebUiChatApiBase,
+} from "./llm-config.js";
 
 const execFile = promisify(execFileCb);
 
@@ -111,6 +115,35 @@ export async function checkOpenWebUi(opts: {
       signal: AbortSignal.timeout(5000),
     });
     if (res.ok) {
+      const config = getOpenWebUiConfig();
+      if (config) {
+        try {
+          const chatApiBase = await resolveOpenWebUiChatApiBase(config, { _fetch: doFetch });
+          const chatRes = await doFetch(`${chatApiBase}/chat/completions`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${opts.apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: process.env.OPENWEBUI_MODEL?.trim() || "default",
+              messages: [{ role: "user", content: "ping" }],
+              stream: false,
+              chat_id: "opsblaze-health",
+              max_tokens: 1,
+            }),
+            signal: AbortSignal.timeout(8000),
+          });
+          if (chatRes.status === 404) {
+            return {
+              status: "degraded",
+              message: "models OK; chat API not found (set OPENWEBUI_CHAT_API_PREFIX)",
+            };
+          }
+        } catch {
+          return { status: "degraded", message: "models OK; chat API unreachable" };
+        }
+      }
       return { status: "ok", message: "API Key" };
     }
     if (res.status === 401 || res.status === 403) {
