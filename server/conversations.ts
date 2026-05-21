@@ -1,6 +1,7 @@
 import { readFile, writeFile, readdir, unlink, mkdir } from "fs/promises";
 import path from "path";
 import { logger } from "./logger.js";
+import { LOCAL_USER_ID, sanitizeUserId } from "./auth/types.js";
 
 export interface StoredConversation {
   id: string;
@@ -8,6 +9,7 @@ export interface StoredConversation {
   messages: unknown[];
   createdAt: string;
   updatedAt: string;
+  userId?: string;
 }
 
 export interface ConversationSummary {
@@ -18,31 +20,43 @@ export interface ConversationSummary {
   messageCount: number;
 }
 
-const DATA_DIR = path.resolve(process.env.OPSBLAZE_DATA_DIR ?? "./data/conversations");
+const DATA_ROOT = path.resolve(process.env.OPSBLAZE_DATA_DIR ?? "./data/conversations");
 
-async function ensureDir() {
-  await mkdir(DATA_DIR, { recursive: true });
+function userDataDir(userId: string): string {
+  return path.join(DATA_ROOT, sanitizeUserId(userId));
 }
 
-function safePath(id: string): string {
+async function ensureUserDir(userId: string) {
+  await mkdir(userDataDir(userId), { recursive: true });
+}
+
+function safePath(userId: string, id: string): string {
   const safe = id.replace(/[^a-zA-Z0-9-]/g, "");
   if (!safe) throw new Error("Invalid conversation ID");
-  const resolved = path.resolve(DATA_DIR, `${safe}.json`);
-  if (!resolved.startsWith(DATA_DIR + path.sep)) {
+  const dir = userDataDir(userId);
+  const resolved = path.resolve(dir, `${safe}.json`);
+  const prefix = dir + path.sep;
+  if (!resolved.startsWith(prefix)) {
     throw new Error("Path traversal blocked");
   }
   return resolved;
 }
 
-export async function listConversations(): Promise<ConversationSummary[]> {
-  await ensureDir();
-  const files = await readdir(DATA_DIR);
+export async function listConversations(userId: string = LOCAL_USER_ID): Promise<ConversationSummary[]> {
+  await ensureUserDir(userId);
+  const dir = userDataDir(userId);
+  let files: string[];
+  try {
+    files = await readdir(dir);
+  } catch {
+    return [];
+  }
   const jsonFiles = files.filter((f) => f.endsWith(".json"));
 
   const summaries: ConversationSummary[] = [];
   for (const file of jsonFiles) {
     try {
-      const raw = await readFile(path.join(DATA_DIR, file), "utf-8");
+      const raw = await readFile(path.join(dir, file), "utf-8");
       const conv = JSON.parse(raw) as StoredConversation;
       summaries.push({
         id: conv.id,
@@ -52,7 +66,7 @@ export async function listConversations(): Promise<ConversationSummary[]> {
         messageCount: conv.messages.length,
       });
     } catch (err) {
-      logger.warn({ file, err }, "skipping corrupt conversation file");
+      logger.warn({ file, err, userId }, "skipping corrupt conversation file");
     }
   }
 
@@ -60,32 +74,36 @@ export async function listConversations(): Promise<ConversationSummary[]> {
   return summaries;
 }
 
-export async function getConversation(id: string): Promise<StoredConversation | null> {
+export async function getConversation(
+  userId: string,
+  id: string
+): Promise<StoredConversation | null> {
   try {
-    const raw = await readFile(safePath(id), "utf-8");
+    const raw = await readFile(safePath(userId, id), "utf-8");
     return JSON.parse(raw) as StoredConversation;
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code !== "ENOENT") {
-      logger.error({ id, err }, "failed to read conversation");
+      logger.error({ id, err, userId }, "failed to read conversation");
     }
     return null;
   }
 }
 
-export async function saveConversation(conv: StoredConversation): Promise<void> {
-  await ensureDir();
-  await writeFile(safePath(conv.id), JSON.stringify(conv, null, 2), "utf-8");
+export async function saveConversation(userId: string, conv: StoredConversation): Promise<void> {
+  await ensureUserDir(userId);
+  const stored: StoredConversation = { ...conv, userId: sanitizeUserId(userId) };
+  await writeFile(safePath(userId, conv.id), JSON.stringify(stored, null, 2), "utf-8");
 }
 
-export async function deleteConversation(id: string): Promise<boolean> {
+export async function deleteConversation(userId: string, id: string): Promise<boolean> {
   try {
-    await unlink(safePath(id));
+    await unlink(safePath(userId, id));
     return true;
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code !== "ENOENT") {
-      logger.error({ id, err }, "failed to delete conversation");
+      logger.error({ id, err, userId }, "failed to delete conversation");
     }
     return false;
   }
@@ -109,20 +127,25 @@ function extractSnippet(text: string, query: string): string | undefined {
   return snippet;
 }
 
-/**
- * Searches conversations by title and text block content.
- * Returns matches with a contextual snippet.
- */
-export async function searchConversations(query: string): Promise<SearchResult[]> {
-  await ensureDir();
-  const files = await readdir(DATA_DIR);
+export async function searchConversations(
+  userId: string,
+  query: string
+): Promise<SearchResult[]> {
+  await ensureUserDir(userId);
+  const dir = userDataDir(userId);
+  let files: string[];
+  try {
+    files = await readdir(dir);
+  } catch {
+    return [];
+  }
   const jsonFiles = files.filter((f) => f.endsWith(".json"));
   const q = query.toLowerCase();
   const results: SearchResult[] = [];
 
   for (const file of jsonFiles) {
     try {
-      const raw = await readFile(path.join(DATA_DIR, file), "utf-8");
+      const raw = await readFile(path.join(dir, file), "utf-8");
       const conv = JSON.parse(raw) as StoredConversation;
 
       let snippet: string | undefined;
@@ -157,7 +180,7 @@ export async function searchConversations(query: string): Promise<SearchResult[]
         });
       }
     } catch (err) {
-      logger.warn({ file, err }, "skipping corrupt conversation file in search");
+      logger.warn({ file, err, userId }, "skipping corrupt conversation file in search");
     }
   }
 
@@ -165,25 +188,24 @@ export async function searchConversations(query: string): Promise<SearchResult[]
   return results;
 }
 
-/**
- * Deletes conversations older than `maxAgeDays` that haven't been updated.
- * Returns count of deleted conversations.
- */
-export async function cleanupConversations(maxAgeDays: number): Promise<number> {
+export async function cleanupConversations(
+  userId: string,
+  maxAgeDays: number
+): Promise<number> {
   const cutoff = Date.now() - maxAgeDays * 86_400_000;
-  const summaries = await listConversations();
+  const summaries = await listConversations(userId);
   let deleted = 0;
 
   for (const conv of summaries) {
     const updatedAt = new Date(conv.updatedAt).getTime();
     if (updatedAt < cutoff) {
-      const ok = await deleteConversation(conv.id);
+      const ok = await deleteConversation(userId, conv.id);
       if (ok) deleted++;
     }
   }
 
   if (deleted > 0) {
-    logger.info({ deleted, maxAgeDays }, "conversation cleanup complete");
+    logger.info({ deleted, maxAgeDays, userId }, "conversation cleanup complete");
   }
   return deleted;
 }

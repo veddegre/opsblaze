@@ -9,10 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **OIDC authentication** with per-user conversation storage (`server/auth/`, `OPSBLAZE_OIDC_*` env vars). Admins (`OPSBLAZE_OIDC_ADMIN_EMAILS`) can manage MCP servers, skills, and runtime settings.
 - **Open WebUI** as an LLM backend: set `OPENWEBUI_BASE_URL`, `OPENWEBUI_API_KEY`, and `OPENWEBUI_MODEL` to route investigations through any model configured in Open WebUI.
 - Native MCP tool loop (`server/openwebui-agent.ts`, `server/mcp-runtime.ts`) so Splunk and user-defined MCP servers work without the Claude Agent SDK.
 - Open WebUI health check (`GET /api/health` reports `openwebui` instead of `claude` when configured).
 - Setup wizard and `opsblaze check` support for Open WebUI configuration.
+
+### Security
+
+- Startup refuses non-loopback `HOST` without OIDC unless `OPSBLAZE_LOCAL_MODE=true` is set explicitly.
+- OIDC callback uses fixed `OPSBLAZE_OIDC_REDIRECT_URI` (required when OIDC is enabled); session ID is regenerated on login.
+- MCP HTTP/SSE URLs block private/reserved addresses (SSRF mitigation); `docker` stdio requires `OPSBLAZE_ALLOW_DOCKER_MCP=true`.
+- `POST /api/mcp-servers/:name/test` and `GET /api/config-paths` require admin; system settings are admin-only in `GET /api/settings`.
+- Production startup fails if `.env` is world-readable.
 
 ### Changed
 

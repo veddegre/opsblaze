@@ -126,6 +126,17 @@ See `.env.example` for the complete list of all available options with inline de
 
 To configure manually instead of using the wizard, copy `.env.example` to `.env` and fill in the required values.
 
+### Authentication (OIDC)
+
+For network deployments, set `OPSBLAZE_OIDC_ISSUER` and related variables (see `.env.example`). Users sign in through your identity provider; each user only sees their own saved investigations under `data/conversations/<user-id>/`.
+
+- Register redirect URI: `{OPSBLAZE_PUBLIC_URL}/api/auth/callback`
+- Set `OPSBLAZE_SESSION_SECRET` to at least 32 random characters
+- List admin emails in `OPSBLAZE_OIDC_ADMIN_EMAILS` for MCP/skills/settings changes
+- Behind a reverse proxy: set `OPSBLAZE_TRUST_PROXY=true` and `OPSBLAZE_SECURE_COOKIES=true`
+
+When OIDC is **not** configured, OpsBlaze runs in single-user local mode (`HOST=127.0.0.1` recommended).
+
 ## Architecture
 
 ```

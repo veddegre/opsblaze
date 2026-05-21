@@ -2,11 +2,21 @@ function headers(): Record<string, string> {
   return { "Content-Type": "application/json" };
 }
 
+function fetchInit(init?: RequestInit): RequestInit {
+  return { credentials: "include", ...init };
+}
+
 // --- App settings types ---
 
 export interface AppSettings {
-  runtime: { claudeModel: string; claudeEffort: string; maxTurns: number; streamTimeoutMs: number };
-  system: {
+  runtime: {
+    claudeModel: string;
+    claudeEffort: string;
+    maxTurns: number;
+    streamTimeoutMs: number;
+    llmProvider?: "openwebui" | "claude";
+  };
+  system?: {
     llmProvider: "openwebui" | "claude";
     splunkHost: string;
     splunkPort: number;
@@ -22,7 +32,7 @@ export interface AppSettings {
 // --- App settings API ---
 
 export async function getSettings(): Promise<AppSettings> {
-  const res = await fetch("/api/settings", { headers: headers() });
+  const res = await fetch("/api/settings", fetchInit({ headers: headers() }));
   if (!res.ok) throw new Error(`Failed to get settings: ${res.status}`);
   return res.json();
 }
@@ -30,11 +40,14 @@ export async function getSettings(): Promise<AppSettings> {
 export async function updateSettings(
   partial: Record<string, unknown>
 ): Promise<{ runtime: AppSettings["runtime"] }> {
-  const res = await fetch("/api/settings", {
-    method: "PATCH",
-    headers: headers(),
-    body: JSON.stringify(partial),
-  });
+  const res = await fetch(
+    "/api/settings",
+    fetchInit({
+      method: "PATCH",
+      headers: headers(),
+      body: JSON.stringify(partial),
+    })
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error ?? `Failed to update settings: ${res.status}`);
@@ -50,7 +63,7 @@ export interface ConfigPaths {
 }
 
 export async function getConfigPaths(): Promise<ConfigPaths> {
-  const res = await fetch("/api/config-paths", { headers: headers() });
+  const res = await fetch("/api/config-paths", fetchInit({ headers: headers() }));
   if (!res.ok) throw new Error(`Failed to get config paths: ${res.status}`);
   return res.json();
 }
@@ -102,17 +115,20 @@ export interface SkillInfo {
 // --- MCP Server API ---
 
 export async function listMcpServers(): Promise<McpServerInfo[]> {
-  const res = await fetch("/api/mcp-servers", { headers: headers() });
+  const res = await fetch("/api/mcp-servers", fetchInit({ headers: headers() }));
   if (!res.ok) throw new Error(`Failed to list MCP servers: ${res.status}`);
   return res.json();
 }
 
 export async function addMcpServer(name: string, config: McpServerConfig): Promise<void> {
-  const res = await fetch("/api/mcp-servers", {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ name, config }),
-  });
+  const res = await fetch(
+    "/api/mcp-servers",
+    fetchInit({
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ name, config }),
+    })
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error ?? `Failed to add MCP server: ${res.status}`);
@@ -120,11 +136,14 @@ export async function addMcpServer(name: string, config: McpServerConfig): Promi
 }
 
 export async function updateMcpServer(name: string, config: McpServerConfig): Promise<void> {
-  const res = await fetch(`/api/mcp-servers/${encodeURIComponent(name)}`, {
-    method: "PUT",
-    headers: headers(),
-    body: JSON.stringify(config),
-  });
+  const res = await fetch(
+    `/api/mcp-servers/${encodeURIComponent(name)}`,
+    fetchInit({
+      method: "PUT",
+      headers: headers(),
+      body: JSON.stringify(config),
+    })
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error ?? `Failed to update MCP server: ${res.status}`);
@@ -132,10 +151,10 @@ export async function updateMcpServer(name: string, config: McpServerConfig): Pr
 }
 
 export async function deleteMcpServer(name: string): Promise<void> {
-  const res = await fetch(`/api/mcp-servers/${encodeURIComponent(name)}`, {
-    method: "DELETE",
-    headers: headers(),
-  });
+  const res = await fetch(
+    `/api/mcp-servers/${encodeURIComponent(name)}`,
+    fetchInit({ method: "DELETE", headers: headers() })
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error ?? `Failed to delete MCP server: ${res.status}`);
@@ -143,11 +162,14 @@ export async function deleteMcpServer(name: string): Promise<void> {
 }
 
 export async function toggleMcpServer(name: string, enabled: boolean): Promise<void> {
-  const res = await fetch(`/api/mcp-servers/${encodeURIComponent(name)}/toggle`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ enabled }),
-  });
+  const res = await fetch(
+    `/api/mcp-servers/${encodeURIComponent(name)}/toggle`,
+    fetchInit({
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ enabled }),
+    })
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error ?? `Failed to toggle MCP server: ${res.status}`);
@@ -155,10 +177,10 @@ export async function toggleMcpServer(name: string, enabled: boolean): Promise<v
 }
 
 export async function testMcpServer(name: string): Promise<ProbeResult> {
-  const res = await fetch(`/api/mcp-servers/${encodeURIComponent(name)}/test`, {
-    method: "POST",
-    headers: headers(),
-  });
+  const res = await fetch(
+    `/api/mcp-servers/${encodeURIComponent(name)}/test`,
+    fetchInit({ method: "POST", headers: headers() })
+  );
   if (!res.ok) throw new Error(`Failed to test MCP server: ${res.status}`);
   return res.json();
 }
@@ -174,17 +196,20 @@ export interface SkillDraft {
 // --- Skills API ---
 
 export async function listSkillsApi(): Promise<SkillInfo[]> {
-  const res = await fetch("/api/skills", { headers: headers() });
+  const res = await fetch("/api/skills", fetchInit({ headers: headers() }));
   if (!res.ok) throw new Error(`Failed to list skills: ${res.status}`);
   return res.json();
 }
 
 export async function toggleSkillApi(name: string, enabled: boolean): Promise<void> {
-  const res = await fetch(`/api/skills/${encodeURIComponent(name)}/toggle`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ enabled }),
-  });
+  const res = await fetch(
+    `/api/skills/${encodeURIComponent(name)}/toggle`,
+    fetchInit({
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ enabled }),
+    })
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error ?? `Failed to toggle skill: ${res.status}`);
@@ -192,10 +217,10 @@ export async function toggleSkillApi(name: string, enabled: boolean): Promise<vo
 }
 
 export async function deleteSkillApi(name: string): Promise<void> {
-  const res = await fetch(`/api/skills/${encodeURIComponent(name)}`, {
-    method: "DELETE",
-    headers: headers(),
-  });
+  const res = await fetch(
+    `/api/skills/${encodeURIComponent(name)}`,
+    fetchInit({ method: "DELETE", headers: headers() })
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error ?? `Failed to delete skill: ${res.status}`);
@@ -203,11 +228,14 @@ export async function deleteSkillApi(name: string): Promise<void> {
 }
 
 export async function createSkillApi(name: string, content: string): Promise<void> {
-  const res = await fetch("/api/skills", {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ name, content }),
-  });
+  const res = await fetch(
+    "/api/skills",
+    fetchInit({
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ name, content }),
+    })
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error ?? `Failed to create skill: ${res.status}`);
@@ -218,12 +246,15 @@ export async function extractSkillApi(
   conversationId: string,
   signal?: AbortSignal
 ): Promise<SkillDraft> {
-  const res = await fetch("/api/skills/extract", {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ conversationId }),
-    signal,
-  });
+  const res = await fetch(
+    "/api/skills/extract",
+    fetchInit({
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ conversationId }),
+      signal,
+    })
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error ?? `Skill extraction failed: ${res.status}`);
@@ -237,12 +268,15 @@ export async function refineSkillApi(
   conversationSummary: string,
   signal?: AbortSignal
 ): Promise<SkillDraft> {
-  const res = await fetch("/api/skills/refine", {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ draft, instruction, conversationSummary }),
-    signal,
-  });
+  const res = await fetch(
+    "/api/skills/refine",
+    fetchInit({
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ draft, instruction, conversationSummary }),
+      signal,
+    })
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error ?? `Skill refinement failed: ${res.status}`);

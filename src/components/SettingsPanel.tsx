@@ -10,8 +10,6 @@ import {
   toggleSkillApi,
   deleteSkillApi,
   getConfigPaths,
-  getSettings,
-  updateSettings,
 } from "../lib/settings-api";
 import type {
   McpServerInfo,
@@ -20,23 +18,35 @@ import type {
   ToolInfo,
   SkillInfo,
   ConfigPaths,
-  AppSettings,
 } from "../lib/settings-api";
-import { fetchHealth } from "../lib/api";
-import type { HealthResponse } from "../lib/api";
+import type { PublicAuthUser } from "../lib/auth";
+import { AccountTab } from "./settings/AccountTab";
+import { PreferencesTab } from "./settings/PreferencesTab";
+import { AdminSystemTab } from "./settings/AdminSystemTab";
+import { NavGroupLabel, NavItem, Section } from "./settings/settings-ui";
+import { inputClass, monoInputClass } from "./settings/settings-ui";
 
-type Tab = "general" | "mcp" | "skills";
+export type SettingsSection =
+  | "account"
+  | "preferences"
+  | "admin-system"
+  | "admin-mcp"
+  | "admin-skills";
+
+const SECTION_LABELS: Record<SettingsSection, string> = {
+  account: "My account",
+  preferences: "Preferences",
+  "admin-system": "System health",
+  "admin-mcp": "MCP servers",
+  "admin-skills": "Skills",
+};
 
 interface SettingsPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  user: PublicAuthUser;
+  initialSection?: SettingsSection;
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  ok: "bg-green-400",
-  degraded: "bg-yellow-400",
-  error: "bg-red-400",
-};
 
 // --- Shared small components ---
 
@@ -97,10 +107,6 @@ function PathHint({ label, path }: { label: string; path: string | null }) {
     </div>
   );
 }
-
-const inputClass =
-  "w-full text-sm bg-surface-0 border border-border-subtle rounded px-2.5 py-1.5 text-gray-200 placeholder-gray-600 focus:outline-none focus:border-accent/50";
-const monoInputClass = `${inputClass} font-mono`;
 
 // --- Key-Value Editor ---
 
@@ -194,231 +200,6 @@ function kvToRecord(entries: KVEntry[]): Record<string, string> | undefined {
 function recordToKv(rec: Record<string, string> | undefined): KVEntry[] {
   if (!rec) return [];
   return Object.entries(rec).map(([key, value]) => ({ key, value }));
-}
-
-// --- General Tab ---
-
-function GeneralTab() {
-  const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [model, setModel] = useState("");
-  const [effort, setEffort] = useState("");
-  const [maxTurns, setMaxTurns] = useState(30);
-  const [streamTimeout, setStreamTimeout] = useState(300000);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    getSettings()
-      .then((s) => {
-        setSettings(s);
-        setModel(s.runtime.claudeModel);
-        setEffort(s.runtime.claudeEffort);
-        setMaxTurns(s.runtime.maxTurns);
-        setStreamTimeout(s.runtime.streamTimeoutMs);
-      })
-      .catch(() => {});
-    fetchHealth()
-      .then(setHealth)
-      .catch(() => {});
-  }, []);
-
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    setSaved(false);
-    try {
-      const partial: Record<string, unknown> = {};
-      if (model !== settings?.runtime.claudeModel) partial.claudeModel = model;
-      if (effort !== settings?.runtime.claudeEffort) partial.claudeEffort = effort;
-      if (maxTurns !== settings?.runtime.maxTurns) partial.maxTurns = maxTurns;
-      if (streamTimeout !== settings?.runtime.streamTimeoutMs)
-        partial.streamTimeoutMs = streamTimeout;
-      if (Object.keys(partial).length === 0) {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-        setSaving(false);
-        return;
-      }
-      const updated = await updateSettings(partial);
-      setSettings((prev) => (prev ? { ...prev, runtime: updated.runtime } : prev));
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const splunkCheck = health?.checks?.splunk;
-  const llmCheck = health?.checks?.openwebui ?? health?.checks?.claude;
-  const useOpenWebUi = settings?.system.llmProvider === "openwebui";
-  const llmLabel = useOpenWebUi ? "Open WebUI" : "Claude";
-
-  return (
-    <div className="divide-y divide-border-subtle">
-      {/* System Status */}
-      <div className="px-4 py-3">
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-          System Status
-        </h3>
-        <div className="space-y-2.5">
-          <div className="flex items-center gap-2.5">
-            <span
-              className={`block w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[splunkCheck?.status ?? "error"] ?? "bg-gray-500"}`}
-            />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-gray-300">
-                Splunk{" "}
-                {settings && (
-                  <span className="text-gray-500 font-mono">
-                    {settings.system.splunkHost}:{settings.system.splunkPort}
-                  </span>
-                )}
-              </p>
-              {splunkCheck?.message && splunkCheck.status !== "ok" && (
-                <p className="text-[11px] text-gray-500">{splunkCheck.message}</p>
-              )}
-            </div>
-            {settings && (
-              <span className="text-[10px] text-gray-600">
-                {settings.system.splunkAuthMethod} Auth
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <span
-              className={`block w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[llmCheck?.status ?? "error"] ?? "bg-gray-500"}`}
-            />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-gray-300">{llmLabel}</p>
-            </div>
-            <span className="text-[10px] text-gray-600">
-              {llmCheck?.message ?? settings?.system.claudeAuthMethod}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <span className="block w-2 h-2 rounded-full shrink-0 bg-green-400" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-gray-300">
-                Server{" "}
-                {settings && (
-                  <span className="text-gray-500 font-mono">
-                    {settings.system.bindAddress}:{settings.system.serverPort}
-                  </span>
-                )}
-              </p>
-            </div>
-            {settings && (
-              <span className="text-[10px] text-gray-600">{settings.system.serverMode}</span>
-            )}
-          </div>
-        </div>
-        <p className="text-[11px] text-gray-600 mt-2.5">
-          To change Splunk or LLM backend settings, edit <span className="font-mono">.env</span> and run{" "}
-          <span className="font-mono">node bin/opsblaze.cjs restart</span>, or re-run{" "}
-          <span className="font-mono">node bin/setup.cjs</span>.
-          {!useOpenWebUi && (
-            <>
-              {" "}
-              For Open WebUI, set <span className="font-mono">OPENWEBUI_BASE_URL</span>,{" "}
-              <span className="font-mono">OPENWEBUI_API_KEY</span>, and{" "}
-              <span className="font-mono">OPENWEBUI_MODEL</span>.
-            </>
-          )}
-        </p>
-      </div>
-
-      {/* Runtime Settings */}
-      <div className="px-4 py-3">
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-          Runtime Settings
-        </h3>
-        <div className="space-y-3">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">
-              {useOpenWebUi ? "Open WebUI Model ID" : "Claude Model"}
-            </label>
-            <input
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder={useOpenWebUi ? "model-id-from-open-webui" : "claude-opus-4-6"}
-              className={monoInputClass}
-            />
-          </div>
-          {!useOpenWebUi && (
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Thinking Effort</label>
-              <select
-                value={effort}
-                onChange={(e) => setEffort(e.target.value)}
-                className={inputClass}
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="max">Max</option>
-              </select>
-            </div>
-          )}
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Max Turns</label>
-            <input
-              type="number"
-              value={maxTurns}
-              onChange={(e) =>
-                setMaxTurns(Math.max(1, Math.min(200, parseInt(e.target.value) || 1)))
-              }
-              min={1}
-              max={200}
-              className={inputClass}
-            />
-            <p className="text-[11px] text-gray-600 mt-1">
-              Maximum agent turns per investigation (1–200)
-            </p>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Timeout</label>
-            <select
-              value={streamTimeout}
-              onChange={(e) => setStreamTimeout(parseInt(e.target.value))}
-              className={inputClass}
-            >
-              <option value={120000}>2 minutes</option>
-              <option value={300000}>5 minutes</option>
-              <option value={600000}>10 minutes</option>
-              <option value={900000}>15 minutes</option>
-              <option value={1800000}>30 minutes</option>
-            </select>
-            <p className="text-[11px] text-gray-600 mt-1">
-              Maximum wall-clock time per investigation
-            </p>
-          </div>
-
-          {error && <p className="text-xs text-red-400">{error}</p>}
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="text-xs px-3 py-1.5 rounded bg-accent/20 border border-accent/30 text-accent-light hover:bg-accent/30 transition-colors disabled:opacity-50"
-            >
-              {saving ? "Saving..." : "Save"}
-            </button>
-            {saved && <span className="text-xs text-green-400">Saved</span>}
-          </div>
-
-          <p className="text-[11px] text-gray-600">
-            Changes take effect on the next query. No restart required.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // --- MCP Server row ---
@@ -958,17 +739,23 @@ function McpServersTab({ configPath }: { configPath: string | null }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border-subtle">
-        <span className="text-xs text-gray-500">
-          {servers.length} server{servers.length !== 1 ? "s" : ""} configured
-        </span>
-        <button
-          onClick={() => setShowAdd((v) => !v)}
-          className="text-xs text-accent hover:text-accent-light px-2 py-1 rounded hover:bg-surface-3 transition-colors"
-        >
-          {showAdd ? "Cancel" : "+ Add Server"}
-        </button>
-      </div>
+      <Section
+        title="MCP servers"
+        description="Tool servers the agent can call during investigations (Splunk, charts, etc.)."
+      >
+        <div className="flex items-center justify-between -mt-1">
+          <span className="text-xs text-gray-500">
+            {servers.length} server{servers.length !== 1 ? "s" : ""} configured
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowAdd((v) => !v)}
+            className="text-xs text-accent hover:text-accent-light px-2 py-1 rounded hover:bg-surface-3 transition-colors"
+          >
+            {showAdd ? "Cancel" : "+ Add server"}
+          </button>
+        </div>
+      </Section>
 
       {showAdd && <AddServerForm onAdd={handleAdd} onCancel={() => setShowAdd(false)} />}
 
@@ -1044,12 +831,15 @@ function SkillsTab({ skillsDir }: { skillsDir: string | null }) {
 
   return (
     <div>
-      <div className="px-4 py-2.5 border-b border-border-subtle">
-        <span className="text-xs text-gray-500">
+      <Section
+        title="Investigation skills"
+        description="Optional playbooks users can attach to a question for focused analysis."
+      >
+        <p className="text-xs text-gray-500 -mt-1">
           {skills.filter((s) => s.enabled).length} of {skills.length} skill
           {skills.length !== 1 ? "s" : ""} active
-        </span>
-      </div>
+        </p>
+      </Section>
 
       {error && (
         <div className="mx-4 mt-2 px-3 py-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded">
@@ -1163,16 +953,48 @@ function SkillRow({
 
 // --- Main Panel ---
 
-export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
-  const [tab, setTab] = useState<Tab>("general");
+function renderSection(
+  section: SettingsSection,
+  user: PublicAuthUser,
+  paths: ConfigPaths | null
+): React.ReactNode {
+  switch (section) {
+    case "account":
+      return <AccountTab user={user} />;
+    case "preferences":
+      return <PreferencesTab isAdmin={user.isAdmin} />;
+    case "admin-system":
+      return <AdminSystemTab />;
+    case "admin-mcp":
+      return <McpServersTab configPath={paths?.mcpConfig ?? null} />;
+    case "admin-skills":
+      return <SkillsTab skillsDir={paths?.skillsDir ?? null} />;
+    default:
+      return null;
+  }
+}
+
+export function SettingsPanel({
+  isOpen,
+  onClose,
+  user,
+  initialSection = "account",
+}: SettingsPanelProps) {
+  const [section, setSection] = useState<SettingsSection>(initialSection);
   const [paths, setPaths] = useState<ConfigPaths | null>(null);
+  const isAdmin = user.isAdmin;
 
   useEffect(() => {
     if (!isOpen) return;
+    setSection(initialSection);
+  }, [isOpen, initialSection]);
+
+  useEffect(() => {
+    if (!isOpen || !isAdmin) return;
     getConfigPaths()
       .then(setPaths)
       .catch(() => {});
-  }, [isOpen]);
+  }, [isOpen, isAdmin]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1182,6 +1004,12 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!isAdmin && section.startsWith("admin-")) {
+      setSection("account");
+    }
+  }, [isAdmin, section]);
 
   return (
     <>
@@ -1193,26 +1021,31 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
       )}
 
       <div
-        className={`fixed top-[49px] right-0 bottom-0 w-96 bg-surface-1 border-l border-border-subtle z-30 transform transition-transform duration-200 ease-out ${
+        className={`fixed top-[49px] right-0 bottom-0 w-full max-w-[min(100%,32rem)] bg-surface-1 border-l border-border-subtle z-30 transform transition-transform duration-200 ease-out flex flex-col ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between px-4 pt-[18px] pb-3 border-b border-border-subtle">
-          <h2 className="text-sm font-semibold text-gray-200">Settings</h2>
+        <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border-subtle shrink-0">
+          <div>
+            <h2 className="text-base font-semibold text-gray-100">Settings</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Account, preferences, and administration</p>
+          </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1 rounded text-gray-500 hover:text-gray-300 hover:bg-surface-3 transition-colors"
+            className="p-2 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-surface-3 transition-colors"
             aria-label="Close settings"
           >
             <svg
-              width="14"
-              height="14"
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
+              aria-hidden
             >
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
@@ -1220,30 +1053,56 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
           </button>
         </div>
 
-        <div className="flex border-b border-border-subtle">
-          {(["general", "mcp", "skills"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 text-xs py-2.5 text-center transition-colors ${
-                tab === t
-                  ? "text-accent-light border-b-2 border-accent"
-                  : "text-gray-500 hover:text-gray-300"
-              }`}
+        <div className="flex flex-1 min-h-0">
+          <nav
+            className="w-[148px] shrink-0 border-r border-border-subtle py-2 overflow-y-auto"
+            aria-label="Settings sections"
+          >
+            <NavGroupLabel>Personal</NavGroupLabel>
+            <NavItem active={section === "account"} onClick={() => setSection("account")}>
+              My account
+            </NavItem>
+            <NavItem
+              active={section === "preferences"}
+              onClick={() => setSection("preferences")}
             >
-              {t === "general" ? "General" : t === "mcp" ? "MCP Servers" : "Skills"}
-            </button>
-          ))}
-        </div>
+              Preferences
+            </NavItem>
 
-        <div className="overflow-y-auto h-[calc(100%-95px)]">
-          {tab === "general" ? (
-            <GeneralTab />
-          ) : tab === "mcp" ? (
-            <McpServersTab configPath={paths?.mcpConfig ?? null} />
-          ) : (
-            <SkillsTab skillsDir={paths?.skillsDir ?? null} />
-          )}
+            {isAdmin && (
+              <>
+                <NavGroupLabel>Administration</NavGroupLabel>
+                <NavItem
+                  active={section === "admin-system"}
+                  onClick={() => setSection("admin-system")}
+                  indent
+                >
+                  System health
+                </NavItem>
+                <NavItem
+                  active={section === "admin-mcp"}
+                  onClick={() => setSection("admin-mcp")}
+                  indent
+                >
+                  MCP servers
+                </NavItem>
+                <NavItem
+                  active={section === "admin-skills"}
+                  onClick={() => setSection("admin-skills")}
+                  indent
+                >
+                  Skills
+                </NavItem>
+              </>
+            )}
+          </nav>
+
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="px-4 py-2.5 border-b border-border-subtle shrink-0 md:hidden">
+              <p className="text-sm font-medium text-gray-200">{SECTION_LABELS[section]}</p>
+            </div>
+            <div className="flex-1 overflow-y-auto">{renderSection(section, user, paths)}</div>
+          </div>
         </div>
       </div>
     </>

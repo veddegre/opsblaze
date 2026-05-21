@@ -45,6 +45,7 @@ export async function streamChat(
 ): Promise<void> {
   const response = await fetch("/api/chat", {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       message,

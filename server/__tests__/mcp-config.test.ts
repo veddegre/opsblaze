@@ -305,25 +305,36 @@ describe("validation: security blocklists", () => {
     ).rejects.toThrow("Unknown server type");
   });
 
-  it("allows all permitted commands", async () => {
-    const commands = [
-      "npx",
-      "node",
-      "tsx",
-      "python",
-      "python3",
-      "uvx",
-      "uv",
-      "deno",
-      "bun",
-      "docker",
-    ];
+  it("allows permitted commands except docker by default", async () => {
+    const commands = ["npx", "node", "tsx", "python", "python3", "uvx", "uv", "deno", "bun"];
     for (const command of commands) {
       const name = `cmd-${command}`;
       await mod.addMcpServer(name, { command, args: [], enabled: true });
       const server = await mod.getMcpServer(name);
       expect(server).not.toBeNull();
     }
+  });
+
+  it("rejects docker unless OPSBLAZE_ALLOW_DOCKER_MCP is set", async () => {
+    await expect(
+      mod.addMcpServer("docker-srv", { command: "docker", args: [], enabled: true })
+    ).rejects.toThrow(/OPSBLAZE_ALLOW_DOCKER_MCP/);
+
+    vi.stubEnv("OPSBLAZE_ALLOW_DOCKER_MCP", "true");
+    vi.resetModules();
+    mod = await import("../mcp-config.js");
+    await mod.addMcpServer("docker-srv", { command: "docker", args: [], enabled: true });
+    expect(await mod.getMcpServer("docker-srv")).not.toBeNull();
+  });
+
+  it("rejects private IP MCP URLs", async () => {
+    await expect(
+      mod.addMcpServer("internal", {
+        type: "http",
+        url: "http://127.0.0.1:8080/mcp",
+        enabled: true,
+      })
+    ).rejects.toThrow(/private|reserved|not allowed/i);
   });
 });
 

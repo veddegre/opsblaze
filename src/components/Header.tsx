@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { fetchHealth, headers } from "../lib/api";
+import { fetchHealth, fetchInit, headers } from "../lib/api";
 import type { HealthResponse } from "../lib/api";
 import { healthCheckLabel } from "../lib/health-labels";
+import type { PublicAuthUser } from "../lib/auth";
+import { UserMenu } from "./UserMenu";
 
 interface HeaderProps {
+  user: PublicAuthUser;
   onClear: () => void;
   onToggleSidebar: () => void;
-  onToggleSettings: () => void;
+  onOpenSettings: () => void;
+  onOpenAccount: () => void;
+  onOpenPreferences: () => void;
   onDistillSkill: () => void;
   canDistill: boolean;
   conversationTitle?: string | null;
@@ -97,9 +102,12 @@ function HealthIndicator() {
 }
 
 export function Header({
+  user,
   onClear,
   onToggleSidebar,
-  onToggleSettings,
+  onOpenSettings,
+  onOpenAccount,
+  onOpenPreferences,
   onDistillSkill,
   canDistill,
   conversationTitle,
@@ -122,9 +130,10 @@ export function Header({
     setExportError(null);
     if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
     try {
-      const resp = await fetch(`/api/conversations/${conversationId}/export`, {
-        headers: headers(),
-      });
+      const resp = await fetch(
+        `/api/conversations/${conversationId}/export`,
+        fetchInit({ headers: headers() })
+      );
       if (!resp.ok) throw new Error(`Export failed (${resp.status})`);
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -197,7 +206,7 @@ export function Header({
           <p className="text-xs text-gray-500 -mt-0.5">AI-Powered Narrative Investigation</p>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
         <HealthIndicator />
         {exportError && <span className="text-xs text-red-400 mr-1">{exportError}</span>}
         {canExport && (
@@ -247,9 +256,10 @@ export function Header({
           </svg>
         </button>
         <button
-          onClick={onToggleSettings}
-          className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-surface-3 transition-colors"
+          onClick={onOpenSettings}
+          className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-surface-3 transition-colors"
           aria-label="Settings"
+          title="Settings"
         >
           <svg
             width="16"
@@ -264,13 +274,19 @@ export function Header({
             <circle cx="12" cy="12" r="3" />
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
           </svg>
+          <span className="hidden sm:inline text-xs">Settings</span>
         </button>
         <button
           onClick={onClear}
-          className="text-xs text-gray-500 hover:text-gray-300 px-3 py-1.5 rounded-md hover:bg-surface-3 transition-colors"
+          className="text-xs font-medium text-gray-300 hover:text-white px-3 py-1.5 rounded-md bg-surface-3/80 hover:bg-surface-3 border border-border-subtle transition-colors"
         >
-          New Investigation
+          New investigation
         </button>
+        <UserMenu
+          user={user}
+          onOpenAccount={onOpenAccount}
+          onOpenPreferences={onOpenPreferences}
+        />
       </div>
     </header>
   );

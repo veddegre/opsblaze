@@ -2,6 +2,10 @@ export function headers(): Record<string, string> {
   return { "Content-Type": "application/json" };
 }
 
+export function fetchInit(init?: RequestInit): RequestInit {
+  return { credentials: "include", ...init };
+}
+
 export interface ConversationSummary {
   id: string;
   title: string;
@@ -19,23 +23,26 @@ export interface StoredConversation {
 }
 
 export async function listConversations(): Promise<ConversationSummary[]> {
-  const res = await fetch("/api/conversations", { headers: headers() });
+  const res = await fetch("/api/conversations", fetchInit({ headers: headers() }));
   if (!res.ok) throw new Error(`Failed to list conversations: ${res.status}`);
   return res.json();
 }
 
 export async function loadConversation(id: string): Promise<StoredConversation> {
-  const res = await fetch(`/api/conversations/${id}`, { headers: headers() });
+  const res = await fetch(`/api/conversations/${id}`, fetchInit({ headers: headers() }));
   if (!res.ok) throw new Error(`Failed to load conversation: ${res.status}`);
   return res.json();
 }
 
 export async function createConversation(id: string, title: string): Promise<StoredConversation> {
-  const res = await fetch("/api/conversations", {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ id, title, messages: [] }),
-  });
+  const res = await fetch(
+    "/api/conversations",
+    fetchInit({
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ id, title, messages: [] }),
+    })
+  );
   if (!res.ok) throw new Error(`Failed to create conversation: ${res.status}`);
   return res.json();
 }
@@ -44,20 +51,23 @@ export async function updateConversation(
   id: string,
   data: { title?: string; messages?: unknown[] }
 ): Promise<StoredConversation> {
-  const res = await fetch(`/api/conversations/${id}`, {
-    method: "PUT",
-    headers: headers(),
-    body: JSON.stringify(data),
-  });
+  const res = await fetch(
+    `/api/conversations/${id}`,
+    fetchInit({
+      method: "PUT",
+      headers: headers(),
+      body: JSON.stringify(data),
+    })
+  );
   if (!res.ok) throw new Error(`Failed to update conversation: ${res.status}`);
   return res.json();
 }
 
 export async function deleteConversation(id: string): Promise<void> {
-  const res = await fetch(`/api/conversations/${id}`, {
-    method: "DELETE",
-    headers: headers(),
-  });
+  const res = await fetch(
+    `/api/conversations/${id}`,
+    fetchInit({ method: "DELETE", headers: headers() })
+  );
   if (!res.ok) throw new Error(`Failed to delete conversation: ${res.status}`);
 }
 
@@ -81,9 +91,10 @@ export interface SearchResult extends ConversationSummary {
 }
 
 export async function searchConversations(query: string): Promise<SearchResult[]> {
-  const res = await fetch(`/api/conversations/search?q=${encodeURIComponent(query)}`, {
-    headers: headers(),
-  });
+  const res = await fetch(
+    `/api/conversations/search?q=${encodeURIComponent(query)}`,
+    fetchInit({ headers: headers() })
+  );
   if (!res.ok) throw new Error(`Search failed: ${res.status}`);
   return res.json();
 }

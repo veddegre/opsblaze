@@ -5,6 +5,7 @@ import os from "os";
 
 let tmpDir: string;
 let mod: typeof import("../conversations.js");
+const TEST_USER = "test-user";
 
 beforeEach(async () => {
   tmpDir = await mkdtemp(path.join(os.tmpdir(), "opsblaze-conv-"));
@@ -20,7 +21,7 @@ afterEach(async () => {
 
 describe("conversations CRUD", () => {
   it("lists empty directory", async () => {
-    const list = await mod.listConversations();
+    const list = await mod.listConversations(TEST_USER);
     expect(list).toEqual([]);
   });
 
@@ -32,27 +33,27 @@ describe("conversations CRUD", () => {
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
     };
-    await mod.saveConversation(conv);
-    const loaded = await mod.getConversation("test-1");
-    expect(loaded).toEqual(conv);
+    await mod.saveConversation(TEST_USER, conv);
+    const loaded = await mod.getConversation(TEST_USER, "test-1");
+    expect(loaded).toEqual({ ...conv, userId: TEST_USER });
   });
 
   it("lists conversations sorted by updatedAt descending", async () => {
-    await mod.saveConversation({
+    await mod.saveConversation(TEST_USER, {
       id: "old",
       title: "Old",
       messages: [],
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
     });
-    await mod.saveConversation({
+    await mod.saveConversation(TEST_USER, {
       id: "new",
       title: "New",
       messages: [{ role: "user", content: "x" }],
       createdAt: "2026-01-02T00:00:00Z",
       updatedAt: "2026-01-02T00:00:00Z",
     });
-    const list = await mod.listConversations();
+    const list = await mod.listConversations(TEST_USER);
     expect(list).toHaveLength(2);
     expect(list[0].id).toBe("new");
     expect(list[0].messageCount).toBe(1);
@@ -60,51 +61,51 @@ describe("conversations CRUD", () => {
   });
 
   it("deletes a conversation", async () => {
-    await mod.saveConversation({
+    await mod.saveConversation(TEST_USER, {
       id: "del-me",
       title: "Bye",
       messages: [],
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
     });
-    const result = await mod.deleteConversation("del-me");
+    const result = await mod.deleteConversation(TEST_USER, "del-me");
     expect(result).toBe(true);
-    const loaded = await mod.getConversation("del-me");
+    const loaded = await mod.getConversation(TEST_USER, "del-me");
     expect(loaded).toBeNull();
   });
 
   it("returns false when deleting non-existent", async () => {
-    const result = await mod.deleteConversation("nope");
+    const result = await mod.deleteConversation(TEST_USER, "nope");
     expect(result).toBe(false);
   });
 
   it("returns null for non-existent conversation", async () => {
-    const loaded = await mod.getConversation("missing");
+    const loaded = await mod.getConversation(TEST_USER, "missing");
     expect(loaded).toBeNull();
   });
 
   it("sanitizes ID to prevent path traversal", async () => {
-    await expect(mod.getConversation("../../etc/passwd")).resolves.toBeNull();
+    await expect(mod.getConversation(TEST_USER, "../../etc/passwd")).resolves.toBeNull();
   });
 });
 
 describe("searchConversations", () => {
   it("finds conversations matching title", async () => {
-    await mod.saveConversation({
+    await mod.saveConversation(TEST_USER, {
       id: "s1",
       title: "Failed Login Investigation",
       messages: [{ role: "user", blocks: [{ type: "text", content: "hello" }] }],
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
     });
-    const results = await mod.searchConversations("Failed Login");
+    const results = await mod.searchConversations(TEST_USER,"Failed Login");
     expect(results).toHaveLength(1);
     expect(results[0].id).toBe("s1");
     expect(results[0].snippet).toBe("Failed Login Investigation");
   });
 
   it("finds conversations matching message content", async () => {
-    await mod.saveConversation({
+    await mod.saveConversation(TEST_USER, {
       id: "s2",
       title: "General",
       messages: [
@@ -116,20 +117,20 @@ describe("searchConversations", () => {
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
     });
-    const results = await mod.searchConversations("critical outage");
+    const results = await mod.searchConversations(TEST_USER,"critical outage");
     expect(results).toHaveLength(1);
     expect(results[0].snippet).toContain("critical outage");
   });
 
   it("returns empty when no match", async () => {
-    await mod.saveConversation({
+    await mod.saveConversation(TEST_USER, {
       id: "s3",
       title: "Something",
       messages: [],
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
     });
-    const results = await mod.searchConversations("zzz_no_match_zzz");
+    const results = await mod.searchConversations(TEST_USER,"zzz_no_match_zzz");
     expect(results).toEqual([]);
   });
 });
@@ -139,14 +140,14 @@ describe("cleanupConversations", () => {
     const oldDate = new Date(Date.now() - 100 * 86_400_000).toISOString();
     const recentDate = new Date().toISOString();
 
-    await mod.saveConversation({
+    await mod.saveConversation(TEST_USER, {
       id: "old-conv",
       title: "Old",
       messages: [],
       createdAt: oldDate,
       updatedAt: oldDate,
     });
-    await mod.saveConversation({
+    await mod.saveConversation(TEST_USER, {
       id: "recent-conv",
       title: "Recent",
       messages: [],
@@ -154,24 +155,24 @@ describe("cleanupConversations", () => {
       updatedAt: recentDate,
     });
 
-    const deleted = await mod.cleanupConversations(30);
+    const deleted = await mod.cleanupConversations(TEST_USER, 30);
     expect(deleted).toBe(1);
 
-    const remaining = await mod.listConversations();
+    const remaining = await mod.listConversations(TEST_USER);
     expect(remaining).toHaveLength(1);
     expect(remaining[0].id).toBe("recent-conv");
   });
 
   it("returns 0 when nothing to delete", async () => {
     const recentDate = new Date().toISOString();
-    await mod.saveConversation({
+    await mod.saveConversation(TEST_USER, {
       id: "keep",
       title: "Keep",
       messages: [],
       createdAt: recentDate,
       updatedAt: recentDate,
     });
-    const deleted = await mod.cleanupConversations(30);
+    const deleted = await mod.cleanupConversations(TEST_USER, 30);
     expect(deleted).toBe(0);
   });
 });

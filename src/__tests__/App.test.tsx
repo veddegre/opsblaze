@@ -43,8 +43,19 @@ vi.mock("../components/SkillExtractor", () => ({
   SkillExtractor: () => null,
 }));
 
+vi.mock("../lib/auth", () => ({
+  fetchAuthConfig: vi.fn().mockResolvedValue({ enabled: false }),
+  fetchAuthMe: vi.fn().mockResolvedValue({
+    authenticated: true,
+    user: { id: "local", name: "Local user", isAdmin: true },
+  }),
+  loginRedirect: vi.fn(),
+  logout: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("../lib/api", () => ({
   headers: () => ({}),
+  fetchInit: (init?: RequestInit) => ({ credentials: "include", ...init }),
   fetchHealth: vi.fn().mockResolvedValue({ status: "ok", checks: {} }),
   listConversations: vi.fn().mockResolvedValue([
     {
@@ -74,7 +85,7 @@ async function selectSkill(name: string) {
 }
 
 describe("App skill reset on investigation switch", () => {
-  it("clears selected skills when 'New Investigation' is clicked", async () => {
+  it("clears selected skills when 'New investigation' is clicked", async () => {
     await act(async () => {
       render(<App />);
     });
@@ -82,7 +93,7 @@ describe("App skill reset on investigation switch", () => {
     await selectSkill("splunk-analyst");
     expect(screen.getByText("splunk-analyst")).toBeInTheDocument();
 
-    const newBtn = screen.getByText("New Investigation");
+    const newBtn = screen.getByText("New investigation");
     fireEvent.click(newBtn);
 
     expect(mockStartNew).toHaveBeenCalledTimes(1);
@@ -100,7 +111,7 @@ describe("App skill reset on investigation switch", () => {
     const toggle = screen.getByLabelText("Restrict to selected skills only");
     fireEvent.click(toggle);
 
-    fireEvent.click(screen.getByText("New Investigation"));
+    fireEvent.click(screen.getByText("New investigation"));
 
     await waitFor(() => {
       expect(screen.queryByText("Include additional skills")).not.toBeInTheDocument();

@@ -1,0 +1,104 @@
+import React, { useEffect, useRef, useState } from "react";
+import { logout, type PublicAuthUser } from "../lib/auth";
+
+interface UserMenuProps {
+  user: PublicAuthUser;
+  onOpenAccount: () => void;
+  onOpenPreferences: () => void;
+}
+
+export function UserMenu({ user, onOpenAccount, onOpenPreferences }: UserMenuProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const displayName = user.name ?? user.email ?? "User";
+  const initial = displayName.charAt(0).toUpperCase();
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  const openSection = (fn: () => void) => {
+    setOpen(false);
+    fn();
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 rounded-lg pl-1 pr-2 py-1 hover:bg-surface-3 transition-colors"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label="Account menu"
+      >
+        <span className="w-7 h-7 rounded-full bg-gradient-to-br from-red-600 to-orange-500 flex items-center justify-center text-white text-xs font-semibold">
+          {initial}
+        </span>
+        <span className="hidden md:inline text-xs text-gray-400 max-w-[120px] truncate">
+          {displayName}
+        </span>
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className={`text-gray-500 transition-transform ${open ? "rotate-180" : ""}`}
+          aria-hidden
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full mt-1 w-56 bg-surface-2/95 backdrop-blur-xl rounded-lg border border-border-subtle shadow-lg z-50 py-1"
+        >
+          <div className="px-3 py-2 border-b border-border-subtle">
+            <p className="text-sm text-gray-100 truncate">{displayName}</p>
+            {user.email && <p className="text-xs text-gray-500 truncate">{user.email}</p>}
+            <p className="text-[10px] text-gray-600 mt-1">
+              {user.isAdmin ? "Administrator" : "Analyst"}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => openSection(onOpenAccount)}
+            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-surface-3 transition-colors"
+          >
+            My account
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => openSection(onOpenPreferences)}
+            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-surface-3 transition-colors"
+          >
+            Preferences
+          </button>
+          <div className="my-1 border-t border-border-subtle" />
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              logout().then(() => window.location.reload());
+            }}
+            className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:bg-surface-3 hover:text-gray-200 transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

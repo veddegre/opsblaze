@@ -46,6 +46,36 @@ const envSchema = z.object({
   OPSBLAZE_DATA_DIR: z.string().optional(),
   OPSBLAZE_RECORD_DIR: z.string().optional(),
 
+  // OIDC authentication (when OPSBLAZE_OIDC_ISSUER is set, login is required)
+  OPSBLAZE_OIDC_ISSUER: z.string().url().optional(),
+  OPSBLAZE_OIDC_CLIENT_ID: z.string().optional(),
+  OPSBLAZE_OIDC_CLIENT_SECRET: z.string().optional(),
+  OPSBLAZE_OIDC_REDIRECT_URI: z.string().url().optional(),
+  OPSBLAZE_OIDC_SCOPES: z.string().optional(),
+  OPSBLAZE_OIDC_ADMIN_EMAILS: z.string().optional(),
+  OPSBLAZE_SESSION_SECRET: z.string().optional(),
+  OPSBLAZE_PUBLIC_URL: z.string().url().optional(),
+  OPSBLAZE_TRUST_PROXY: z
+    .enum(["true", "false", "1", "0"])
+    .optional()
+    .transform((v) => v === "true" || v === "1"),
+  OPSBLAZE_SECURE_COOKIES: z
+    .enum(["true", "false", "1", "0"])
+    .optional()
+    .transform((v) => v === "true" || v === "1"),
+
+  /** Acknowledge unauthenticated single-user mode on non-loopback HOST (dev/lab only). */
+  OPSBLAZE_LOCAL_MODE: z
+    .enum(["true", "false", "1", "0"])
+    .optional()
+    .transform((v) => v === "true" || v === "1"),
+
+  /** Allow docker as MCP stdio command (disabled by default). */
+  OPSBLAZE_ALLOW_DOCKER_MCP: z
+    .enum(["true", "false", "1", "0"])
+    .optional()
+    .transform((v) => v === "true" || v === "1"),
+
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   NODE_ENV: z.string().optional(),
 
@@ -76,6 +106,40 @@ const envSchema = z.object({
         code: "custom",
         path: ["OPENWEBUI_API_KEY"],
         message: "OPENWEBUI_API_KEY is required when OPENWEBUI_BASE_URL is set",
+      });
+    }
+  }
+
+  if (data.OPSBLAZE_OIDC_ISSUER?.trim()) {
+    if (!data.OPSBLAZE_OIDC_CLIENT_ID?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["OPSBLAZE_OIDC_CLIENT_ID"],
+        message: "OPSBLAZE_OIDC_CLIENT_ID is required when OPSBLAZE_OIDC_ISSUER is set",
+      });
+    }
+    if (!data.OPSBLAZE_OIDC_CLIENT_SECRET?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["OPSBLAZE_OIDC_CLIENT_SECRET"],
+        message: "OPSBLAZE_OIDC_CLIENT_SECRET is required when OPSBLAZE_OIDC_ISSUER is set",
+      });
+    }
+    const secret = data.OPSBLAZE_SESSION_SECRET?.trim() ?? "";
+    if (secret.length < 32) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["OPSBLAZE_SESSION_SECRET"],
+        message:
+          "OPSBLAZE_SESSION_SECRET is required (min 32 characters) when OPSBLAZE_OIDC_ISSUER is set",
+      });
+    }
+    if (!data.OPSBLAZE_OIDC_REDIRECT_URI?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["OPSBLAZE_OIDC_REDIRECT_URI"],
+        message:
+          "OPSBLAZE_OIDC_REDIRECT_URI is required when OPSBLAZE_OIDC_ISSUER is set",
       });
     }
   }

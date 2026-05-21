@@ -1,4 +1,5 @@
 import { readFile, writeFile, mkdir } from "fs/promises";
+import { assertAllowedMcpRemoteUrl } from "./mcp-url-security.js";
 import path from "path";
 import { logger } from "./logger.js";
 
@@ -185,6 +186,11 @@ function validateMcpServerEntry(entry: McpServerEntry): void {
       throw new Error("stdio server requires a command");
     }
     const base = stdio.command.split("/").pop() ?? stdio.command;
+    if (base === "docker" && process.env.OPSBLAZE_ALLOW_DOCKER_MCP !== "true") {
+      throw new Error(
+        "docker is not allowed unless OPSBLAZE_ALLOW_DOCKER_MCP=true is set in .env"
+      );
+    }
     if (!ALLOWED_STDIO_COMMANDS.has(base)) {
       throw new Error(
         `Command '${base}' is not allowed. Permitted: ${[...ALLOWED_STDIO_COMMANDS].join(", ")}`
@@ -219,12 +225,12 @@ function validateMcpServerEntry(entry: McpServerEntry): void {
       throw new Error(`${type} server requires a url`);
     }
     try {
-      const parsed = new URL(remote.url);
-      if (!["http:", "https:"].includes(parsed.protocol)) {
-        throw new Error("url must use http or https protocol");
-      }
+      assertAllowedMcpRemoteUrl(remote.url);
     } catch (e) {
       if ((e as Error).message.includes("protocol")) throw e;
+      if ((e as Error).message.includes("not allowed") || (e as Error).message.includes("private")) {
+        throw e;
+      }
       throw new Error("url must be a valid URL");
     }
   } else {

@@ -11,7 +11,8 @@ import type { Response } from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import { logger } from "./logger.js";
-import { validateEnv } from "./env.js";
+import { validateEnv, getEnv } from "./env.js";
+import { validateDeploymentSecurity } from "./deployment-security.js";
 import { runAgent } from "./agent.js";
 import { classifyAgentError } from "./pipeline.js";
 import {
@@ -53,6 +54,7 @@ import {
   getStreamTimeoutMs,
 } from "./runtime-settings.js";
 import { isOpenWebUiMode } from "./llm-config.js";
+import { getRequestUserId, isRequestAdmin, requireAdmin, setupAuth } from "./auth/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
@@ -89,6 +91,7 @@ function safeErrorMessage(err: unknown): string | null {
 }
 
 const MCP_NAME_RE = /^[a-zA-Z0-9_-]+$/;
+const CONVERSATION_ID_RE = /^[a-zA-Z0-9-]+$/;
 
 function validateMcpName(name: string, res: Response): boolean {
   if (!name || name.length > 64 || !MCP_NAME_RE.test(name)) {
@@ -118,11 +121,14 @@ const allowedOrigins = (
 app.use(
   cors({
     origin: allowedOrigins,
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     allowedHeaders: ["Content-Type"],
   })
 );
 app.use(express.json({ limit: "2mb" }));
+
+setupAuth(app);
 
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -160,7 +166,8 @@ const activeConnections = new Set<{
 
 app.post("/api/chat", chatLimiter, async (req, res) => {
   const requestId = crypto.randomUUID();
-  const reqLog = logger.child({ requestId });
+  const userId = getRequestUserId(req);
+  const reqLog = logger.child({ requestId, userId });
 
   const {
     message,
@@ -256,9 +263,9 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
   res.end();
 });
 
-app.get("/api/conversations", apiLimiter, async (_req, res) => {
+app.get("/api/conversations", apiLimiter, async (req, res) => {
   try {
-    const conversations = await listConversations();
+    const conversations = await listConversations(getRequestUserId(req));
     res.json(conversations);
   } catch (err) {
     logger.error({ err }, "failed to list conversations");
@@ -277,7 +284,7 @@ app.get("/api/conversations/search", apiLimiter, async (req, res) => {
       res.status(400).json({ error: `search query exceeds ${MAX_SEARCH_LEN} character limit` });
       return;
     }
-    const results = await searchConversations(q);
+    const results = await searchConversations(getRequestUserId(req), q);
     res.json(results);
   } catch (err) {
     logger.error({ err }, "failed to search conversations");
@@ -287,7 +294,7 @@ app.get("/api/conversations/search", apiLimiter, async (req, res) => {
 
 app.get("/api/conversations/:id", apiLimiter, async (req, res) => {
   try {
-    const conv = await getConversation(req.params.id as string);
+    const conv = await getConversation(getRequestUserId(req), req.params.id as string);
     if (!conv) {
       res.status(404).json({ error: "Conversation not found" });
       return;
@@ -310,6 +317,12 @@ app.post("/api/conversations", apiLimiter, async (req, res) => {
       res.status(400).json({ error: "id exceeds 128 character limit" });
       return;
     }
+    if (!CONVERSATION_ID_RE.test(id)) {
+      res.status(400).json({
+        error: "id must contain only letters, numbers, and hyphens",
+      });
+      return;
+    }
     if (title.length > 256) {
       res.status(400).json({ error: "title exceeds 256 character limit" });
       return;
@@ -328,7 +341,8 @@ app.post("/api/conversations", apiLimiter, async (req, res) => {
       createdAt: now,
       updatedAt: now,
     };
-    await saveConversation(conv);
+    const userId = getRequestUserId(req);
+    await saveConversation(userId, conv);
     res.status(201).json(conv);
   } catch (err) {
     logger.error({ err }, "failed to create conversation");
@@ -338,7 +352,8 @@ app.post("/api/conversations", apiLimiter, async (req, res) => {
 
 app.put("/api/conversations/:id", apiLimiter, async (req, res) => {
   try {
-    const existing = await getConversation(req.params.id as string);
+    const userId = getRequestUserId(req);
+    const existing = await getConversation(userId, req.params.id as string);
     if (!existing) {
       res.status(404).json({ error: "Conversation not found" });
       return;
@@ -356,7 +371,7 @@ app.put("/api/conversations/:id", apiLimiter, async (req, res) => {
       messages: (messages as StoredConversation["messages"]) ?? existing.messages,
       updatedAt: new Date().toISOString(),
     };
-    await saveConversation(updated);
+    await saveConversation(userId, updated);
     res.json(updated);
   } catch (err) {
     logger.error({ err, id: req.params.id }, "failed to update conversation");
@@ -366,7 +381,7 @@ app.put("/api/conversations/:id", apiLimiter, async (req, res) => {
 
 app.delete("/api/conversations/:id", apiLimiter, async (req, res) => {
   try {
-    const deleted = await deleteConversation(req.params.id as string);
+    const deleted = await deleteConversation(getRequestUserId(req), req.params.id as string);
     if (!deleted) {
       res.status(404).json({ error: "Conversation not found" });
       return;
@@ -380,7 +395,7 @@ app.delete("/api/conversations/:id", apiLimiter, async (req, res) => {
 
 app.get("/api/conversations/:id/export", apiLimiter, async (req, res) => {
   try {
-    const conv = await getConversation(req.params.id as string);
+    const conv = await getConversation(getRequestUserId(req), req.params.id as string);
     if (!conv) {
       res.status(404).json({ error: "Conversation not found" });
       return;
@@ -403,7 +418,7 @@ app.post("/api/conversations/cleanup", apiLimiter, async (req, res) => {
   try {
     const { maxAgeDays } = req.body as { maxAgeDays?: number };
     const days = maxAgeDays && maxAgeDays >= MIN_CLEANUP_DAYS ? maxAgeDays : 90;
-    const deleted = await cleanupConversations(days);
+    const deleted = await cleanupConversations(getRequestUserId(req), days);
     res.json({ deleted, maxAgeDays: days });
   } catch (err) {
     logger.error({ err }, "failed to cleanup conversations");
@@ -413,13 +428,32 @@ app.post("/api/conversations/cleanup", apiLimiter, async (req, res) => {
 
 // --- Config paths ---
 
-app.get("/api/config-paths", apiLimiter, (_req, res) => {
+app.get("/api/config-paths", apiLimiter, requireAdmin, (_req, res) => {
   res.json({ mcpConfig: MCP_CONFIG_PATH, skillsDir: SKILLS_DIR_PATH });
 });
 
 // --- Runtime settings routes ---
 
-app.get("/api/settings", apiLimiter, async (_req, res) => {
+function buildSystemSettingsPayload() {
+  const openWebUi = isOpenWebUiMode();
+  return {
+    llmProvider: openWebUi ? ("openwebui" as const) : ("claude" as const),
+    splunkHost: process.env.SPLUNK_HOST ?? "",
+    splunkPort: parseInt(process.env.SPLUNK_PORT ?? "8089", 10),
+    splunkScheme: process.env.SPLUNK_SCHEME ?? "https",
+    splunkAuthMethod: process.env.SPLUNK_TOKEN ? "Token" : "Basic",
+    serverPort: PORT,
+    bindAddress: HOST,
+    claudeAuthMethod: openWebUi
+      ? "Open WebUI"
+      : process.env.ANTHROPIC_API_KEY
+        ? "API Key"
+        : "CLI",
+    serverMode: process.env.NODE_ENV === "production" ? "Prod" : "Dev",
+  };
+}
+
+app.get("/api/settings", apiLimiter, async (req, res) => {
   try {
     const [model, effort, maxTurns, streamTimeoutMs] = await Promise.all([
       getClaudeModel(),
@@ -428,31 +462,35 @@ app.get("/api/settings", apiLimiter, async (_req, res) => {
       getStreamTimeoutMs(),
     ]);
     const openWebUi = isOpenWebUiMode();
-    res.json({
-      runtime: { claudeModel: model, claudeEffort: effort, maxTurns, streamTimeoutMs },
-      system: {
+    const payload: {
+      runtime: {
+        claudeModel: string;
+        claudeEffort: string;
+        maxTurns: number;
+        streamTimeoutMs: number;
+        llmProvider: "openwebui" | "claude";
+      };
+      system?: ReturnType<typeof buildSystemSettingsPayload>;
+    } = {
+      runtime: {
+        claudeModel: model,
+        claudeEffort: effort,
+        maxTurns,
+        streamTimeoutMs,
         llmProvider: openWebUi ? "openwebui" : "claude",
-        splunkHost: process.env.SPLUNK_HOST ?? "",
-        splunkPort: parseInt(process.env.SPLUNK_PORT ?? "8089", 10),
-        splunkScheme: process.env.SPLUNK_SCHEME ?? "https",
-        splunkAuthMethod: process.env.SPLUNK_TOKEN ? "Token" : "Basic",
-        serverPort: PORT,
-        bindAddress: HOST,
-        claudeAuthMethod: openWebUi
-          ? "Open WebUI"
-          : process.env.ANTHROPIC_API_KEY
-            ? "API Key"
-            : "CLI",
-        serverMode: process.env.NODE_ENV === "production" ? "Prod" : "Dev",
       },
-    });
+    };
+    if (isRequestAdmin(req)) {
+      payload.system = buildSystemSettingsPayload();
+    }
+    res.json(payload);
   } catch (err) {
     logger.error({ err }, "failed to get settings");
     res.status(500).json({ error: "Failed to get settings" });
   }
 });
 
-app.patch("/api/settings", apiLimiter, async (req, res) => {
+app.patch("/api/settings", apiLimiter, requireAdmin, async (req, res) => {
   try {
     await updateRuntimeSettings(req.body);
     const [model, effort, maxTurns, streamTimeoutMs] = await Promise.all([
@@ -487,7 +525,7 @@ app.get("/api/mcp-servers", apiLimiter, async (_req, res) => {
   }
 });
 
-app.post("/api/mcp-servers", apiLimiter, async (req, res) => {
+app.post("/api/mcp-servers", apiLimiter, requireAdmin, async (req, res) => {
   try {
     const { name, config } = req.body as { name: string; config: McpServerEntry };
     if (!name || !config) {
@@ -510,7 +548,7 @@ app.post("/api/mcp-servers", apiLimiter, async (req, res) => {
   }
 });
 
-app.put("/api/mcp-servers/:name", apiLimiter, async (req, res) => {
+app.put("/api/mcp-servers/:name", apiLimiter, requireAdmin, async (req, res) => {
   try {
     const name = req.params.name as string;
     if (!validateMcpName(name, res)) return;
@@ -532,7 +570,7 @@ app.put("/api/mcp-servers/:name", apiLimiter, async (req, res) => {
   }
 });
 
-app.delete("/api/mcp-servers/:name", apiLimiter, async (req, res) => {
+app.delete("/api/mcp-servers/:name", apiLimiter, requireAdmin, async (req, res) => {
   try {
     if (!validateMcpName(req.params.name as string, res)) return;
     await deleteMcpServer(req.params.name as string);
@@ -550,7 +588,7 @@ app.delete("/api/mcp-servers/:name", apiLimiter, async (req, res) => {
   }
 });
 
-app.post("/api/mcp-servers/:name/toggle", apiLimiter, async (req, res) => {
+app.post("/api/mcp-servers/:name/toggle", apiLimiter, requireAdmin, async (req, res) => {
   try {
     if (!validateMcpName(req.params.name as string, res)) return;
     const { enabled } = req.body as { enabled: boolean };
@@ -573,7 +611,7 @@ app.post("/api/mcp-servers/:name/toggle", apiLimiter, async (req, res) => {
   }
 });
 
-app.post("/api/mcp-servers/:name/test", apiLimiter, async (req, res) => {
+app.post("/api/mcp-servers/:name/test", apiLimiter, requireAdmin, async (req, res) => {
   try {
     if (!validateMcpName(req.params.name as string, res)) return;
     const server = await getMcpServer(req.params.name as string);
@@ -601,7 +639,7 @@ app.get("/api/skills", apiLimiter, async (_req, res) => {
   }
 });
 
-app.post("/api/skills/:name/toggle", apiLimiter, async (req, res) => {
+app.post("/api/skills/:name/toggle", apiLimiter, requireAdmin, async (req, res) => {
   try {
     const { enabled } = req.body as { enabled: boolean };
     if (typeof enabled !== "boolean") {
@@ -621,7 +659,7 @@ app.post("/api/skills/:name/toggle", apiLimiter, async (req, res) => {
   }
 });
 
-app.delete("/api/skills/:name", apiLimiter, async (req, res) => {
+app.delete("/api/skills/:name", apiLimiter, requireAdmin, async (req, res) => {
   try {
     await deleteSkill(req.params.name as string);
     res.json({ ok: true });
@@ -638,7 +676,7 @@ app.delete("/api/skills/:name", apiLimiter, async (req, res) => {
   }
 });
 
-app.post("/api/skills", apiLimiter, async (req, res) => {
+app.post("/api/skills", apiLimiter, requireAdmin, async (req, res) => {
   try {
     const { name, content } = req.body as { name: string; content: string };
     if (!name || !content) {
@@ -688,7 +726,7 @@ app.post("/api/skills/extract", extractLimiter, async (req, res) => {
       res.status(400).json({ error: "conversationId is required" });
       return;
     }
-    const conv = await getConversation(conversationId);
+    const conv = await getConversation(getRequestUserId(req), conversationId);
     if (!conv) {
       res.status(404).json({ error: "Conversation not found" });
       return;
@@ -772,6 +810,14 @@ function validateStartup(): boolean {
     return false;
   }
 
+  const deploymentErrors = validateDeploymentSecurity(getEnv());
+  if (deploymentErrors.length > 0) {
+    for (const err of deploymentErrors) {
+      logger.error(`security: ${err}`);
+    }
+    return false;
+  }
+
   let ok = true;
 
   const envPath = path.resolve(process.cwd(), ".env");
@@ -779,10 +825,14 @@ function validateStartup(): boolean {
     const stat = fs.statSync(envPath);
     const mode = stat.mode & 0o777;
     if (mode & 0o077) {
-      logger.warn(
-        { path: envPath, mode: `0${mode.toString(8)}` },
-        ".env file is readable by other users — consider running: chmod 600 .env"
-      );
+      const msg =
+        ".env file is readable by other users — run: chmod 600 .env";
+      if (process.env.NODE_ENV === "production") {
+        logger.error({ path: envPath, mode: `0${mode.toString(8)}` }, msg);
+        ok = false;
+      } else {
+        logger.warn({ path: envPath, mode: `0${mode.toString(8)}` }, msg);
+      }
     }
   } catch {
     /* .env may not exist */

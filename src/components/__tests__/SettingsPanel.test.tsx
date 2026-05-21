@@ -6,6 +6,13 @@ import "@testing-library/jest-dom/vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 
+const mockUser = {
+  id: "local",
+  name: "Local user",
+  email: "local@test",
+  isAdmin: true,
+};
+
 const mockSettings = {
   runtime: {
     claudeModel: "claude-opus-4-6",
@@ -26,17 +33,13 @@ const mockSettings = {
   },
 };
 
-const mockHealth = {
-  status: "ok" as const,
-  checks: {
-    splunk: { status: "ok" },
-    claude: { status: "ok", message: "CLI Auth" },
-  },
-};
-
 const getSettingsMock = vi.fn().mockResolvedValue(mockSettings);
 const updateSettingsMock = vi.fn().mockResolvedValue({ runtime: mockSettings.runtime });
-const fetchHealthMock = vi.fn().mockResolvedValue(mockHealth);
+
+vi.mock("../../lib/auth", () => ({
+  fetchAuthConfig: vi.fn().mockResolvedValue({ enabled: false }),
+  logout: vi.fn(),
+}));
 
 vi.mock("../../lib/settings-api", () => ({
   getSettings: (...args: unknown[]) => getSettingsMock(...args),
@@ -53,89 +56,78 @@ vi.mock("../../lib/settings-api", () => ({
   getConfigPaths: vi.fn().mockResolvedValue({ mcpConfig: "/data/mcp.json", skillsDir: "/skills" }),
 }));
 
-vi.mock("../../lib/api", () => ({
-  fetchHealth: (...args: unknown[]) => fetchHealthMock(...args),
-}));
-
 import { SettingsPanel } from "../SettingsPanel";
+
+function renderPanel() {
+  return render(<SettingsPanel isOpen={true} onClose={vi.fn()} user={mockUser} />);
+}
+
+async function openPreferences() {
+  fireEvent.click(screen.getByRole("button", { name: /Preferences/i }));
+  await waitFor(() => {
+    expect(screen.getByText("Investigation defaults")).toBeInTheDocument();
+  });
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
   getSettingsMock.mockResolvedValue(mockSettings);
   updateSettingsMock.mockResolvedValue({ runtime: mockSettings.runtime });
-  fetchHealthMock.mockResolvedValue(mockHealth);
 });
 
-describe("SettingsPanel: General tab", () => {
-  it("renders Max Turns number input with initial value from server", async () => {
-    render(<SettingsPanel isOpen={true} onClose={vi.fn()} />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Max Turns")).toBeInTheDocument();
-    });
+describe("SettingsPanel: Preferences", () => {
+  it("renders Max steps input with initial value from server", async () => {
+    renderPanel();
+    await openPreferences();
 
     const input = screen.getByDisplayValue("30") as HTMLInputElement;
     expect(input).toHaveAttribute("type", "number");
   });
 
-  it("renders Timeout dropdown with initial value from server", async () => {
-    render(<SettingsPanel isOpen={true} onClose={vi.fn()} />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Timeout")).toBeInTheDocument();
-    });
+  it("renders Time limit dropdown with initial value from server", async () => {
+    renderPanel();
+    await openPreferences();
 
     expect(screen.getByDisplayValue("5 minutes")).toBeInTheDocument();
   });
 
-  it("changing Max Turns and clicking Save sends maxTurns in the PATCH body", async () => {
+  it("changing Max steps and saving sends maxTurns in the PATCH body", async () => {
     const updatedRuntime = { ...mockSettings.runtime, maxTurns: 50 };
     updateSettingsMock.mockResolvedValue({ runtime: updatedRuntime });
 
-    render(<SettingsPanel isOpen={true} onClose={vi.fn()} />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Max Turns")).toBeInTheDocument();
-    });
+    renderPanel();
+    await openPreferences();
 
     const input = screen.getByDisplayValue("30") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "50" } });
 
-    const saveButton = screen.getByRole("button", { name: /Save/i });
-    fireEvent.click(saveButton);
+    fireEvent.click(screen.getByRole("button", { name: /Save preferences/i }));
 
     await waitFor(() => {
       expect(updateSettingsMock).toHaveBeenCalledWith({ maxTurns: 50 });
     });
   });
 
-  it("changing Timeout and clicking Save sends streamTimeoutMs in the PATCH body", async () => {
+  it("changing Time limit and saving sends streamTimeoutMs in the PATCH body", async () => {
     const updatedRuntime = { ...mockSettings.runtime, streamTimeoutMs: 600000 };
     updateSettingsMock.mockResolvedValue({ runtime: updatedRuntime });
 
-    render(<SettingsPanel isOpen={true} onClose={vi.fn()} />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Timeout")).toBeInTheDocument();
-    });
+    renderPanel();
+    await openPreferences();
 
     const select = screen.getByDisplayValue("5 minutes") as HTMLSelectElement;
     fireEvent.change(select, { target: { value: "600000" } });
 
-    const saveButton = screen.getByRole("button", { name: /Save/i });
-    fireEvent.click(saveButton);
+    fireEvent.click(screen.getByRole("button", { name: /Save preferences/i }));
 
     await waitFor(() => {
       expect(updateSettingsMock).toHaveBeenCalledWith({ streamTimeoutMs: 600000 });
     });
   });
 
-  it("Max Turns input clamps values to 1-200 range", async () => {
-    render(<SettingsPanel isOpen={true} onClose={vi.fn()} />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Max Turns")).toBeInTheDocument();
-    });
+  it("Max steps input clamps values to 1-200 range", async () => {
+    renderPanel();
+    await openPreferences();
 
     const input = screen.getByDisplayValue("30") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "500" } });
@@ -146,19 +138,41 @@ describe("SettingsPanel: General tab", () => {
   });
 
   it("no PATCH is sent when values haven't changed", async () => {
-    render(<SettingsPanel isOpen={true} onClose={vi.fn()} />);
+    renderPanel();
+    await openPreferences();
 
-    await waitFor(() => {
-      expect(screen.getByText("Max Turns")).toBeInTheDocument();
-    });
-
-    const saveButton = screen.getByRole("button", { name: /Save/i });
-    fireEvent.click(saveButton);
+    fireEvent.click(screen.getByRole("button", { name: /Save preferences/i }));
 
     await waitFor(() => {
       expect(screen.getByText("Saved")).toBeInTheDocument();
     });
 
     expect(updateSettingsMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("SettingsPanel: navigation", () => {
+  it("shows Administration section for admins", async () => {
+    renderPanel();
+    await waitFor(() => {
+      expect(screen.getByText("Administration")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: /MCP servers/i })).toBeInTheDocument();
+  });
+
+  it("shows My account by default", async () => {
+    renderPanel();
+    await waitFor(() => {
+      expect(screen.getByText("Your profile")).toBeInTheDocument();
+    });
+  });
+
+  it("opens Preferences when initialSection is preferences", async () => {
+    render(
+      <SettingsPanel isOpen={true} onClose={vi.fn()} user={mockUser} initialSection="preferences" />
+    );
+    await waitFor(() => {
+      expect(screen.getByText("Investigation defaults")).toBeInTheDocument();
+    });
   });
 });
