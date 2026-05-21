@@ -82,7 +82,8 @@ export async function resolveOpenWebUiChatApiBase(
     }
   }
 
-  cachedChatApiBase = `${config.baseUrl}/api`;
+  // Prefer Ollama-compatible path over /api (GVSU returns startswith/404 on /api chat).
+  cachedChatApiBase = `${config.baseUrl}/ollama/v1`;
   return cachedChatApiBase;
 }
 

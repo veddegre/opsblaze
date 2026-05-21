@@ -80,7 +80,9 @@ function buildRequestBody(options: ChatCompletionOptions, stream: boolean): Reco
     model: options.model,
     messages: sanitizeMessagesForOpenWebUi(options.messages),
     stream,
+    // Open WebUI middleware requires these on external API calls (see open-webui#24550).
     chat_id: chatId,
+    session_id: chatId,
   };
   const tools = sanitizeToolsForOpenWebUi(options.tools);
   if (tools?.length) body.tools = tools;

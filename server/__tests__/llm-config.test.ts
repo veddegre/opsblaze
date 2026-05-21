@@ -94,6 +94,14 @@ describe("resolveOpenWebUiChatApiBase", () => {
     expect(getChatApiPrefixFromEnv()).toBe("ollama/v1");
   });
 
+  it("falls back to ollama/v1 when no prefix responds", async () => {
+    const mockFetch = vi.fn(async () => ({ ok: false, status: 404 }));
+    const base = await resolveOpenWebUiChatApiBase(config, {
+      _fetch: mockFetch as unknown as typeof fetch,
+    });
+    expect(base).toBe("https://openwebui.example.edu/ollama/v1");
+  });
+
   it("probes candidates and caches the first working prefix", async () => {
     const mockFetch = vi.fn(async (url: string) => {
       if (url.endsWith("/ollama/v1/chat/completions")) {

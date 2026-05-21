@@ -191,6 +191,7 @@ async function collectText(prompt: string, signal?: AbortSignal): Promise<string
     return chatComplete({
       model,
       messages: [{ role: "user", content: prompt }],
+      chatId: `opsblaze-skill-${crypto.randomUUID()}`,
       signal,
     });
   }
