@@ -17,12 +17,74 @@ export interface ToolCall {
 export interface ChatCompletionOptions {
   model: string;
   messages: ChatMessage[];
+  /** Open WebUI requires a non-null chat_id on external API calls (see open-webui#24550). */
+  chatId?: string;
   tools?: Array<{
     type: "function";
     function: { name: string; description?: string; parameters: Record<string, unknown> };
   }>;
   stream?: boolean;
   signal?: AbortSignal;
+}
+
+function parseErrorBody(body: string, status: number): string {
+  try {
+    const parsed = JSON.parse(body) as { detail?: unknown; message?: unknown };
+    const detail = parsed.detail ?? parsed.message;
+    if (typeof detail === "string" && detail) return detail;
+    if (Array.isArray(detail)) {
+      return detail.map((d) => (typeof d === "string" ? d : JSON.stringify(d))).join("; ");
+    }
+  } catch {
+    /* not JSON */
+  }
+  return body || `Open WebUI chat request failed (${status})`;
+}
+
+/** Open WebUI crashes if message content is null/omitted in some roles (startswith on None). */
+export function sanitizeMessagesForOpenWebUi(messages: ChatMessage[]): ChatMessage[] {
+  return messages.map((msg) => {
+    const out: ChatMessage = { ...msg };
+    if (typeof out.content !== "string") {
+      out.content = out.tool_calls?.length ? "" : "";
+    }
+    if (out.role === "tool") {
+      out.content = out.content ?? "";
+      if (!out.tool_call_id) out.tool_call_id = "call_unknown";
+      if (!out.name) out.name = "tool";
+    }
+    if (out.role === "assistant" && out.tool_calls?.length) {
+      out.content = out.content ?? "";
+    }
+    return out;
+  });
+}
+
+export function sanitizeToolsForOpenWebUi(
+  tools: ChatCompletionOptions["tools"]
+): ChatCompletionOptions["tools"] {
+  if (!tools?.length) return undefined;
+  return tools.map((t) => ({
+    type: "function" as const,
+    function: {
+      name: t.function.name,
+      description: t.function.description ?? t.function.name,
+      parameters: t.function.parameters ?? { type: "object", properties: {} },
+    },
+  }));
+}
+
+function buildRequestBody(options: ChatCompletionOptions, stream: boolean): Record<string, unknown> {
+  const chatId = options.chatId?.trim() || `opsblaze-${crypto.randomUUID()}`;
+  const body: Record<string, unknown> = {
+    model: options.model,
+    messages: sanitizeMessagesForOpenWebUi(options.messages),
+    stream,
+    chat_id: chatId,
+  };
+  const tools = sanitizeToolsForOpenWebUi(options.tools);
+  if (tools?.length) body.tools = tools;
+  return body;
 }
 
 export interface StreamResult {
@@ -81,21 +143,13 @@ export async function chatComplete(options: ChatCompletionOptions): Promise<stri
   const res = await fetch(`${config.apiBase}/chat/completions`, {
     method: "POST",
     headers: authHeaders(config.apiKey),
-    body: JSON.stringify({
-      model: options.model,
-      messages: options.messages,
-      tools: options.tools?.length ? options.tools : undefined,
-      stream: false,
-    }),
+    body: JSON.stringify(buildRequestBody(options, false)),
     signal: options.signal,
   });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new OpenWebUiError(
-      body || `Open WebUI chat request failed (${res.status})`,
-      res.status
-    );
+    throw new OpenWebUiError(parseErrorBody(body, res.status), res.status);
   }
 
   const data = (await res.json()) as Record<string, unknown>;
@@ -135,21 +189,13 @@ export async function chatCompleteStream(
   const res = await fetch(`${config.apiBase}/chat/completions`, {
     method: "POST",
     headers: authHeaders(config.apiKey),
-    body: JSON.stringify({
-      model: options.model,
-      messages: options.messages,
-      tools: options.tools?.length ? options.tools : undefined,
-      stream: true,
-    }),
+    body: JSON.stringify(buildRequestBody(options, true)),
     signal: options.signal,
   });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new OpenWebUiError(
-      body || `Open WebUI chat request failed (${res.status})`,
-      res.status
-    );
+    throw new OpenWebUiError(parseErrorBody(body, res.status), res.status);
   }
 
   if (!res.body) {

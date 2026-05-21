@@ -181,6 +181,7 @@ export async function runOpenWebUiAgent(
       const stream = await chatCompleteStream({
         model,
         messages,
+        chatId: requestId,
         tools: tools.length > 0 ? tools : undefined,
         signal: abortSignal,
       });

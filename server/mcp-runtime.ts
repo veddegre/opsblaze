@@ -78,7 +78,7 @@ function toolToOpenAi(serverName: string, tool: Tool): OpenAiToolDef {
     type: "function",
     function: {
       name: qualifyToolName(serverName, tool.name),
-      description: tool.description,
+      description: tool.description ?? tool.name,
       parameters,
     },
   };
