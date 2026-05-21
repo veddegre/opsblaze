@@ -31,10 +31,10 @@ Point OpsBlaze at your Open WebUI instance. The Splunk MCP server runs locally i
 2. Find a model id (Settings → Models, or `GET /api/models` on your instance)
 3. Set `OPENWEBUI_BASE_URL`, `OPENWEBUI_API_KEY`, and `OPENWEBUI_MODEL` in `.env`
 
-Example (GVSU):
+Example:
 
 ```env
-OPENWEBUI_BASE_URL=https://openwebui.server.gvsu.edu
+OPENWEBUI_BASE_URL=https://openwebui.example.edu
 OPENWEBUI_API_KEY=your-api-key
 OPENWEBUI_MODEL=your-model-id
 ```
@@ -160,7 +160,7 @@ Or edit `.env` and change the `PORT` value to a different port (e.g. `PORT=3001`
 ### Open WebUI authentication failed
 
 - Confirm `OPENWEBUI_API_KEY` matches the key from **Settings → Account** in Open WebUI
-- Confirm `OPENWEBUI_BASE_URL` is the site root (e.g. `https://openwebui.server.gvsu.edu`), not `/api`
+- Confirm `OPENWEBUI_BASE_URL` is the site root (e.g. `https://openwebui.example.edu`), not `/api`
 - List models: `curl -H "Authorization: Bearer $OPENWEBUI_API_KEY" "$OPENWEBUI_BASE_URL/api/models"`
 - Ensure `OPENWEBUI_MODEL` matches a model id from that list
 - Check `/api/health` — the `openwebui` check should show `ok`

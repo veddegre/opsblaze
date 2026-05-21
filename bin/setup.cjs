@@ -540,7 +540,7 @@ async function main() {
   let openWebUi = { baseUrl: "", apiKey: "", model: "" };
 
   if (llmBackend === "openwebui") {
-    openWebUi.baseUrl = await ask("Open WebUI base URL", "https://openwebui.server.gvsu.edu");
+    openWebUi.baseUrl = await ask("Open WebUI base URL", "https://openwebui.example.edu");
     openWebUi.apiKey = await ask("Open WebUI API key (Settings \u2192 Account)");
     if (!openWebUi.apiKey) {
       fail("API key cannot be empty");

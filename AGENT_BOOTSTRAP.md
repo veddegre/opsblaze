@@ -178,7 +178,7 @@ If `OPENWEBUI_BASE_URL` is set, the Open WebUI backend is used and Claude is not
 
 ### Open WebUI Auth
 
-1. Set `OPENWEBUI_BASE_URL` to the instance root (e.g. `https://openwebui.server.gvsu.edu`)
+1. Set `OPENWEBUI_BASE_URL` to the instance root (e.g. `https://openwebui.example.edu`)
 2. Set `OPENWEBUI_API_KEY` from **Settings → Account** in Open WebUI
 3. Set `OPENWEBUI_MODEL` to a model id from Open WebUI (or use the Settings UI model field / `CLAUDE_MODEL` runtime setting as the model id)
 

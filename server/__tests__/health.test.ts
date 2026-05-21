@@ -160,13 +160,13 @@ describe("checkOpenWebUi", () => {
   it("returns ok for successful models fetch", async () => {
     const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
     const result = await checkOpenWebUi({
-      baseUrl: "https://openwebui.server.gvsu.edu",
+      baseUrl: "https://openwebui.example.edu",
       apiKey: "test-key",
       _fetch: mockFetch,
     });
     expect(result).toEqual({ status: "ok", message: "API Key" });
     expect(mockFetch).toHaveBeenCalledWith(
-      "https://openwebui.server.gvsu.edu/api/models",
+      "https://openwebui.example.edu/api/models",
       expect.objectContaining({
         headers: { Authorization: "Bearer test-key" },
       })

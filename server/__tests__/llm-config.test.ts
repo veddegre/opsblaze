@@ -36,7 +36,7 @@ describe("getLlmProvider", () => {
   });
 
   it("returns openwebui when base URL is set", () => {
-    vi.stubEnv("OPENWEBUI_BASE_URL", "https://openwebui.server.gvsu.edu");
+    vi.stubEnv("OPENWEBUI_BASE_URL", "https://openwebui.example.edu");
     expect(getLlmProvider()).toBe("openwebui");
     expect(isOpenWebUiMode()).toBe(true);
   });
@@ -44,7 +44,7 @@ describe("getLlmProvider", () => {
 
 describe("getOpenWebUiConfig", () => {
   beforeEach(() => {
-    vi.stubEnv("OPENWEBUI_BASE_URL", "https://openwebui.server.gvsu.edu/");
+    vi.stubEnv("OPENWEBUI_BASE_URL", "https://openwebui.example.edu/");
     vi.stubEnv("OPENWEBUI_API_KEY", "test-key");
   });
 
@@ -55,8 +55,8 @@ describe("getOpenWebUiConfig", () => {
   it("returns api base and key", () => {
     const config = getOpenWebUiConfig();
     expect(config).toEqual({
-      baseUrl: "https://openwebui.server.gvsu.edu",
-      apiBase: "https://openwebui.server.gvsu.edu/api",
+      baseUrl: "https://openwebui.example.edu",
+      apiBase: "https://openwebui.example.edu/api",
       apiKey: "test-key",
     });
   });

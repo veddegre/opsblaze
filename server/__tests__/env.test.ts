@@ -71,7 +71,7 @@ describe("validateEnv", () => {
   });
 
   it("requires OPENWEBUI_API_KEY when OPENWEBUI_BASE_URL is set", async () => {
-    vi.stubEnv("OPENWEBUI_BASE_URL", "https://openwebui.server.gvsu.edu");
+    vi.stubEnv("OPENWEBUI_BASE_URL", "https://openwebui.example.edu");
     vi.stubEnv("OPENWEBUI_API_KEY", "");
     vi.resetModules();
     const { validateEnv } = await import("../env.js");
