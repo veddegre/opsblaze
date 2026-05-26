@@ -14,4 +14,8 @@ data/
 fixtures/
 .cursor/debug*.log
 coverage/
-.claude/skills/_local/
+# Deploy-only skills (org-specific); keep README in repo as documentation
+.claude/skills/_local/**
+!.claude/skills/_local/README.md
+.opsblaze/skills/_local/**
+!.opsblaze/skills/_local/README.md

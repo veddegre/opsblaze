@@ -18,13 +18,6 @@ export type SkillPack = z.infer<typeof skillPackSchema>;
 
 export const DEFAULT_SKILL_PACKS: SkillPack[] = [
   {
-    id: "okta-authentication",
-    name: "Okta authentication",
-    description: "Auth and session events on index=okta (excludes group membership sync).",
-    skills: ["investigating-okta-events"],
-    strict: true,
-  },
-  {
     id: "splunk-login-activity",
     name: "Splunk login activity",
     description: "User logins and sessions via Splunk _audit.",

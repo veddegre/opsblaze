@@ -68,21 +68,33 @@ export async function validateSkillsParam(rawSkills: unknown): Promise<SkillVali
   return { skills: rawSkills as string[] };
 }
 
-export async function listSkills(): Promise<SkillInfo[]> {
-  const skills: SkillInfo[] = [];
+async function resolveSkillDirectory(name: string): Promise<string | null> {
+  const direct = path.join(skillsDir(), name);
+  if (await isDirectory(direct)) return direct;
+  const local = path.join(skillsDir(), "_local", name);
+  if (await isDirectory(local)) return local;
+  return null;
+}
 
+async function collectSkillsInDirectory(
+  parentDir: string,
+  skills: SkillInfo[],
+  opts: { skipLocalFolder?: boolean }
+): Promise<void> {
   let entries: string[];
   try {
-    entries = await readdir(skillsDir());
+    entries = await readdir(parentDir);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
-    if (code === "ENOENT") return [];
-    logger.error({ err }, "failed to read skills directory");
-    return [];
+    if (code === "ENOENT") return;
+    logger.error({ err, parentDir }, "failed to read skills directory");
+    return;
   }
 
   for (const entry of entries) {
-    const dir = path.join(skillsDir(), entry);
+    if (opts.skipLocalFolder && entry === "_local") continue;
+
+    const dir = path.join(parentDir, entry);
     if (!(await isDirectory(dir))) continue;
 
     const enabledPath = path.join(dir, SKILL_FILE);
@@ -123,6 +135,18 @@ export async function listSkills(): Promise<SkillInfo[]> {
       path: relativePath,
     });
   }
+}
+
+export async function listSkills(): Promise<SkillInfo[]> {
+  const skills: SkillInfo[] = [];
+  const base = skillsDir();
+
+  await collectSkillsInDirectory(base, skills, { skipLocalFolder: true });
+
+  const localRoot = path.join(base, "_local");
+  if (await isDirectory(localRoot)) {
+    await collectSkillsInDirectory(localRoot, skills, { skipLocalFolder: false });
+  }
 
   skills.sort((a, b) => a.name.localeCompare(b.name));
   return skills;
@@ -143,10 +167,11 @@ export async function createSkill(name: string, content: string): Promise<void> 
     throw new Error("Skill description must not exceed 1024 characters");
   }
 
-  const dir = path.join(skillsDir(), name);
-  if (await isDirectory(dir)) {
+  const existing = await resolveSkillDirectory(name);
+  if (existing) {
     throw new Error(`Skill '${name}' already exists`);
   }
+  const dir = path.join(skillsDir(), name);
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, SKILL_FILE), content, "utf-8");
   logger.info({ name }, "skill created");
@@ -156,8 +181,8 @@ export async function deleteSkill(name: string): Promise<void> {
   if (name.includes("..") || name.includes("/") || name.includes("\\")) {
     throw new Error(`Invalid skill name: '${name}'`);
   }
-  const dir = path.join(skillsDir(), name);
-  if (!(await isDirectory(dir))) {
+  const dir = await resolveSkillDirectory(name);
+  if (!dir) {
     throw new Error(`Skill '${name}' not found`);
   }
   await rm(dir, { recursive: true });
@@ -168,8 +193,8 @@ export async function toggleSkill(name: string, enabled: boolean): Promise<void>
   if (name.includes("..") || name.includes("/") || name.includes("\\")) {
     throw new Error(`Invalid skill name: '${name}'`);
   }
-  const dir = path.join(skillsDir(), name);
-  if (!(await isDirectory(dir))) {
+  const dir = await resolveSkillDirectory(name);
+  if (!dir) {
     throw new Error(`Skill '${name}' not found`);
   }
 

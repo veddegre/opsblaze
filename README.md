@@ -242,7 +242,7 @@ Disabled skills remain on disk as `SKILL.md.disabled` and are omitted from promp
 
 **Git and deploy:** Skills are plain files in the repo tree, not in the database. Commit `.opsblaze/skills/` or `.claude/skills/` to version bundled skills; `_local/` under either tree is gitignored for machine-only skills. There is no automatic git sync at runtime—whatever is on the server filesystem when OpsBlaze starts is what runs. After deploy, ensure that directory is present (git pull, rsync, or copy) alongside `server/` and `src/`.
 
-Bundled examples include `splunk-analyst`, `investigating-splunk-login-activity`, and Splunk/Okta investigation playbooks. Create more via **Settings → Skills** (admins) or **Distill skill** from a completed investigation.
+Bundled examples include `splunk-analyst`, `investigating-splunk-login-activity`, and other generic Splunk playbooks. Organization-specific skills belong in `.claude/skills/_local/` or `.opsblaze/skills/_local/` (gitignored — see that folder’s README). Create more via **Settings → Skills** (admins) or **Distill skill** from a completed investigation.
 
 **Skill bundles** (presets below the chat input) come from built-in defaults or **Settings → Runtime settings → Skill bundles** (admins). Each bundle sets which skills are selected and whether strict mode applies.
 
