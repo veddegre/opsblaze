@@ -42,7 +42,7 @@ describe("MessageBubble: LimitBlock rendering", () => {
     render(<MessageBubble message={msg} />);
 
     expect(screen.getByText("This investigation reached the 30-turn limit.")).toBeInTheDocument();
-    expect(screen.getByText(/Settings > General > Max Turns/)).toBeInTheDocument();
+    expect(screen.getByText(/Runtime settings.*Max steps per investigation/)).toBeInTheDocument();
   });
 
   it('renders a LimitBlock with reason "stream_timeout"', () => {
@@ -58,7 +58,7 @@ describe("MessageBubble: LimitBlock rendering", () => {
     render(<MessageBubble message={msg} />);
 
     expect(screen.getByText("This investigation timed out after 5 minutes.")).toBeInTheDocument();
-    expect(screen.getByText(/Settings > General > Timeout/)).toBeInTheDocument();
+    expect(screen.getByText(/Runtime settings.*Time limit/)).toBeInTheDocument();
   });
 
   it("does not render limit notice styling for regular TextBlocks", () => {
@@ -67,7 +67,7 @@ describe("MessageBubble: LimitBlock rendering", () => {
     render(<MessageBubble message={msg} />);
 
     expect(screen.getByText("Normal analysis text.")).toBeInTheDocument();
-    expect(screen.queryByText(/Settings > General/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Runtime settings/)).not.toBeInTheDocument();
   });
 
   it("limit block appears after text blocks in the message", () => {

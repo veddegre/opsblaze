@@ -105,8 +105,8 @@ export function NavItem({
       type="button"
       onClick={onClick}
       aria-current={active ? "page" : undefined}
-      className={`w-full text-left text-sm py-2 rounded-md transition-colors ${
-        indent ? "pl-6 pr-3" : "px-3"
+      className={`shrink-0 sm:w-full text-left text-sm py-2 rounded-md transition-colors whitespace-nowrap sm:whitespace-normal ${
+        indent ? "sm:pl-6 pr-3 sm:pr-3 pl-4" : "px-3"
       } ${
         active
           ? "bg-accent/15 text-accent-light font-medium"
@@ -120,7 +120,7 @@ export function NavItem({
 
 export function NavGroupLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600">
+    <p className="hidden sm:block px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600">
       {children}
     </p>
   );

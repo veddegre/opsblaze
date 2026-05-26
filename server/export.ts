@@ -1,5 +1,6 @@
 import { marked } from "marked";
 import type { StoredConversation } from "./conversations.js";
+import { sanitizeMessagesForExport } from "./export-sanitize.js";
 
 interface MessageBlock {
   type: string;
@@ -149,28 +150,54 @@ function renderSkillBlock(block: MessageBlock): string {
   return `<div class="skill-label">Skill: ${escapeHtml(block.skill ?? "unknown")}</div>`;
 }
 
-function renderMessage(msg: ConvMessage, charts: ChartDef[]): string {
-  const isUser = msg.role === "user";
+export type ExportMode = "full" | "findings";
+
+export interface ExportOptions {
+  mode?: ExportMode;
+  /** Show a notice that sensitive values were replaced. */
+  redacted?: boolean;
+  /** Omit errors, retries, and duplicate prompts (default true). */
+  clean?: boolean;
+}
+
+function renderBlocks(
+  blocks: MessageBlock[],
+  charts: ChartDef[],
+  mode: ExportMode
+): string {
   const parts: string[] = [];
-
-  parts.push(`<div class="message ${isUser ? "user-message" : "assistant-message"}">`);
-  parts.push(`<div class="message-role">${isUser ? "You" : "OpsBlaze"}</div>`);
-  parts.push(`<div class="message-content">`);
-
-  for (const block of msg.blocks) {
+  for (const block of blocks) {
     switch (block.type) {
       case "text":
-        parts.push(renderTextBlock(block));
+        if (mode === "full") parts.push(renderTextBlock(block));
         break;
       case "chart":
         parts.push(renderChartBlock(block, charts));
         break;
       case "skill":
-        parts.push(renderSkillBlock(block));
+        if (mode === "full") parts.push(renderSkillBlock(block));
         break;
     }
   }
+  return parts.join("\n");
+}
 
+function renderMessage(msg: ConvMessage, charts: ChartDef[], mode: ExportMode): string {
+  if (mode === "findings" && msg.role === "user") return "";
+
+  const inner = renderBlocks(msg.blocks, charts, mode);
+  if (!inner.trim()) return "";
+
+  if (mode === "findings") {
+    return `<div class="finding">${inner}</div>`;
+  }
+
+  const isUser = msg.role === "user";
+  const parts: string[] = [];
+  parts.push(`<div class="message ${isUser ? "user-message" : "assistant-message"}">`);
+  parts.push(`<div class="message-role">${isUser ? "You" : "OpsBlaze"}</div>`);
+  parts.push(`<div class="message-content">`);
+  parts.push(inner);
   parts.push(`</div></div>`);
   return parts.join("\n");
 }
@@ -291,6 +318,15 @@ const CSS = `
     font-size: 0.8rem;
     color: #666;
     margin-top: 8px;
+  }
+  .redaction-notice {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: #fff8e6;
+    border: 1px solid #e6c200;
+    font-size: 0.8rem;
+    color: #5c4a00;
   }
   .message {
     margin-bottom: 28px;
@@ -460,6 +496,16 @@ const CSS = `
     color: #6366f1;
     font-family: 'JetBrains Mono', monospace;
   }
+  .findings-empty {
+    color: #666;
+    font-size: 0.9rem;
+    font-style: italic;
+    padding: 16px 0;
+  }
+  .finding {
+    margin-bottom: 24px;
+    page-break-inside: avoid;
+  }
   .report-footer {
     margin-top: 48px;
     padding-top: 16px;
@@ -528,29 +574,52 @@ const CSS = `
   }
 `;
 
-export function renderExportHtml(conv: StoredConversation): string {
+export function renderExportHtml(
+  conv: StoredConversation,
+  options: ExportOptions = {}
+): string {
+  const mode: ExportMode = options.mode === "findings" ? "findings" : "full";
+  const clean = options.clean !== false;
   chartCounter = 0;
   const charts: ChartDef[] = [];
-  const messages = (conv.messages ?? []) as ConvMessage[];
+  const messages = sanitizeMessagesForExport(conv.messages, { mode, clean }) as ConvMessage[];
   const created = new Date(conv.createdAt).toLocaleString();
   const updated = new Date(conv.updatedAt).toLocaleString();
 
-  const body = messages.map((m) => renderMessage(m, charts)).join("\n");
+  const bodyParts = messages.map((m) => renderMessage(m, charts, mode)).filter(Boolean);
+  const body =
+    bodyParts.length > 0
+      ? bodyParts.join("\n")
+      : mode === "findings"
+        ? `<p class="findings-empty">No charts or SPL results in this investigation yet.</p>`
+        : "";
   const chartScript = buildChartScript(charts);
+
+  const redacted = Boolean(options.redacted);
+  const reportKind =
+    mode === "findings" ? "OpsBlaze Findings Report" : "OpsBlaze Investigation Report";
+  const pageTitle =
+    mode === "findings"
+      ? `${escapeHtml(conv.title)} — OpsBlaze Findings`
+      : `${escapeHtml(conv.title)} — OpsBlaze Investigation`;
+  const redactionNotice = redacted
+    ? `<p class="redaction-notice">Sensitive values were replaced with [REDACTED] in this export.</p>`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(conv.title)} — OpsBlaze Investigation</title>
+  <title>${pageTitle}</title>
   <style>${CSS}</style>
 </head>
 <body>
   <div class="report-header">
-    <div class="subtitle">OpsBlaze Investigation Report</div>
+    <div class="subtitle">${reportKind}</div>
     <h1>${escapeHtml(conv.title)}</h1>
     <div class="meta">Created: ${escapeHtml(created)} &middot; Last updated: ${escapeHtml(updated)}</div>
+    ${redactionNotice}
   </div>
   ${body}
   <div class="report-footer">

@@ -270,4 +270,93 @@ describe("renderExportHtml", () => {
     expect(html).toContain("Question 2");
     expect(html).toContain("Answer 2");
   });
+
+  it("omits errors and retry prompts when clean is enabled", () => {
+    const html = renderExportHtml(
+      makeConv({
+        messages: [
+          { role: "user", blocks: [{ type: "text", content: "Real question" }] },
+          {
+            role: "assistant",
+            blocks: [
+              {
+                type: "text",
+                content: "\n\n> **Error:** Open WebUI: Server Connection Error\n\n",
+              },
+            ],
+          },
+          { role: "user", blocks: [{ type: "text", content: "Can you try again" }] },
+          {
+            role: "assistant",
+            blocks: [{ type: "text", content: "Final answer with data." }],
+          },
+        ],
+      }),
+      { mode: "full", clean: true }
+    );
+    expect(html).toContain("Real question");
+    expect(html).toContain("Final answer");
+    expect(html).not.toContain("Server Connection Error");
+    expect(html).not.toContain("try again");
+  });
+
+  describe("findings mode", () => {
+    it("omits user messages and assistant narrative text", () => {
+      const html = renderExportHtml(
+        makeConv({
+          messages: [
+            { role: "user", blocks: [{ type: "text", content: "Show failed logins" }] },
+            {
+              role: "assistant",
+              blocks: [
+                { type: "text", content: "Here is the breakdown." },
+                {
+                  type: "chart",
+                  vizType: "table",
+                  dataSources: {
+                    primary: {
+                      data: {
+                        fields: [{ name: "user" }],
+                        columns: [["alice"]],
+                      },
+                    },
+                  },
+                  spl: "index=_audit action=failed",
+                },
+              ],
+            },
+          ],
+        }),
+        { mode: "findings" }
+      );
+      expect(html).toContain("OpsBlaze Findings Report");
+      expect(html).not.toContain("Show failed logins");
+      expect(html).not.toContain("Here is the breakdown");
+      expect(html).not.toContain('class="message user-message"');
+      expect(html).not.toContain('<div class="message-role">You</div>');
+      expect(html).toContain("index=_audit action=failed");
+      expect(html).toContain("finding");
+    });
+
+    it("shows redaction notice when redacted flag is set", () => {
+      const html = renderExportHtml(makeConv(), { mode: "findings", redacted: true });
+      expect(html).toContain("redaction-notice");
+      expect(html).toContain("[REDACTED]");
+    });
+
+    it("shows empty state when there are no charts", () => {
+      const html = renderExportHtml(
+        makeConv({
+          messages: [
+            { role: "user", blocks: [{ type: "text", content: "hello" }] },
+            { role: "assistant", blocks: [{ type: "text", content: "no data yet" }] },
+          ],
+        }),
+        { mode: "findings" }
+      );
+      expect(html).toContain("findings-empty");
+      expect(html).not.toContain("hello");
+      expect(html).not.toContain("no data yet");
+    });
+  });
 });

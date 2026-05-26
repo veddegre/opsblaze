@@ -135,6 +135,67 @@ For network deployments, set `OPSBLAZE_OIDC_ISSUER` and related variables (see `
 - List admin emails in `OPSBLAZE_OIDC_ADMIN_EMAILS` for MCP/skills/settings changes
 - Behind a reverse proxy: set `OPSBLAZE_TRUST_PROXY=true` and `OPSBLAZE_SECURE_COOKIES=true`
 
+- The OIDC provider must support Authorization Code flow (with PKCE preferred/required).
+- OpsBlaze expects `sub` to be present. For admin rights, it also uses the `email` claim (from the ID token and/or the UserInfo endpoint).
+
+#### Setup: Authentik (OpenID Connect)
+
+1. In Authentik, create/open the OIDC provider (“OpenID Provider” / “OAuth2/OIDC Provider”) and configure it for **Authorization Code**.
+2. Create an OIDC “Application” / OAuth client for OpsBlaze.
+3. Set the allowed redirect URI to:
+   - `OPSBLAZE_PUBLIC_URL/api/auth/callback`
+   - Example: `https://opsblaze.example.edu/api/auth/callback`
+4. Ensure Authentik includes these standard claims:
+   - `sub` (unique user identifier)
+   - `email` (used to mark admins)
+   - `name` (optional display name)
+5. Copy these values into `.env`:
+
+```bash
+# Authentik issuer URL (exact path is provider/app specific)
+OPSBLAZE_OIDC_ISSUER=https://authentik.example.edu/application/o/<your-opsblaze-oidc-app-slug>/
+OPSBLAZE_OIDC_CLIENT_ID=<client-id>
+OPSBLAZE_OIDC_CLIENT_SECRET=<client-secret>
+
+# OpsBlaze public URL (used to build the callback URL by default)
+OPSBLAZE_PUBLIC_URL=https://opsblaze.example.edu
+OPSBLAZE_OIDC_REDIRECT_URI=https://opsblaze.example.edu/api/auth/callback
+
+# Use standard OIDC scopes so `email` is available
+OPSBLAZE_OIDC_SCOPES="openid profile email"
+
+# Optional: admins allowed to change runtime/system settings
+OPSBLAZE_OIDC_ADMIN_EMAILS=admin@example.edu,ops@example.edu
+```
+
+Tip: if users authenticate but never become admins, confirm the ID token/UserInfo contains the `email` claim.
+
+#### Setup: Microsoft Entra ID (Azure AD)
+
+1. In Entra, go to **App registrations** → **New registration**.
+2. Configure **Redirect URI** (Authentication) for web:
+   - `https://opsblaze.example.edu/api/auth/callback`
+   - This must exactly match `OPSBLAZE_OIDC_REDIRECT_URI`.
+3. Create a client secret under **Certificates & secrets** → **New client secret**.
+4. Use the v2 issuer URL (recommended):
+   - `https://login.microsoftonline.com/<tenant-id>/v2.0`
+5. Ensure your login uses the scopes `openid profile email` so the `email` claim is present.
+
+Example `.env` (tenant-specific):
+
+```bash
+OPSBLAZE_OIDC_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0
+OPSBLAZE_OIDC_CLIENT_ID=<client-id>
+OPSBLAZE_OIDC_CLIENT_SECRET=<client-secret>
+
+OPSBLAZE_PUBLIC_URL=https://opsblaze.example.edu
+OPSBLAZE_OIDC_REDIRECT_URI=https://opsblaze.example.edu/api/auth/callback
+OPSBLAZE_OIDC_SCOPES="openid profile email"
+OPSBLAZE_OIDC_ADMIN_EMAILS=admin@example.edu,ops@example.edu
+```
+
+Tip: if Entra returns tokens but your users aren’t recognized as admins, verify the `email` claim in the ID token (or via UserInfo).
+
 When OIDC is **not** configured, OpsBlaze runs in single-user local mode (`HOST=127.0.0.1` recommended).
 
 ## Architecture

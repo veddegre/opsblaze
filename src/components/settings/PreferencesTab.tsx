@@ -6,6 +6,7 @@ import {
   type OpenWebUiModelOption,
 } from "../../lib/settings-api";
 import type { AppSettings } from "../../lib/settings-api";
+import { formatStringList, parseStringList } from "../../lib/redaction-utils";
 import {
   FieldLabel,
   InfoBanner,
@@ -20,6 +21,12 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
   const [effort, setEffort] = useState("");
   const [maxTurns, setMaxTurns] = useState(30);
   const [streamTimeout, setStreamTimeout] = useState(300000);
+  const [redactApplyOnExport, setRedactApplyOnExport] = useState(false);
+  const [redactEmail, setRedactEmail] = useState(true);
+  const [redactIpv4, setRedactIpv4] = useState(true);
+  const [redactMac, setRedactMac] = useState(false);
+  const [redactCustomStrings, setRedactCustomStrings] = useState("");
+  const [redactCustomPatterns, setRedactCustomPatterns] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +47,13 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
         setEffort(s.runtime.claudeEffort);
         setMaxTurns(s.runtime.maxTurns);
         setStreamTimeout(s.runtime.streamTimeoutMs);
+        const r = s.runtime.redaction;
+        setRedactApplyOnExport(Boolean(r?.applyOnExport));
+        setRedactEmail(r?.builtin?.email !== false);
+        setRedactIpv4(r?.builtin?.ipv4 !== false);
+        setRedactMac(Boolean(r?.builtin?.mac));
+        setRedactCustomStrings(formatStringList(r?.customStrings));
+        setRedactCustomPatterns(formatStringList(r?.customPatterns));
       })
       .catch(() => {});
   }, []);
@@ -95,6 +109,31 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
       if (maxTurns !== settings?.runtime.maxTurns) partial.maxTurns = maxTurns;
       if (streamTimeout !== settings?.runtime.streamTimeoutMs)
         partial.streamTimeoutMs = streamTimeout;
+
+      const nextRedaction = {
+        applyOnExport: redactApplyOnExport,
+        builtin: { email: redactEmail, ipv4: redactIpv4, mac: redactMac },
+        customStrings: parseStringList(redactCustomStrings),
+        customPatterns: parseStringList(redactCustomPatterns),
+      };
+      // If the server has no redaction settings yet, treat it as "defaults" so
+      // clicking save without changes doesn't trigger a PATCH.
+      const prevR = settings?.runtime.redaction;
+      const prevRedaction = prevR ?? {
+        applyOnExport: false,
+        builtin: { email: true, ipv4: true, mac: false },
+        customStrings: [],
+        customPatterns: [],
+      };
+      const redactionChanged =
+        prevRedaction.applyOnExport !== nextRedaction.applyOnExport ||
+        prevRedaction.builtin?.email !== nextRedaction.builtin.email ||
+        prevRedaction.builtin?.ipv4 !== nextRedaction.builtin.ipv4 ||
+        prevRedaction.builtin?.mac !== nextRedaction.builtin.mac ||
+        formatStringList(prevRedaction.customStrings) !== redactCustomStrings.trim() ||
+        formatStringList(prevRedaction.customPatterns) !== redactCustomPatterns.trim();
+      if (redactionChanged) partial.redaction = nextRedaction;
+
       if (Object.keys(partial).length === 0) {
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
@@ -241,6 +280,80 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
           <option value={900000}>15 minutes</option>
           <option value={1800000}>30 minutes</option>
         </select>
+
+        <div className="border-t border-border-subtle pt-4 mt-2 space-y-3">
+          <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wide">
+            Export redaction
+          </h3>
+          <p className="text-[11px] text-gray-600 -mt-1">
+            Replace sensitive values with [REDACTED] in downloaded HTML reports. Investigators can add
+            per-investigation terms from the export menu.
+          </p>
+          <label className="flex items-center gap-2 text-xs text-gray-300">
+            <input
+              type="checkbox"
+              checked={redactApplyOnExport}
+              onChange={(e) => setRedactApplyOnExport(e.target.checked)}
+              disabled={!isAdmin}
+              className="rounded border-border-subtle"
+            />
+            Redact on every export by default
+          </label>
+          <div className="flex flex-wrap gap-4 text-xs text-gray-300">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={redactEmail}
+                onChange={(e) => setRedactEmail(e.target.checked)}
+                disabled={!isAdmin}
+                className="rounded border-border-subtle"
+              />
+              Email addresses
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={redactIpv4}
+                onChange={(e) => setRedactIpv4(e.target.checked)}
+                disabled={!isAdmin}
+                className="rounded border-border-subtle"
+              />
+              IPv4 addresses
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={redactMac}
+                onChange={(e) => setRedactMac(e.target.checked)}
+                disabled={!isAdmin}
+                className="rounded border-border-subtle"
+              />
+              MAC addresses
+            </label>
+          </div>
+          <FieldLabel hint="One hostname, username, or phrase per line. Case-insensitive.">
+            Global redaction terms
+          </FieldLabel>
+          <textarea
+            value={redactCustomStrings}
+            onChange={(e) => setRedactCustomStrings(e.target.value)}
+            disabled={!isAdmin}
+            rows={4}
+            placeholder={"splunk-sh1.example.edu\ngvsu.edu"}
+            className={`${monoInputClass} resize-y min-h-[4rem]`}
+          />
+          <FieldLabel hint="Optional. One JavaScript regex per line (advanced).">
+            Custom regex patterns
+          </FieldLabel>
+          <textarea
+            value={redactCustomPatterns}
+            onChange={(e) => setRedactCustomPatterns(e.target.value)}
+            disabled={!isAdmin}
+            rows={2}
+            placeholder={"\\bINC\\d{7}\\b"}
+            className={`${monoInputClass} resize-y min-h-[2.5rem]`}
+          />
+        </div>
 
         {error && <p className="text-xs text-red-400">{error}</p>}
 

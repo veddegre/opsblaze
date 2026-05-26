@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- UX: delete confirmation, SPL copy buttons, background-run indicators in sidebar, smart scroll while streaming, investigation rename, skill picker empty states, export success feedback, responsive settings/header, in-app error notices, corrected limit-setting help text.
 - When `OPENWEBUI_BASE_URL` is set, Claude CLI and `ANTHROPIC_API_KEY` are not required.
 - Skills are injected into the system prompt under Open WebUI (no Claude `Skill` tool).
 - Settings UI shows Open WebUI status when that backend is active.

@@ -52,7 +52,9 @@ import {
   getClaudeEffort,
   getMaxTurns,
   getStreamTimeoutMs,
+  getRedactionSettings,
 } from "./runtime-settings.js";
+import { redactConversation } from "./redaction.js";
 import { isOpenWebUiMode } from "./llm-config.js";
 import { listOpenWebUiModelOptions } from "./openwebui-models.js";
 import { OpenWebUiError } from "./openwebui-client.js";
@@ -360,17 +362,31 @@ app.put("/api/conversations/:id", apiLimiter, async (req, res) => {
       res.status(404).json({ error: "Conversation not found" });
       return;
     }
-    const { title, messages } = req.body as Partial<StoredConversation>;
+    const { title, messages, exportRedactions } = req.body as Partial<StoredConversation>;
     if (messages !== undefined && !validateMessages(messages)) {
       res.status(400).json({
         error: `messages must be an array with at most ${MAX_MESSAGES_PER_CONVERSATION} entries`,
       });
       return;
     }
+    if (exportRedactions !== undefined) {
+      if (!Array.isArray(exportRedactions) || exportRedactions.some((s) => typeof s !== "string")) {
+        res.status(400).json({ error: "exportRedactions must be an array of strings" });
+        return;
+      }
+      if (exportRedactions.length > 100) {
+        res.status(400).json({ error: "At most 100 export redaction terms per investigation" });
+        return;
+      }
+    }
     const updated: StoredConversation = {
       ...existing,
       title: title ?? existing.title,
       messages: (messages as StoredConversation["messages"]) ?? existing.messages,
+      exportRedactions:
+        exportRedactions !== undefined
+          ? exportRedactions.map((s) => s.trim()).filter(Boolean)
+          : existing.exportRedactions,
       updatedAt: new Date().toISOString(),
     };
     await saveConversation(userId, updated);
@@ -397,18 +413,45 @@ app.delete("/api/conversations/:id", apiLimiter, async (req, res) => {
 
 app.get("/api/conversations/:id/export", apiLimiter, async (req, res) => {
   try {
-    const conv = await getConversation(getRequestUserId(req), req.params.id as string);
+    let conv = await getConversation(getRequestUserId(req), req.params.id as string);
     if (!conv) {
       res.status(404).json({ error: "Conversation not found" });
       return;
     }
-    const html = renderExportHtml(conv);
+    const mode = req.query.mode === "findings" ? "findings" : "full";
+    const redactionSettings = await getRedactionSettings();
+    const redactParam = req.query.redact;
+    const shouldRedact =
+      redactParam === "1" || redactParam === "true"
+        ? true
+        : redactParam === "0" || redactParam === "false"
+          ? false
+          : Boolean(redactionSettings.applyOnExport);
+
+    if (shouldRedact) {
+      conv = redactConversation(conv, {
+        settings: redactionSettings,
+        conversationStrings: conv.exportRedactions ?? [],
+      });
+    }
+
+    const clean = req.query.clean !== "0" && req.query.clean !== "false";
+    const html = renderExportHtml(conv, { mode, redacted: shouldRedact, clean });
     const safeTitle = conv.title
       .replace(/[^a-zA-Z0-9 _-]/g, "")
       .replace(/\s+/g, "-")
       .slice(0, 80);
+    const filenamePrefix = [
+      mode === "findings" ? "findings" : "investigation",
+      shouldRedact ? "redacted" : null,
+    ]
+      .filter(Boolean)
+      .join("-");
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="investigation-${safeTitle}.html"`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${filenamePrefix}-${safeTitle}.html"`
+    );
     res.send(html);
   } catch (err) {
     logger.error({ err, id: req.params.id }, "failed to export conversation");
@@ -457,11 +500,12 @@ function buildSystemSettingsPayload() {
 
 app.get("/api/settings", apiLimiter, async (req, res) => {
   try {
-    const [model, effort, maxTurns, streamTimeoutMs] = await Promise.all([
+    const [model, effort, maxTurns, streamTimeoutMs, redaction] = await Promise.all([
       getClaudeModel(),
       getClaudeEffort(),
       getMaxTurns(),
       getStreamTimeoutMs(),
+      getRedactionSettings(),
     ]);
     const openWebUi = isOpenWebUiMode();
     const payload: {
@@ -471,6 +515,7 @@ app.get("/api/settings", apiLimiter, async (req, res) => {
         maxTurns: number;
         streamTimeoutMs: number;
         llmProvider: "openwebui" | "claude";
+        redaction: Awaited<ReturnType<typeof getRedactionSettings>>;
       };
       system?: ReturnType<typeof buildSystemSettingsPayload>;
     } = {
@@ -480,6 +525,7 @@ app.get("/api/settings", apiLimiter, async (req, res) => {
         maxTurns,
         streamTimeoutMs,
         llmProvider: openWebUi ? "openwebui" : "claude",
+        redaction,
       },
     };
     if (isRequestAdmin(req)) {
@@ -513,14 +559,15 @@ app.get("/api/openwebui/models", apiLimiter, async (_req, res) => {
 app.patch("/api/settings", apiLimiter, requireAdmin, async (req, res) => {
   try {
     await updateRuntimeSettings(req.body);
-    const [model, effort, maxTurns, streamTimeoutMs] = await Promise.all([
+    const [model, effort, maxTurns, streamTimeoutMs, redaction] = await Promise.all([
       getClaudeModel(),
       getClaudeEffort(),
       getMaxTurns(),
       getStreamTimeoutMs(),
+      getRedactionSettings(),
     ]);
     res.json({
-      runtime: { claudeModel: model, claudeEffort: effort, maxTurns, streamTimeoutMs },
+      runtime: { claudeModel: model, claudeEffort: effort, maxTurns, streamTimeoutMs, redaction },
     });
   } catch (err) {
     const msg = (err as Error).message;

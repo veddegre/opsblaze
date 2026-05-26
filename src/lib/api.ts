@@ -20,6 +20,7 @@ export interface StoredConversation {
   messages: unknown[];
   createdAt: string;
   updatedAt: string;
+  exportRedactions?: string[];
 }
 
 export async function listConversations(): Promise<ConversationSummary[]> {
@@ -49,7 +50,7 @@ export async function createConversation(id: string, title: string): Promise<Sto
 
 export async function updateConversation(
   id: string,
-  data: { title?: string; messages?: unknown[] }
+  data: { title?: string; messages?: unknown[]; exportRedactions?: string[] }
 ): Promise<StoredConversation> {
   const res = await fetch(
     `/api/conversations/${id}`,

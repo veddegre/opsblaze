@@ -2,12 +2,32 @@ import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { z } from "zod";
 import { logger } from "./logger.js";
+import {
+  defaultRedactionSettings,
+  normalizeRedactionSettings,
+  validateCustomPatterns,
+  type RedactionSettings,
+} from "./redaction.js";
+
+const redactionBuiltinSchema = z.object({
+  email: z.boolean().optional(),
+  ipv4: z.boolean().optional(),
+  mac: z.boolean().optional(),
+});
+
+const redactionSchema = z.object({
+  applyOnExport: z.boolean().optional(),
+  builtin: redactionBuiltinSchema.optional(),
+  customStrings: z.array(z.string().max(500)).max(200).optional(),
+  customPatterns: z.array(z.string().max(200)).max(20).optional(),
+});
 
 const runtimeSettingsSchema = z.object({
   claudeModel: z.string().min(1).optional(),
   claudeEffort: z.enum(["low", "medium", "high", "max"]).optional(),
   maxTurns: z.number().int().min(1).max(200).optional(),
   streamTimeoutMs: z.number().int().min(30_000).max(1_800_000).optional(),
+  redaction: redactionSchema.optional(),
 });
 
 export type RuntimeSettings = z.infer<typeof runtimeSettingsSchema>;
@@ -39,11 +59,27 @@ export async function updateRuntimeSettings(
   partial: Partial<RuntimeSettings>
 ): Promise<RuntimeSettings> {
   const current = await loadRuntimeSettings();
-  const merged = { ...current, ...partial };
+  const merged: Record<string, unknown> = { ...current, ...partial };
+
+  if (partial.redaction !== undefined) {
+    const nextRedaction = {
+      ...(current.redaction ?? {}),
+      ...partial.redaction,
+      builtin: {
+        ...(current.redaction?.builtin ?? {}),
+        ...(partial.redaction.builtin ?? {}),
+      },
+    };
+    merged.redaction = nextRedaction;
+    const patternErrors = validateCustomPatterns(nextRedaction.customPatterns ?? []);
+    if (patternErrors.length > 0) {
+      throw new Error(patternErrors[0]);
+    }
+  }
 
   // Remove keys that are explicitly set to undefined
   for (const [key, value] of Object.entries(merged)) {
-    if (value === undefined) delete (merged as Record<string, unknown>)[key];
+    if (value === undefined) delete merged[key];
   }
 
   const validated = runtimeSettingsSchema.parse(merged);
@@ -85,4 +121,9 @@ export async function getStreamTimeoutMs(): Promise<number> {
   return (
     settings.streamTimeoutMs || parseInt(process.env.OPSBLAZE_STREAM_TIMEOUT_MS ?? "300000", 10)
   );
+}
+
+export async function getRedactionSettings(): Promise<RedactionSettings> {
+  const settings = await loadRuntimeSettings();
+  return normalizeRedactionSettings(settings.redaction ?? defaultRedactionSettings());
 }

@@ -51,18 +51,23 @@ export function UsageBar({ queryUsage, contextUsage }: UsageBarProps) {
       )}
 
       {contextUsage && contextUsage.maxTokens > 0 && (
-        <div
-          className="flex items-center gap-2"
-          title={`Context: ${formatTokens(contextUsage.totalTokens)} / ${formatTokens(contextUsage.maxTokens)}`}
-        >
-          <span className="text-gray-600">ctx</span>
-          <div className="w-16 h-1.5 bg-surface-3 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${contextColor(contextUsage.percentage)}`}
-              style={{ width: `${Math.min(contextUsage.percentage, 100)}%` }}
-            />
+        <div className="flex items-center gap-2 min-w-0">
+          <div
+            className="flex items-center gap-2 shrink-0"
+            title={`Context: ${formatTokens(contextUsage.totalTokens)} / ${formatTokens(contextUsage.maxTokens)}`}
+          >
+            <span className="text-gray-600">ctx</span>
+            <div className="w-16 h-1.5 bg-surface-3 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${contextColor(contextUsage.percentage)}`}
+                style={{ width: `${Math.min(contextUsage.percentage, 100)}%` }}
+              />
+            </div>
+            <span className="text-gray-400">{Math.round(contextUsage.percentage)}%</span>
           </div>
-          <span className="text-gray-400">{Math.round(contextUsage.percentage)}%</span>
+          {contextUsage.percentage >= 90 && (
+            <span className="text-amber-400/90 truncate">Context nearly full — start a new investigation</span>
+          )}
         </div>
       )}
     </div>

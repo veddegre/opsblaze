@@ -1053,9 +1053,9 @@ export function SettingsPanel({
           </button>
         </div>
 
-        <div className="flex flex-1 min-h-0">
+        <div className="flex flex-1 min-h-0 flex-col sm:flex-row">
           <nav
-            className="w-[148px] shrink-0 border-r border-border-subtle py-2 overflow-y-auto"
+            className="sm:w-[148px] shrink-0 border-b sm:border-b-0 sm:border-r border-border-subtle py-2 px-1 sm:px-0 overflow-x-auto sm:overflow-y-auto flex sm:flex-col gap-0.5 sm:gap-0"
             aria-label="Settings sections"
           >
             <NavGroupLabel>Personal</NavGroupLabel>

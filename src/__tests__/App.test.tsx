@@ -20,9 +20,13 @@ vi.mock("../hooks/useChat", () => ({
     conversationTitle: null,
     queryUsage: null,
     contextUsage: null,
+    streamingConversationIds: [],
+    notice: null,
+    clearNotice: vi.fn(),
     sendMessage: mockSendMessage,
     startNewConversation: mockStartNew,
     loadExistingConversation: mockLoadExisting,
+    renameConversation: vi.fn(),
     deleteConversation: mockDeleteConversation,
     stopStreaming: mockStopStreaming,
   }),
@@ -108,13 +112,13 @@ describe("App skill reset on investigation switch", () => {
     });
 
     await selectSkill("splunk-analyst");
-    const toggle = screen.getByLabelText("Restrict to selected skills only");
+    const toggle = screen.getByLabelText("Allow using skills beyond those selected");
     fireEvent.click(toggle);
 
     fireEvent.click(screen.getByText("New investigation"));
 
     await waitFor(() => {
-      expect(screen.queryByText("Include additional skills")).not.toBeInTheDocument();
+      expect(screen.queryByText(/May use other skills/)).not.toBeInTheDocument();
     });
   });
 
@@ -147,8 +151,10 @@ describe("App skill reset on investigation switch", () => {
 
     fireEvent.click(screen.getByLabelText("Toggle investigations sidebar"));
     const deleteBtn = await screen.findByLabelText("Delete investigation: Old investigation");
+    fireEvent.click(deleteBtn);
+    const confirmDelete = await screen.findByRole("button", { name: /^Delete$/ });
     await act(async () => {
-      fireEvent.click(deleteBtn);
+      fireEvent.click(confirmDelete);
     });
 
     expect(mockDeleteConversation).toHaveBeenCalledWith("conv-1");

@@ -309,13 +309,13 @@ export async function runOpenWebUiAgent(
     emit("limit", {
       reason: "stream_timeout",
       message: `This investigation timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}.`,
-      setting: "Timeout",
+      setting: "Time limit",
     });
   } else if (turnCount >= maxTurns) {
     emit("limit", {
       reason: "max_turns",
       message: `This investigation reached the ${maxTurns}-turn limit.`,
-      setting: "Max Turns",
+      setting: "Max steps per investigation",
     });
   }
 

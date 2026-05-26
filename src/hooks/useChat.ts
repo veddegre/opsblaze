@@ -151,11 +151,16 @@ function markDone(msgs: Message[], id: string): Message[] {
   return updated;
 }
 
-function saveToDisk(msgs: Message[], convId: string) {
+function saveToDisk(
+  msgs: Message[],
+  convId: string,
+  onError?: (message: string) => void
+) {
   updateConversation(convId, {
     messages: stripStreamingFlags(msgs),
   }).catch((err) => {
     if (import.meta.env.DEV) console.warn("[OpsBlaze] failed to save conversation:", err);
+    onError?.("Could not save this investigation. Check your connection and try again.");
   });
 }
 
@@ -179,11 +184,22 @@ export function useChat() {
   const [conversationTitle, setConversationTitle] = useState<string | null>(null);
   const [queryUsage, setQueryUsage] = useState<UsageData | null>(null);
   const [contextUsage, setContextUsage] = useState<ContextData | null>(null);
+  const [streamingConversationIds, setStreamingConversationIds] = useState<string[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const convIdRef = useRef<string | null>(null);
   const messagesRef = useRef<Message[]>([]);
+  const onSaveErrorRef = useRef<(message: string) => void>(() => {});
   // Abort controllers keyed by conversation ID
   const abortControllers = useRef<Map<string, AbortController>>(new Map());
+
+  const syncStreamingIds = useCallback(() => {
+    setStreamingConversationIds([...abortControllers.current.keys()]);
+  }, []);
+
+  useEffect(() => {
+    onSaveErrorRef.current = (message) => setNotice(message);
+  }, []);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -224,7 +240,7 @@ export function useChat() {
     // Flush whatever is on screen, but do NOT abort background streams
     const convId = convIdRef.current;
     if (convId && messagesRef.current.length > 0) {
-      saveToDisk(messagesRef.current, convId);
+      saveToDisk(messagesRef.current, convId, (msg) => onSaveErrorRef.current(msg));
     }
 
     setMessages([]);
@@ -240,7 +256,7 @@ export function useChat() {
     // Flush current view, but do NOT abort background streams
     const convId = convIdRef.current;
     if (convId && messagesRef.current.length > 0) {
-      saveToDisk(messagesRef.current, convId);
+      saveToDisk(messagesRef.current, convId, (msg) => onSaveErrorRef.current(msg));
     }
 
     setIsStreaming(false);
@@ -257,10 +273,11 @@ export function useChat() {
       if (abortControllers.current.has(conv.id)) {
         setIsStreaming(true);
       }
-    } catch {
+    } catch (err) {
       setMessages([]);
       setConversationId(null);
       setConversationTitle(null);
+      setNotice(`Could not load investigation: ${(err as Error).message}`);
     }
   }, []);
 
@@ -280,7 +297,9 @@ export function useChat() {
           setConversationTitle(title);
           localStorage.setItem(ACTIVE_CONV_KEY, id);
         } catch {
-          // Continue without persistence
+          setNotice(
+            "This investigation could not be saved on the server. Messages may not persist after refresh."
+          );
         }
       }
 
@@ -308,13 +327,16 @@ export function useChat() {
       setQueryUsage(null);
       setContextUsage(null);
 
+      const reportSaveError = (msg: string) => onSaveErrorRef.current(msg);
+
       if (activeConvId) {
-        saveToDisk(local, activeConvId);
+        saveToDisk(local, activeConvId, reportSaveError);
       }
 
       const abortController = new AbortController();
       if (activeConvId) {
         abortControllers.current.set(activeConvId, abortController);
+        syncStreamingIds();
       }
 
       const history = currentMessages
@@ -378,8 +400,12 @@ export function useChat() {
             onDone: () => {
               local = markDone(local, assistantId);
               if (activeConvId) {
-                saveToDisk(local, activeConvId);
+                saveToDisk(local, activeConvId, reportSaveError);
                 abortControllers.current.delete(activeConvId);
+                syncStreamingIds();
+                if (!isDisplayed(activeConvId)) {
+                  setNotice("A background investigation finished.");
+                }
               }
               if (activeConvId && isDisplayed(activeConvId)) {
                 setMessages(local);
@@ -399,8 +425,9 @@ export function useChat() {
         local = markDone(local, assistantId);
 
         if (activeConvId) {
-          saveToDisk(local, activeConvId);
+          saveToDisk(local, activeConvId, reportSaveError);
           abortControllers.current.delete(activeConvId);
+          syncStreamingIds();
         }
         if (activeConvId && isDisplayed(activeConvId)) {
           setMessages(local);
@@ -408,7 +435,7 @@ export function useChat() {
         }
       }
     },
-    [isStreaming, conversationId, isDisplayed]
+    [isStreaming, conversationId, isDisplayed, syncStreamingIds]
   );
 
   const stopStreaming = useCallback(() => {
@@ -419,11 +446,26 @@ export function useChat() {
     }
   }, []);
 
+  const renameConversation = useCallback(async (id: string, title: string) => {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    try {
+      await updateConversation(id, { title: trimmed });
+      if (convIdRef.current === id) {
+        setConversationTitle(trimmed);
+      }
+    } catch (err) {
+      setNotice(`Could not rename investigation: ${(err as Error).message}`);
+      throw err;
+    }
+  }, []);
+
   const deleteConversation = useCallback(async (id: string) => {
     // Abort any running stream for this conversation
     if (abortControllers.current.has(id)) {
       abortControllers.current.get(id)!.abort();
       abortControllers.current.delete(id);
+      syncStreamingIds();
     }
     await deleteConversationApi(id);
 
@@ -436,7 +478,9 @@ export function useChat() {
       setContextUsage(null);
       localStorage.removeItem(ACTIVE_CONV_KEY);
     }
-  }, []);
+  }, [syncStreamingIds]);
+
+  const clearNotice = useCallback(() => setNotice(null), []);
 
   return {
     messages,
@@ -445,9 +489,13 @@ export function useChat() {
     conversationTitle,
     queryUsage,
     contextUsage,
+    streamingConversationIds,
+    notice,
+    clearNotice,
     sendMessage,
     startNewConversation,
     loadExistingConversation,
+    renameConversation,
     deleteConversation,
     stopStreaming,
   };

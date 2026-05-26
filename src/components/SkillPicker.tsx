@@ -159,13 +159,22 @@ export function SkillPicker({
     }
   };
 
-  if (loading && skills.length === 0) return null;
-  if (!loading && skills.length === 0) return null;
-
   const hasResults = matchingEnabled.length > 0 || matchingDisabled.length > 0;
+  const loadFailed = !loading && skills.length === 0;
 
   return (
-    <div className="relative mt-1.5 flex items-center gap-2 min-h-[28px]">
+    <div className="relative mt-1.5 flex flex-col gap-1.5 min-h-[28px]">
+      {loading && skills.length === 0 && (
+        <p className="text-[10px] text-gray-600 px-0.5">Loading skills…</p>
+      )}
+      {loadFailed && (
+        <p className="text-[10px] text-gray-500 px-0.5">
+          No skills available. Ask an admin to enable skills in Settings, or distill one from a
+          completed investigation.
+        </p>
+      )}
+      {!loading && !loadFailed && (
+    <div className="relative flex items-center gap-2">
       <div className="flex-1 flex items-center gap-1.5 flex-wrap min-w-0">
         {selectedSkills.map((name) => (
           <span
@@ -216,7 +225,7 @@ export function SkillPicker({
       {selectedSkills.length > 0 && (
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="text-[10px] text-gray-500 whitespace-nowrap select-none">
-            Include additional skills
+            {allowAdditional ? "May use other skills if needed" : "Only selected skills"}
           </span>
           <button
             onClick={() => onAllowAdditionalChange(!allowAdditional)}
@@ -225,9 +234,15 @@ export function SkillPicker({
               allowAdditional ? "bg-accent" : "bg-gray-700"
             }`}
             aria-label={
-              allowAdditional ? "Restrict to selected skills only" : "Allow additional skills"
+              allowAdditional
+                ? "Allow using skills beyond those selected"
+                : "Restrict to selected skills only"
             }
-            title={allowAdditional ? "Additional skills allowed" : "Only selected skills"}
+            title={
+              allowAdditional
+                ? "Agent may add other skills when helpful"
+                : "Agent must stay within selected skills only"
+            }
           >
             <span
               className={`inline-block h-2.5 w-2.5 rounded-full bg-white transition-transform ${
@@ -359,6 +374,8 @@ export function SkillPicker({
           </>,
           document.body
         )}
+    </div>
+      )}
     </div>
   );
 }

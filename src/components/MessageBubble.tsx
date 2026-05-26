@@ -4,6 +4,8 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { marked } from "marked";
 import { SplunkChart } from "./SplunkChart";
+import { CopyButton } from "./CopyButton";
+import { runtimeSettingLabel } from "../lib/limit-setting-labels";
 import type { Message, ChartBlock, SkillBlock, LimitBlock } from "../types";
 
 const sanitizeSchema = {
@@ -124,6 +126,8 @@ function SplunkQueryDetails({ block }: { block: ChartBlock }) {
   const rowCount = columns[0]?.length ?? 0;
   const displayRows = Math.min(rowCount, MAX_RESULTS_ROWS);
 
+  const timeRange = `${block.earliest ?? "-24h"} → ${block.latest ?? "now"}`;
+
   return (
     <details className="spl-details">
       <summary className="spl-details-summary">
@@ -131,12 +135,14 @@ function SplunkQueryDetails({ block }: { block: ChartBlock }) {
       </summary>
       <div className="spl-details-content">
         <div className="spl-details-query">
+          <div className="flex items-center justify-end gap-2 mb-1">
+            <CopyButton text={timeRange} label="Copy time range" />
+            <CopyButton text={block.spl} label="Copy SPL" />
+          </div>
           <pre>
             <code>{block.spl}</code>
           </pre>
-          <span className="spl-details-time">
-            {block.earliest ?? "-24h"} &rarr; {block.latest ?? "now"}
-          </span>
+          <span className="spl-details-time">{timeRange}</span>
         </div>
         {rowCount > 0 && (
           <div className="spl-details-results">
@@ -256,9 +262,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               >
                 <p className="text-yellow-300">{block.message}</p>
                 <p className="text-yellow-300/60 text-xs mt-1">
-                  You can raise this in{" "}
+                  An administrator can raise this under{" "}
                   <span className="font-semibold text-yellow-300/80">
-                    Settings &gt; General &gt; {block.setting}
+                    Settings → Runtime settings → {runtimeSettingLabel(block.setting)}
                   </span>
                   .
                 </p>

@@ -4,6 +4,7 @@ import type { HealthResponse } from "../lib/api";
 import { healthCheckLabel } from "../lib/health-labels";
 import type { PublicAuthUser } from "../lib/auth";
 import { UserMenu } from "./UserMenu";
+import { RedactionTermsModal } from "./RedactionTermsModal";
 
 interface HeaderProps {
   user: PublicAuthUser;
@@ -116,22 +117,59 @@ export function Header({
 }: HeaderProps) {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [exportSuccess, setExportSuccess] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [redactionModalOpen, setRedactionModalOpen] = useState(false);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  type ExportRedact = "default" | "yes" | "no";
 
   useEffect(() => {
     return () => {
-      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
     };
   }, []);
 
-  const handleExport = async () => {
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [exportMenuOpen]);
+
+  const clearExportFeedback = () => {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    feedbackTimerRef.current = setTimeout(() => {
+      setExportError(null);
+      setExportSuccess(false);
+    }, 4000);
+  };
+
+  const handleExport = async (
+    mode: "full" | "findings",
+    redact: ExportRedact = "default",
+    clean = true
+  ) => {
     if (!conversationId || exporting) return;
+    setExportMenuOpen(false);
     setExporting(true);
     setExportError(null);
-    if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    setExportSuccess(false);
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
     try {
+      const params = new URLSearchParams();
+      if (mode === "findings") params.set("mode", "findings");
+      if (redact === "yes") params.set("redact", "1");
+      else if (redact === "no") params.set("redact", "0");
+      if (!clean) params.set("clean", "0");
+      const qs = params.toString();
       const resp = await fetch(
-        `/api/conversations/${conversationId}/export`,
+        `/api/conversations/${conversationId}/export${qs ? `?${qs}` : ""}`,
         fetchInit({ headers: headers() })
       );
       if (!resp.ok) throw new Error(`Export failed (${resp.status})`);
@@ -146,18 +184,20 @@ export function Header({
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      setExportSuccess(true);
+      clearExportFeedback();
     } catch (err) {
       const msg = (err as Error).message || "Export failed";
       setExportError(msg);
-      errorTimerRef.current = setTimeout(() => setExportError(null), 4000);
+      clearExportFeedback();
     } finally {
       setExporting(false);
     }
   };
 
   return (
-    <header className="flex items-center justify-between px-6 py-3 border-b border-border-subtle bg-surface-1/80 backdrop-blur-md z-40">
-      <div className="flex items-center gap-3">
+    <header className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3 border-b border-border-subtle bg-surface-1/80 backdrop-blur-md z-40">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
         <button
           onClick={onToggleSidebar}
           className="p-1.5 -ml-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-surface-3 transition-colors"
@@ -199,39 +239,150 @@ export function Header({
             />
           </svg>
         </div>
-        <div>
-          <h1 className="text-sm font-semibold text-gray-100 tracking-tight">
+        <div className="min-w-0">
+          <h1 className="text-sm font-semibold text-gray-100 tracking-tight truncate">
             {conversationTitle ?? "OpsBlaze"}
           </h1>
-          <p className="text-xs text-gray-500 -mt-0.5">AI-Powered Narrative Investigation</p>
+          <p className="hidden sm:block text-xs text-gray-500 -mt-0.5">
+            AI-Powered Narrative Investigation
+          </p>
         </div>
       </div>
-      <div className="flex items-center gap-1 sm:gap-2">
+      <div className="flex items-center gap-0.5 sm:gap-2 shrink-0">
         <HealthIndicator />
-        {exportError && <span className="text-xs text-red-400 mr-1">{exportError}</span>}
+        {exportSuccess && (
+          <span className="hidden sm:inline text-xs text-green-400 mr-1">Download started</span>
+        )}
+        {exportError && (
+          <span className="hidden sm:inline text-xs text-red-400 mr-1 max-w-[140px] truncate">
+            {exportError}
+          </span>
+        )}
         {canExport && (
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-surface-3 transition-colors disabled:opacity-50"
-            aria-label="Export investigation"
-            title="Export investigation (open in browser, then Print > Save as PDF)"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-          </button>
+          <div className="relative" ref={exportMenuRef}>
+            <div className="flex items-center">
+              <button
+                onClick={() => handleExport("findings", "default")}
+                disabled={exporting}
+                className="p-1.5 rounded-l-md text-gray-400 hover:text-gray-200 hover:bg-surface-3 transition-colors disabled:opacity-50"
+                aria-label="Download findings report"
+                title="Findings export — charts and SPL (use menu for redacted copy)"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setExportMenuOpen((o) => !o)}
+                disabled={exporting}
+                className="p-1.5 -ml-px rounded-r-md text-gray-400 hover:text-gray-200 hover:bg-surface-3 transition-colors disabled:opacity-50 border-l border-border-subtle/60"
+                aria-label="More export options"
+                aria-expanded={exportMenuOpen}
+                aria-haspopup="menu"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+            </div>
+            {exportMenuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-full mt-1 z-50 min-w-[200px] rounded-lg border border-border-subtle bg-surface-2 shadow-xl py-1"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-surface-3"
+                  onClick={() => handleExport("findings", "default")}
+                >
+                  <span className="font-medium block">Findings report</span>
+                  <span className="text-gray-500">
+                    Charts and SPL only — skips errors and retries
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-surface-3"
+                  onClick={() => handleExport("findings", "yes")}
+                >
+                  <span className="font-medium block">Findings (redacted)</span>
+                  <span className="text-gray-500">Findings with sensitive values removed</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-surface-3"
+                  onClick={() => handleExport("full", "default")}
+                >
+                  <span className="font-medium block">Full conversation</span>
+                  <span className="text-gray-500">
+                    Substantive Q&amp;A only — omits errors and &quot;try again&quot;
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-surface-3"
+                  onClick={() => handleExport("full", "default", false)}
+                >
+                  <span className="font-medium block">Full (verbatim)</span>
+                  <span className="text-gray-500">Everything including errors and retries</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-surface-3"
+                  onClick={() => handleExport("full", "yes", true)}
+                >
+                  <span className="font-medium block">Full conversation (redacted)</span>
+                  <span className="text-gray-500">
+                    Cleaned Q&amp;A with sensitive values removed
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-surface-3 border-t border-border-subtle mt-1"
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    setRedactionModalOpen(true);
+                  }}
+                >
+                  <span className="font-medium block">Redaction terms…</span>
+                  <span className="text-gray-500">Strings to hide in this investigation</span>
+                </button>
+              </div>
+            )}
+            {conversationId && (
+              <RedactionTermsModal
+                conversationId={conversationId}
+                open={redactionModalOpen}
+                onClose={() => setRedactionModalOpen(false)}
+              />
+            )}
+          </div>
         )}
         <button
           onClick={onDistillSkill}
@@ -278,9 +429,10 @@ export function Header({
         </button>
         <button
           onClick={onClear}
-          className="text-xs font-medium text-gray-300 hover:text-white px-3 py-1.5 rounded-md bg-surface-3/80 hover:bg-surface-3 border border-border-subtle transition-colors"
+          className="text-xs font-medium text-gray-300 hover:text-white px-2 sm:px-3 py-1.5 rounded-md bg-surface-3/80 hover:bg-surface-3 border border-border-subtle transition-colors whitespace-nowrap"
         >
-          New investigation
+          <span className="hidden sm:inline">New investigation</span>
+          <span className="sm:hidden">New</span>
         </button>
         <UserMenu
           user={user}

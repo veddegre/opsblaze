@@ -271,13 +271,13 @@ export async function runAgent(
     sendSSE(res, "limit", {
       reason: "stream_timeout",
       message: `This investigation timed out after ${timeoutMinutes} minute${timeoutMinutes !== 1 ? "s" : ""}.`,
-      setting: "Timeout",
+      setting: "Time limit",
     });
   } else if (turnCount >= maxTurns) {
     sendSSE(res, "limit", {
       reason: "max_turns",
       message: `This investigation reached the ${maxTurns}-turn limit.`,
-      setting: "Max Turns",
+      setting: "Max steps per investigation",
     });
   }
 

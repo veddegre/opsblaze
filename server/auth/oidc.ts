@@ -111,33 +111,71 @@ export async function exchangeCallback(
 
   const tokens = await oidc.authorizationCodeGrant(config, callbackUrl, checks);
 
-  const claims = tokens.claims();
-  if (claims?.sub) {
-    return {
-      sub: String(claims.sub),
-      email: claims.email ? String(claims.email) : undefined,
-      name: claims.name ? String(claims.name) : undefined,
-    };
+  const claims = tokens.claims() as Record<string, unknown> | null | undefined;
+  const accessToken = tokens.access_token;
+
+  function pickString(obj: Record<string, unknown>, keys: string[]): string | undefined {
+    for (const k of keys) {
+      const v = obj[k];
+      if (typeof v === "string" && v.trim()) return v.trim();
+    }
+    return undefined;
   }
 
-  if (tokens.access_token) {
+  function buildName(obj: Record<string, unknown>): string | undefined {
+    const direct = pickString(obj, ["name", "display_name", "preferred_username"]);
+    if (direct) return direct;
+    const given = pickString(obj, ["given_name", "first_name", "given"]);
+    const family = pickString(obj, ["family_name", "last_name", "surname", "family"]);
+    const combined = [given, family].filter(Boolean).join(" ");
+    if (combined) return combined;
+    return undefined;
+  }
+
+  function buildEmail(obj: Record<string, unknown>): string | undefined {
+    // Many IdPs use different email-like claim names; admins can match either one.
+    return pickString(obj, ["email", "mail", "upn", "preferred_username"]);
+  }
+
+  const subFromClaims = claims ? pickString(claims, ["sub"]) : undefined;
+  const emailFromClaims = claims ? buildEmail(claims) : undefined;
+  const nameFromClaims = claims ? buildName(claims) : undefined;
+
+  // Some providers put `sub` in the token but `email` in UserInfo (or vice versa),
+  // so we optionally fetch UserInfo when email/name is missing.
+  if (accessToken) {
     try {
-      const info = await oidc.fetchUserInfo(
+      const info = (await oidc.fetchUserInfo(
         config,
-        tokens.access_token,
+        accessToken,
         oidc.skipSubjectCheck
-      );
-      return {
-        sub: info.sub,
-        email: info.email,
-        name: info.name,
-      };
+      )) as Record<string, unknown> & { sub?: unknown };
+
+      const sub = subFromClaims ?? pickString(info, ["sub"]);
+      const email = emailFromClaims ?? buildEmail(info);
+      const name = nameFromClaims ?? buildName(info);
+
+      if (sub) {
+        return {
+          sub: String(sub),
+          email,
+          name,
+        };
+      }
     } catch (err) {
       logger.warn({ err }, "OIDC userinfo fetch failed after token grant");
     }
   }
 
-  throw new Error("OIDC token response did not include a subject");
+  if (!subFromClaims) {
+    throw new Error("OIDC token response did not include a subject");
+  }
+
+  return {
+    sub: String(subFromClaims),
+    email: emailFromClaims,
+    name: nameFromClaims,
+  };
 }
 
 export { oidc };

@@ -55,17 +55,17 @@ describe("SkillPicker", () => {
       });
     });
 
-    it("returns null while loading", () => {
+    it("shows loading message while skills load", () => {
       mockListSkills.mockReturnValue(new Promise(() => {})); // never resolves
-      const { container } = renderPicker();
-      expect(container.innerHTML).toBe("");
+      renderPicker();
+      expect(screen.getByText("Loading skills…")).toBeInTheDocument();
     });
 
-    it("returns null when no skills exist", async () => {
+    it("shows empty state when no skills exist", async () => {
       mockListSkills.mockResolvedValue([]);
-      const { container } = renderPicker();
+      renderPicker();
       await waitFor(() => {
-        expect(container.innerHTML).toBe("");
+        expect(screen.getByText(/No skills available/)).toBeInTheDocument();
       });
     });
   });
@@ -337,14 +337,14 @@ describe("SkillPicker", () => {
       renderPicker({ selectedSkills: [] });
       await waitFor(() => screen.getByPlaceholderText("Add skills..."));
 
-      expect(screen.queryByText("Include additional skills")).not.toBeInTheDocument();
+      expect(screen.queryByText(/May use other skills/)).not.toBeInTheDocument();
     });
 
     it("shows toggle when skills are selected", async () => {
       renderPicker({ selectedSkills: ["splunk-analyst"] });
-      await waitFor(() => screen.getByText("Include additional skills"));
+      await waitFor(() => screen.getByText(/May use other skills if needed/));
 
-      expect(screen.getByText("Include additional skills")).toBeInTheDocument();
+      expect(screen.getByText(/May use other skills if needed/)).toBeInTheDocument();
     });
 
     it("calls onAllowAdditionalChange when toggle is clicked", async () => {
@@ -352,9 +352,9 @@ describe("SkillPicker", () => {
         selectedSkills: ["splunk-analyst"],
         allowAdditional: true,
       });
-      await waitFor(() => screen.getByText("Include additional skills"));
+      await waitFor(() => screen.getByText(/May use other skills if needed/));
 
-      const toggle = screen.getByLabelText("Restrict to selected skills only");
+      const toggle = screen.getByLabelText("Allow using skills beyond those selected");
       fireEvent.click(toggle);
 
       expect(props.onAllowAdditionalChange).toHaveBeenCalledWith(false);

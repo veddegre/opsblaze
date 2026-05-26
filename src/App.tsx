@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { AuthGate } from "./components/AuthGate";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
@@ -6,6 +6,7 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { SkillExtractor } from "./components/SkillExtractor";
 import { ChatView } from "./components/ChatView";
 import { InputBar } from "./components/InputBar";
+import { AppNotice } from "./components/AppNotice";
 import { useChat } from "./hooks/useChat";
 import type { PublicAuthUser } from "./lib/auth";
 
@@ -25,9 +26,13 @@ function AppContent({ user }: { user: PublicAuthUser }) {
     conversationTitle,
     queryUsage,
     contextUsage,
+    streamingConversationIds,
+    notice,
+    clearNotice,
     sendMessage,
     startNewConversation,
     loadExistingConversation,
+    renameConversation,
     deleteConversation,
     stopStreaming,
   } = useChat();
@@ -38,6 +43,8 @@ function AppContent({ user }: { user: PublicAuthUser }) {
     "account" | "preferences" | "admin-system" | "admin-mcp" | "admin-skills"
   >("account");
   const [extractorOpen, setExtractorOpen] = useState(false);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [allowAdditional, setAllowAdditional] = useState(true);
 
   const openSettings = useCallback(
     (section: typeof settingsSection = "account") => {
@@ -54,11 +61,17 @@ function AppContent({ user }: { user: PublicAuthUser }) {
       return true;
     });
   }, []);
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [allowAdditional, setAllowAdditional] = useState(true);
 
   const hasSubstance =
     !!conversationId && messages.filter((m) => m.role === "assistant").length >= 1;
+
+  const sidebarListKey = `${conversationId ?? "none"}-${messages.length}`;
+
+  const backgroundStreamingNotice = useMemo(() => {
+    const others = streamingConversationIds.filter((id) => id !== conversationId);
+    if (others.length === 0) return null;
+    return "Another investigation is still running — open it from the sidebar when ready.";
+  }, [streamingConversationIds, conversationId]);
 
   const handleNewConversation = useCallback(() => {
     startNewConversation();
@@ -68,11 +81,12 @@ function AppContent({ user }: { user: PublicAuthUser }) {
 
   const handleLoadConversation = useCallback(
     (id: string) => {
+      clearNotice();
       loadExistingConversation(id);
       setSelectedSkills([]);
       setAllowAdditional(true);
     },
-    [loadExistingConversation]
+    [loadExistingConversation, clearNotice]
   );
 
   const handleDeleteConversation = useCallback(
@@ -86,13 +100,14 @@ function AppContent({ user }: { user: PublicAuthUser }) {
 
   const sendWithSkills = useCallback(
     (message: string) => {
+      clearNotice();
       if (selectedSkills.length > 0) {
         sendMessage(message, { skills: selectedSkills, strict: !allowAdditional });
       } else {
         sendMessage(message);
       }
     },
-    [sendMessage, selectedSkills, allowAdditional]
+    [sendMessage, selectedSkills, allowAdditional, clearNotice]
   );
 
   return (
@@ -110,12 +125,20 @@ function AppContent({ user }: { user: PublicAuthUser }) {
         conversationId={conversationId}
         canExport={hasSubstance && !isStreaming}
       />
+      <AppNotice
+        message={notice}
+        variant={notice?.includes("finished") ? "info" : "error"}
+        onDismiss={clearNotice}
+      />
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         activeConversationId={conversationId}
+        streamingConversationIds={streamingConversationIds}
+        listRefreshKey={sidebarListKey}
         onSelect={handleLoadConversation}
         onDelete={handleDeleteConversation}
+        onRename={renameConversation}
         onNew={handleNewConversation}
       />
       <SettingsPanel
@@ -130,7 +153,12 @@ function AppContent({ user }: { user: PublicAuthUser }) {
         conversationId={conversationId}
         conversationTitle={conversationTitle}
       />
-      <ChatView messages={messages} isStreaming={isStreaming} onSend={sendWithSkills} />
+      <ChatView
+        messages={messages}
+        isStreaming={isStreaming}
+        onSend={sendWithSkills}
+        backgroundStreamingNotice={backgroundStreamingNotice}
+      />
       <InputBar
         onSend={sendMessage}
         onStop={stopStreaming}

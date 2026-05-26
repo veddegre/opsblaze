@@ -8,6 +8,19 @@ function fetchInit(init?: RequestInit): RequestInit {
 
 // --- App settings types ---
 
+export interface RedactionBuiltinFlags {
+  email?: boolean;
+  ipv4?: boolean;
+  mac?: boolean;
+}
+
+export interface RedactionSettings {
+  applyOnExport?: boolean;
+  builtin?: RedactionBuiltinFlags;
+  customStrings?: string[];
+  customPatterns?: string[];
+}
+
 export interface AppSettings {
   runtime: {
     claudeModel: string;
@@ -15,6 +28,7 @@ export interface AppSettings {
     maxTurns: number;
     streamTimeoutMs: number;
     llmProvider?: "openwebui" | "claude";
+    redaction?: RedactionSettings;
   };
   system?: {
     llmProvider: "openwebui" | "claude";

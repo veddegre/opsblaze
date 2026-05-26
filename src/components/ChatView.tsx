@@ -9,6 +9,7 @@ interface ChatViewProps {
   messages: Message[];
   isStreaming: boolean;
   onSend?: (message: string) => void;
+  backgroundStreamingNotice?: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -84,13 +85,35 @@ function SystemStatusCard() {
   );
 }
 
-export function ChatView({ messages, isStreaming, onSend }: ChatViewProps) {
+const SCROLL_THRESHOLD_PX = 120;
+
+export function ChatView({
+  messages,
+  isStreaming,
+  onSend,
+  backgroundStreamingNotice,
+}: ChatViewProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const userScrolledUpRef = useRef(false);
+
+  const handleScroll = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    userScrolledUpRef.current = distanceFromBottom > SCROLL_THRESHOLD_PX;
+  };
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (userScrolledUpRef.current && isStreaming) return;
+    bottomRef.current?.scrollIntoView({ behavior: isStreaming ? "smooth" : "auto" });
   }, [messages, isStreaming]);
+
+  useEffect(() => {
+    if (!isStreaming) {
+      userScrolledUpRef.current = false;
+    }
+  }, [isStreaming]);
 
   if (messages.length === 0) {
     return (
@@ -142,7 +165,12 @@ export function ChatView({ messages, isStreaming, onSend }: ChatViewProps) {
   }
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto">
+    <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
+      {backgroundStreamingNotice && (
+        <div className="sticky top-0 z-10 px-4 py-2 bg-accent/10 border-b border-accent/25 text-xs text-accent-light text-center">
+          {backgroundStreamingNotice}
+        </div>
+      )}
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} />

@@ -10,6 +10,8 @@ export interface StoredConversation {
   createdAt: string;
   updatedAt: string;
   userId?: string;
+  /** Extra literal strings to redact when exporting this investigation. */
+  exportRedactions?: string[];
 }
 
 export interface ConversationSummary {
