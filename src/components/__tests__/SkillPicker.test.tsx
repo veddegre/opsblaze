@@ -337,14 +337,14 @@ describe("SkillPicker", () => {
       renderPicker({ selectedSkills: [] });
       await waitFor(() => screen.getByPlaceholderText("Add skills..."));
 
-      expect(screen.queryByText(/May use other skills/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Only selected skills/)).not.toBeInTheDocument();
     });
 
     it("shows toggle when skills are selected", async () => {
-      renderPicker({ selectedSkills: ["splunk-analyst"] });
-      await waitFor(() => screen.getByText(/May use other skills if needed/));
+      renderPicker({ selectedSkills: ["splunk-analyst"], allowAdditional: false });
+      await waitFor(() => screen.getByText(/Only selected skills/));
 
-      expect(screen.getByText(/May use other skills if needed/)).toBeInTheDocument();
+      expect(screen.getByText(/Only selected skills/)).toBeInTheDocument();
     });
 
     it("calls onAllowAdditionalChange when toggle is clicked", async () => {
@@ -352,7 +352,7 @@ describe("SkillPicker", () => {
         selectedSkills: ["splunk-analyst"],
         allowAdditional: true,
       });
-      await waitFor(() => screen.getByText(/May use other skills if needed/));
+      await waitFor(() => screen.getByText(/All skills loaded/));
 
       const toggle = screen.getByLabelText("Allow using skills beyond those selected");
       fireEvent.click(toggle);

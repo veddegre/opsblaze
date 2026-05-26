@@ -54,7 +54,7 @@ describe("streamChat SSE parser", () => {
     const texts: string[] = [];
     const cb = makeCallbacks({ onText: (t) => texts.push(t) });
 
-    await streamChat("hi", [], cb);
+    await streamChat("hi", cb);
     expect(texts).toEqual(["Hello ", "world"]);
     expect(cb.onDone).toHaveBeenCalled();
   });
@@ -77,7 +77,7 @@ describe("streamChat SSE parser", () => {
     const charts: unknown[] = [];
     const cb = makeCallbacks({ onChart: (d) => charts.push(d) });
 
-    await streamChat("q", [], cb);
+    await streamChat("q", cb);
     expect(charts).toHaveLength(1);
     expect(charts[0]).toEqual(chartData);
   });
@@ -93,7 +93,7 @@ describe("streamChat SSE parser", () => {
     const skills: string[] = [];
     const cb = makeCallbacks({ onSkill: (s) => skills.push(s) });
 
-    await streamChat("q", [], cb);
+    await streamChat("q", cb);
     expect(skills).toEqual(["splunk-analyst"]);
   });
 
@@ -108,7 +108,7 @@ describe("streamChat SSE parser", () => {
     const errors: string[] = [];
     const cb = makeCallbacks({ onError: (m) => errors.push(m) });
 
-    await streamChat("q", [], cb);
+    await streamChat("q", cb);
     expect(errors).toEqual(["Something broke"]);
   });
 
@@ -120,7 +120,7 @@ describe("streamChat SSE parser", () => {
     const texts: string[] = [];
     const cb = makeCallbacks({ onText: (t) => texts.push(t) });
 
-    await streamChat("q", [], cb);
+    await streamChat("q", cb);
     expect(texts).toEqual(["split"]);
   });
 
@@ -136,7 +136,7 @@ describe("streamChat SSE parser", () => {
     const texts: string[] = [];
     const cb = makeCallbacks({ onText: (t) => texts.push(t) });
 
-    await streamChat("q", [], cb);
+    await streamChat("q", cb);
     expect(texts).toEqual(["valid"]);
   });
 
@@ -152,7 +152,7 @@ describe("streamChat SSE parser", () => {
     const texts: string[] = [];
     const cb = makeCallbacks({ onText: (t) => texts.push(t) });
 
-    await streamChat("q", [], cb);
+    await streamChat("q", cb);
     expect(texts).toEqual(["before"]);
   });
 
@@ -164,7 +164,7 @@ describe("streamChat SSE parser", () => {
     const texts: string[] = [];
     const cb = makeCallbacks({ onText: (t) => texts.push(t) });
 
-    await streamChat("q", [], cb);
+    await streamChat("q", cb);
     expect(texts).toEqual([""]);
   });
 
@@ -180,7 +180,7 @@ describe("streamChat SSE parser", () => {
     );
 
     const cb = makeCallbacks();
-    await expect(streamChat("q", [], cb)).rejects.toThrow("Server error (500)");
+    await expect(streamChat("q", cb)).rejects.toThrow("Server error (500)");
   });
 
   it("throws when response body is missing", async () => {
@@ -196,7 +196,23 @@ describe("streamChat SSE parser", () => {
     );
 
     const cb = makeCallbacks();
-    await expect(streamChat("q", [], cb)).rejects.toThrow("No response body");
+    await expect(streamChat("q", cb)).rejects.toThrow("No response body");
+  });
+
+  it("includes conversationId when provided", async () => {
+    const chunks = ["event: done\ndata: {}\n\n"];
+    let capturedBody: Record<string, unknown> = {};
+
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      capturedBody = JSON.parse(init.body as string);
+      return mockFetchResponse(chunks);
+    });
+
+    const cb = makeCallbacks();
+    await streamChat("q", cb, undefined, undefined, undefined, "conv-abc-123");
+
+    expect(capturedBody.conversationId).toBe("conv-abc-123");
+    expect(capturedBody).not.toHaveProperty("history");
   });
 
   it("includes skills in request body when provided", async () => {
@@ -209,7 +225,7 @@ describe("streamChat SSE parser", () => {
     });
 
     const cb = makeCallbacks();
-    await streamChat("q", [], cb, undefined, [
+    await streamChat("q", cb, undefined, [
       "splunk-analyst",
       "splunk-login-activity-investigation",
     ]);
@@ -228,7 +244,7 @@ describe("streamChat SSE parser", () => {
     });
 
     const cb = makeCallbacks();
-    await streamChat("q", [], cb);
+    await streamChat("q", cb);
 
     expect(capturedBody).not.toHaveProperty("skills");
   });
@@ -243,7 +259,7 @@ describe("streamChat SSE parser", () => {
     });
 
     const cb = makeCallbacks();
-    await streamChat("q", [], cb, undefined, undefined);
+    await streamChat("q", cb, undefined, undefined);
 
     expect(capturedBody).not.toHaveProperty("skills");
     expect(capturedBody.message).toBe("q");
@@ -259,7 +275,7 @@ describe("streamChat SSE parser", () => {
     });
 
     const cb = makeCallbacks();
-    await streamChat("q", [], cb, undefined, ["skill-a", "skill-b"], true);
+    await streamChat("q", cb, undefined, ["skill-a", "skill-b"], true);
 
     expect(capturedBody.skills).toEqual(["skill-a", "skill-b"]);
     expect(capturedBody.skillsStrict).toBe(true);
@@ -276,7 +292,7 @@ describe("streamChat SSE parser", () => {
     });
 
     const cb = makeCallbacks();
-    await streamChat("q", [], cb, undefined, ["skill-a"], false);
+    await streamChat("q", cb, undefined, ["skill-a"], false);
 
     expect(capturedBody.skills).toEqual(["skill-a"]);
     expect(capturedBody.skillsStrict).toBe(false);
@@ -292,7 +308,7 @@ describe("streamChat SSE parser", () => {
     });
 
     const cb = makeCallbacks();
-    await streamChat("q", [], cb, undefined, []);
+    await streamChat("q", cb, undefined, []);
 
     expect(capturedBody).not.toHaveProperty("skills");
   });
@@ -314,7 +330,7 @@ describe("streamChat SSE parser", () => {
       const limits: Array<{ reason: string; message: string; setting: string }> = [];
       const cb = makeCallbacks({ onLimit: (d) => limits.push(d) });
 
-      await streamChat("q", [], cb);
+      await streamChat("q", cb);
       expect(limits).toHaveLength(1);
       expect(limits[0]).toEqual(limitData);
     });
@@ -335,7 +351,7 @@ describe("streamChat SSE parser", () => {
         onDone: () => order.push("done"),
       });
 
-      await streamChat("q", [], cb);
+      await streamChat("q", cb);
       expect(order).toEqual(["text", "limit", "done"]);
     });
 
@@ -357,7 +373,7 @@ describe("streamChat SSE parser", () => {
       const limits: Array<{ reason: string; message: string; setting: string }> = [];
       const cb = makeCallbacks({ onLimit: (d) => limits.push(d) });
 
-      await streamChat("q", [], cb);
+      await streamChat("q", cb);
       expect(limits).toHaveLength(1);
       expect(limits[0].reason).toBe("max_turns");
       expect(limits[0].setting).toBe("Max Turns");

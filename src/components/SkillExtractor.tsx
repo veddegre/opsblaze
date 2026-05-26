@@ -355,7 +355,7 @@ export function SkillExtractor({
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                     <span className="text-xs text-green-400">
-                      Skill saved to <span className="font-mono">.claude/skills/{name}/</span>
+                      Skill saved to <span className="font-mono">.opsblaze/skills/{name}/</span>
                     </span>
                   </div>
                 )}

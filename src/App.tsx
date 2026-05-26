@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { AuthGate } from "./components/AuthGate";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
@@ -9,6 +9,8 @@ import { InputBar } from "./components/InputBar";
 import { AppNotice } from "./components/AppNotice";
 import { useChat } from "./hooks/useChat";
 import type { PublicAuthUser } from "./lib/auth";
+import { getSettings, type SkillPack } from "./lib/settings-api";
+import { listPlaybooks, type InvestigationPlaybook } from "./lib/playbooks-api";
 
 export function App() {
   return (
@@ -40,11 +42,36 @@ function AppContent({ user }: { user: PublicAuthUser }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<
-    "account" | "preferences" | "admin-system" | "admin-mcp" | "admin-skills"
+    | "account"
+    | "preferences"
+    | "admin-system"
+    | "admin-mcp"
+    | "admin-skills"
+    | "admin-audit"
   >("account");
   const [extractorOpen, setExtractorOpen] = useState(false);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [allowAdditional, setAllowAdditional] = useState(false);
+  const [skillPacks, setSkillPacks] = useState<SkillPack[]>([]);
+  const [playbooks, setPlaybooks] = useState<InvestigationPlaybook[]>([]);
+  const [inputPrefill, setInputPrefill] = useState<string | null>(null);
+
+  const refreshRuntimeConfig = useCallback(() => {
+    getSettings()
+      .then((s) => setSkillPacks(s.runtime.skillPacks ?? []))
+      .catch(() => {});
+    listPlaybooks()
+      .then(setPlaybooks)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    refreshRuntimeConfig();
+  }, [refreshRuntimeConfig]);
+
+  useEffect(() => {
+    if (!settingsOpen) refreshRuntimeConfig();
+  }, [settingsOpen, refreshRuntimeConfig]);
 
   const openSettings = useCallback(
     (section: typeof settingsSection = "account") => {
@@ -97,6 +124,17 @@ function AppContent({ user }: { user: PublicAuthUser }) {
     },
     [deleteConversation]
   );
+
+  const applySkillPack = useCallback((pack: SkillPack) => {
+    setSelectedSkills(pack.skills);
+    setAllowAdditional(pack.strict === false);
+  }, []);
+
+  const applyPlaybook = useCallback((pb: InvestigationPlaybook) => {
+    setSelectedSkills(pb.skills);
+    setAllowAdditional(!pb.strict);
+    setInputPrefill(pb.prompt);
+  }, []);
 
   const sendWithSkills = useCallback(
     (message: string) => {
@@ -167,6 +205,12 @@ function AppContent({ user }: { user: PublicAuthUser }) {
         onSelectedSkillsChange={setSelectedSkills}
         allowAdditional={allowAdditional}
         onAllowAdditionalChange={setAllowAdditional}
+        skillPacks={skillPacks}
+        onApplySkillPack={applySkillPack}
+        playbooks={playbooks}
+        onApplyPlaybook={applyPlaybook}
+        prefillMessage={inputPrefill}
+        onPrefillConsumed={() => setInputPrefill(null)}
         queryUsage={queryUsage}
         contextUsage={contextUsage}
       />

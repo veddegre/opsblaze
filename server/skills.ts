@@ -1,6 +1,7 @@
 import { readFile, readdir, rename, stat, mkdir, writeFile, rm } from "fs/promises";
 import path from "path";
 import { logger } from "./logger.js";
+import { resolveSkillsDir } from "./skills-path.js";
 
 export interface SkillInfo {
   name: string;
@@ -9,8 +10,16 @@ export interface SkillInfo {
   path: string;
 }
 
-const SKILLS_DIR = path.resolve(process.cwd(), ".claude", "skills");
-export const SKILLS_DIR_PATH = SKILLS_DIR;
+function skillsDir(): string {
+  return resolveSkillsDir();
+}
+
+export function getSkillsDirPath(): string {
+  return skillsDir();
+}
+
+/** @deprecated Use getSkillsDirPath() */
+export const SKILLS_DIR_PATH = skillsDir();
 const SKILL_FILE = "SKILL.md";
 const DISABLED_FILE = "SKILL.md.disabled";
 
@@ -64,7 +73,7 @@ export async function listSkills(): Promise<SkillInfo[]> {
 
   let entries: string[];
   try {
-    entries = await readdir(SKILLS_DIR);
+    entries = await readdir(skillsDir());
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === "ENOENT") return [];
@@ -73,7 +82,7 @@ export async function listSkills(): Promise<SkillInfo[]> {
   }
 
   for (const entry of entries) {
-    const dir = path.join(SKILLS_DIR, entry);
+    const dir = path.join(skillsDir(), entry);
     if (!(await isDirectory(dir))) continue;
 
     const enabledPath = path.join(dir, SKILL_FILE);
@@ -134,7 +143,7 @@ export async function createSkill(name: string, content: string): Promise<void> 
     throw new Error("Skill description must not exceed 1024 characters");
   }
 
-  const dir = path.join(SKILLS_DIR, name);
+  const dir = path.join(skillsDir(), name);
   if (await isDirectory(dir)) {
     throw new Error(`Skill '${name}' already exists`);
   }
@@ -147,7 +156,7 @@ export async function deleteSkill(name: string): Promise<void> {
   if (name.includes("..") || name.includes("/") || name.includes("\\")) {
     throw new Error(`Invalid skill name: '${name}'`);
   }
-  const dir = path.join(SKILLS_DIR, name);
+  const dir = path.join(skillsDir(), name);
   if (!(await isDirectory(dir))) {
     throw new Error(`Skill '${name}' not found`);
   }
@@ -159,7 +168,7 @@ export async function toggleSkill(name: string, enabled: boolean): Promise<void>
   if (name.includes("..") || name.includes("/") || name.includes("\\")) {
     throw new Error(`Invalid skill name: '${name}'`);
   }
-  const dir = path.join(SKILLS_DIR, name);
+  const dir = path.join(skillsDir(), name);
   if (!(await isDirectory(dir))) {
     throw new Error(`Skill '${name}' not found`);
   }

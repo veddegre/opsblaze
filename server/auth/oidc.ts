@@ -1,6 +1,7 @@
 import * as oidc from "openid-client";
 import type { Configuration } from "openid-client";
 import { logger } from "../logger.js";
+import { extractGroupsFromClaims, parseCsvEnvSet, resolveIsAdmin } from "./roles.js";
 
 export interface OidcEnvConfig {
   issuer: string;
@@ -9,6 +10,9 @@ export interface OidcEnvConfig {
   redirectUri: string;
   scopes: string;
   adminEmails: Set<string>;
+  adminGroups: Set<string>;
+  /** When true, every authenticated OIDC user receives admin (e.g. IT Security–only deployment). */
+  allUsersAdmin: boolean;
 }
 
 let cachedConfig: Configuration | null = null;
@@ -34,14 +38,20 @@ export function loadOidcEnv(): OidcEnvConfig | null {
   const scopes =
     process.env.OPSBLAZE_OIDC_SCOPES?.trim() || "openid profile email";
 
-  const adminEmails = new Set(
-    (process.env.OPSBLAZE_OIDC_ADMIN_EMAILS ?? "")
-      .split(",")
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean)
-  );
+  const adminEmails = parseCsvEnvSet(process.env.OPSBLAZE_OIDC_ADMIN_EMAILS);
+  const adminGroups = parseCsvEnvSet(process.env.OPSBLAZE_OIDC_ADMIN_GROUPS);
+  const allUsersAdmin = process.env.OPSBLAZE_OIDC_ALL_USERS_ADMIN === "true";
 
-  return { issuer, clientId, clientSecret, redirectUri, scopes, adminEmails };
+  return {
+    issuer,
+    clientId,
+    clientSecret,
+    redirectUri,
+    scopes,
+    adminEmails,
+    adminGroups,
+    allUsersAdmin,
+  };
 }
 
 export async function getOidcConfiguration(): Promise<Configuration> {
@@ -62,12 +72,17 @@ export async function getOidcConfiguration(): Promise<Configuration> {
   return cachedConfig;
 }
 
-export function resolveAdmin(
-  adminEmails: Set<string>,
-  email: string | undefined
+export function resolveAdminAccess(
+  env: Pick<OidcEnvConfig, "adminEmails" | "adminGroups" | "allUsersAdmin">,
+  profile: { email?: string; groups: string[] }
 ): boolean {
-  if (!email) return false;
-  return adminEmails.has(email.trim().toLowerCase());
+  return resolveIsAdmin({
+    adminEmails: env.adminEmails,
+    adminGroups: env.adminGroups,
+    allUsersAdmin: env.allUsersAdmin,
+    email: profile.email,
+    groups: profile.groups,
+  });
 }
 
 export async function buildLoginRedirectUrl(
@@ -101,7 +116,7 @@ export async function exchangeCallback(
   config: Configuration,
   callbackUrl: URL,
   session: { codeVerifier: string; state?: string }
-): Promise<{ sub: string; email?: string; name?: string }> {
+): Promise<{ sub: string; email?: string; name?: string; groups: string[] }> {
   const checks: { pkceCodeVerifier: string; expectedState?: string } = {
     pkceCodeVerifier: session.codeVerifier,
   };
@@ -156,10 +171,12 @@ export async function exchangeCallback(
       const name = nameFromClaims ?? buildName(info);
 
       if (sub) {
+        const groups = extractGroupsFromClaims(info);
         return {
           sub: String(sub),
           email,
           name,
+          groups,
         };
       }
     } catch (err) {
@@ -171,10 +188,13 @@ export async function exchangeCallback(
     throw new Error("OIDC token response did not include a subject");
   }
 
+  const groups = claims ? extractGroupsFromClaims(claims) : [];
+
   return {
     sub: String(subFromClaims),
     email: emailFromClaims,
     name: nameFromClaims,
+    groups,
   };
 }
 

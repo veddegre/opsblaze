@@ -2,6 +2,14 @@ import type { StoredConversation } from "./conversations.js";
 
 export const REDACTION_PLACEHOLDER = "[REDACTED]";
 
+/** Per-investigation export redaction limits (also enforced on conversation PUT). */
+export const MAX_EXPORT_REDACTION_TERM_LEN = 200;
+export const MAX_EXPORT_REDACTION_TERMS = 100;
+export const MAX_EXPORT_REDACTION_TOTAL_LEN = 10_000;
+
+/** Wall-clock budget for applying redaction during export. */
+export const REDACTION_TIME_BUDGET_MS = 5000;
+
 export interface RedactionBuiltinFlags {
   email?: boolean;
   ipv4?: boolean;
@@ -49,6 +57,40 @@ export function parseStringList(raw: string): string[] {
   return out;
 }
 
+/** Patterns that commonly cause catastrophic backtracking (ReDoS). */
+const UNSAFE_REGEX_MARKERS = [
+  /\(\.\*\)\+/,
+  /\(\.\+\)\+/,
+  /\(\.\*\)\*/,
+  /\(\.\+\)\*/,
+  /\([^)]*[+*][^)]*\)[+*]/,
+  /\([^)]*\{[0-9,]+\}[^)]*\)[+*]/,
+];
+
+function isUnsafeRegexPattern(pattern: string): string | null {
+  for (const marker of UNSAFE_REGEX_MARKERS) {
+    if (marker.test(pattern)) {
+      return "Pattern uses nested or overlapping quantifiers that are not allowed";
+    }
+  }
+  return null;
+}
+
+function testRegexPerformance(pattern: string): string | null {
+  try {
+    const re = new RegExp(pattern, "gi");
+    const sample = "a".repeat(80);
+    const start = Date.now();
+    sample.replace(re, REDACTION_PLACEHOLDER);
+    if (Date.now() - start > 100) {
+      return "Pattern is too slow to run safely on export";
+    }
+  } catch {
+    return "Invalid regex pattern";
+  }
+  return null;
+}
+
 export function validateCustomPatterns(patterns: string[]): string[] {
   const errors: string[] = [];
   if (patterns.length > 20) {
@@ -64,9 +106,40 @@ export function validateCustomPatterns(patterns: string[]): string[] {
       new RegExp(p);
     } catch {
       errors.push(`Invalid regex pattern: ${p.slice(0, 40)}`);
+      continue;
+    }
+    const unsafe = isUnsafeRegexPattern(p);
+    if (unsafe) {
+      errors.push(unsafe);
+      continue;
+    }
+    const slow = testRegexPerformance(p);
+    if (slow) {
+      errors.push(slow);
     }
   }
   return errors;
+}
+
+export function normalizeExportRedactionTerms(terms: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  let totalLen = 0;
+
+  for (const raw of terms) {
+    if (typeof raw !== "string") continue;
+    const t = raw.trim().slice(0, MAX_EXPORT_REDACTION_TERM_LEN);
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    if (out.length >= MAX_EXPORT_REDACTION_TERMS) break;
+    if (totalLen + t.length > MAX_EXPORT_REDACTION_TOTAL_LEN) break;
+    seen.add(key);
+    out.push(t);
+    totalLen += t.length;
+  }
+
+  return out;
 }
 
 function buildBuiltinPatterns(flags: RedactionBuiltinFlags): RegExp[] {
@@ -112,23 +185,33 @@ export function compileRedactionPatterns(options: RedactionApplyOptions): RegExp
   ];
 }
 
-export function redactText(text: string, patterns: RegExp[]): string {
+export function redactText(
+  text: string,
+  patterns: RegExp[],
+  deadlineMs = Date.now() + REDACTION_TIME_BUDGET_MS
+): string {
   if (!text || patterns.length === 0) return text;
   let out = text;
   for (const pattern of patterns) {
+    if (Date.now() > deadlineMs) break;
     out = out.replace(pattern, REDACTION_PLACEHOLDER);
   }
   return out;
 }
 
-function redactUnknown(value: unknown, patterns: RegExp[]): unknown {
-  if (typeof value === "string") return redactText(value, patterns);
-  if (Array.isArray(value)) return value.map((v) => redactUnknown(v, patterns));
+function redactUnknown(value: unknown, patterns: RegExp[], deadlineMs: number): unknown {
+  if (Date.now() > deadlineMs) return value;
+  if (typeof value === "string") return redactText(value, patterns, deadlineMs);
+  if (Array.isArray(value)) return value.map((v) => redactUnknown(v, patterns, deadlineMs));
   if (value && typeof value === "object") {
     const obj = value as Record<string, unknown>;
     const next: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(obj)) {
-      next[k] = redactUnknown(v, patterns);
+      if (Date.now() > deadlineMs) {
+        next[k] = v;
+      } else {
+        next[k] = redactUnknown(v, patterns, deadlineMs);
+      }
     }
     return next;
   }
@@ -143,10 +226,12 @@ export function redactConversation(
   const patterns = compileRedactionPatterns(options);
   if (patterns.length === 0) return conv;
 
+  const deadlineMs = Date.now() + REDACTION_TIME_BUDGET_MS;
+
   return {
     ...conv,
-    title: redactText(conv.title, patterns),
-    messages: redactUnknown(conv.messages, patterns) as StoredConversation["messages"],
+    title: redactText(conv.title, patterns, deadlineMs),
+    messages: redactUnknown(conv.messages, patterns, deadlineMs) as StoredConversation["messages"],
   };
 }
 

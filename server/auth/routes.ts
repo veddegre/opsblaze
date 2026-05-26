@@ -7,9 +7,10 @@ import {
   getOidcConfiguration,
   isOidcEnabled,
   loadOidcEnv,
-  resolveAdmin,
+  resolveAdminAccess,
 } from "./oidc.js";
 import { sanitizeUserId, toPublicUser, type AuthUser } from "./types.js";
+import { recordAudit } from "../audit-log.js";
 
 export const authRouter = Router();
 
@@ -95,12 +96,14 @@ authRouter.get("/callback", async (req, res) => {
     const callbackUrl = buildCallbackUrl(req, env.redirectUri);
 
     const profile = await exchangeCallback(config, callbackUrl, req.session.oidc);
-    const email = profile.email?.toLowerCase();
     const user: AuthUser = {
       id: sanitizeUserId(profile.sub),
       email: profile.email,
       name: profile.name,
-      isAdmin: resolveAdmin(env.adminEmails, email),
+      isAdmin: resolveAdminAccess(env, {
+        email: profile.email,
+        groups: profile.groups,
+      }),
     };
 
     await regenerateSession(req);
@@ -111,7 +114,11 @@ authRouter.get("/callback", async (req, res) => {
     req.session.user = user;
     delete req.session.oidc;
 
-    logger.info({ userId: user.id, email: user.email }, "user signed in");
+    logger.info(
+      { userId: user.id, email: user.email, isAdmin: user.isAdmin, groups: profile.groups },
+      "user signed in"
+    );
+    void recordAudit(user.id, "auth.login", { email: user.email, isAdmin: user.isAdmin });
     res.redirect("/");
   } catch (err) {
     logger.error({ err }, "OIDC callback failed");
@@ -120,6 +127,7 @@ authRouter.get("/callback", async (req, res) => {
 });
 
 authRouter.post("/logout", (req, res) => {
+  const userId = (req.session?.user as AuthUser | undefined)?.id;
   const finish = () => {
     res.json({ ok: true });
   };
@@ -132,6 +140,9 @@ authRouter.post("/logout", (req, res) => {
   req.session.destroy((err) => {
     if (err) {
       logger.warn({ err }, "session destroy failed on logout");
+    }
+    if (userId) {
+      void recordAudit(userId, "auth.logout");
     }
     res.clearCookie("opsblaze.sid");
     finish();

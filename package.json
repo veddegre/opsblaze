@@ -39,6 +39,7 @@
     "mcp-server/",
     "server/",
     "src/",
+    ".opsblaze/skills/",
     ".claude/skills/",
     "index.html",
     "package.json",

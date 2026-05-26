@@ -22,6 +22,7 @@ import type {
 import type { PublicAuthUser } from "../lib/auth";
 import { AccountTab } from "./settings/AccountTab";
 import { PreferencesTab } from "./settings/PreferencesTab";
+import { AuditLogTab } from "./settings/AuditLogTab";
 import { AdminSystemTab } from "./settings/AdminSystemTab";
 import { NavGroupLabel, NavItem, Section } from "./settings/settings-ui";
 import { inputClass, monoInputClass } from "./settings/settings-ui";
@@ -31,7 +32,8 @@ export type SettingsSection =
   | "preferences"
   | "admin-system"
   | "admin-mcp"
-  | "admin-skills";
+  | "admin-skills"
+  | "admin-audit";
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
   account: "My account",
@@ -39,7 +41,16 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   "admin-system": "System health",
   "admin-mcp": "MCP servers",
   "admin-skills": "Skills",
+  "admin-audit": "Audit log",
 };
+
+/** Wider slide-out for dense admin editors (skills, MCP, bundles). */
+const WIDE_PANEL_SECTIONS = new Set<SettingsSection>([
+  "preferences",
+  "admin-system",
+  "admin-mcp",
+  "admin-skills",
+]);
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -100,10 +111,9 @@ function ToolList({ tools }: { tools: ToolInfo[] }) {
 function PathHint({ label, path }: { label: string; path: string | null }) {
   if (!path) return null;
   return (
-    <div className="px-4 py-3 border-t border-border-subtle">
-      <p className="text-[11px] text-gray-600">
-        {label} <span className="font-mono break-all">{path}</span>
-      </p>
+    <div className="mx-4 mb-4 px-3 py-3 rounded-lg border border-border-subtle bg-surface-0/50">
+      <p className="text-[11px] font-medium text-gray-500 mb-1">{label}</p>
+      <p className="text-xs font-mono text-gray-400 break-all leading-relaxed">{path}</p>
     </div>
   );
 }
@@ -244,7 +254,9 @@ function McpServerRow({
         className="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-surface-3 transition-colors"
       >
         <StatusDot enabled={server.config.enabled} />
-        <span className="text-sm text-gray-200 font-medium flex-1 truncate">{server.name}</span>
+        <span className="text-sm text-gray-200 font-medium flex-1 min-w-0 break-words">
+          {server.name}
+        </span>
         <TypeBadge type={type} />
         {server.builtIn && <BuiltInBadge />}
         <svg
@@ -855,7 +867,8 @@ function SkillsTab({ skillsDir }: { skillsDir: string | null }) {
         <div className="px-4 py-8 text-center text-gray-600 text-sm">
           <p>No skills found</p>
           <p className="mt-1 text-gray-700 text-xs">
-            Add skills to <span className="font-mono">.claude/skills/</span>
+            Add skills to <span className="font-mono">.opsblaze/skills/</span> (legacy{" "}
+            <span className="font-mono">.claude/skills/</span> is still supported)
           </p>
         </div>
       )}
@@ -883,39 +896,50 @@ function SkillRow({
 
   return (
     <div className="border-b border-border-subtle">
-      <div
-        onClick={() => setExpanded((v) => !v)}
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface-3 transition-colors"
-      >
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-gray-200 font-medium">{skill.name}</p>
-          {skill.description && !expanded && (
-            <p className="text-xs text-gray-500 truncate mt-0.5">{skill.description}</p>
-          )}
-        </div>
+      <div className="px-4 py-3 hover:bg-surface-3 transition-colors">
+        <div className="flex items-start justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="flex-1 min-w-0 text-left"
+          >
+            <p className="text-sm text-gray-200 font-medium break-words">{skill.name}</p>
+            {skill.description && !expanded && (
+              <p className="text-xs text-gray-500 mt-1 leading-relaxed line-clamp-4">
+                {skill.description}
+              </p>
+            )}
+            <span className="inline-block mt-1.5 text-[10px] text-gray-600">
+              {expanded ? "Hide details" : "Show details"}
+            </span>
+          </button>
 
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle(skill.name, !skill.enabled);
-          }}
-          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ${
-            skill.enabled ? "bg-accent" : "bg-gray-700"
-          }`}
-          aria-label={`${skill.enabled ? "Disable" : "Enable"} ${skill.name}`}
-        >
-          <span
-            className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
-              skill.enabled ? "translate-x-4" : "translate-x-0.5"
+          <button
+            type="button"
+            onClick={() => onToggle(skill.name, !skill.enabled)}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 mt-0.5 ${
+              skill.enabled ? "bg-accent" : "bg-gray-700"
             }`}
-          />
-        </button>
+            aria-label={`${skill.enabled ? "Disable" : "Enable"} ${skill.name}`}
+          >
+            <span
+              className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+                skill.enabled ? "translate-x-4" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       {expanded && (
-        <div className="px-4 pb-3 space-y-2">
+        <div className="px-4 pb-4 space-y-3 border-t border-border-subtle/60 bg-surface-0/30">
           {skill.description && (
             <p className="text-xs text-gray-400 leading-relaxed">{skill.description}</p>
+          )}
+          {skill.path && (
+            <p className="text-[11px] text-gray-600 leading-relaxed">
+              Path: <span className="font-mono text-gray-500 break-all">{skill.path}</span>
+            </p>
           )}
 
           {confirmDelete ? (
@@ -969,6 +993,8 @@ function renderSection(
       return <McpServersTab configPath={paths?.mcpConfig ?? null} />;
     case "admin-skills":
       return <SkillsTab skillsDir={paths?.skillsDir ?? null} />;
+    case "admin-audit":
+      return <AuditLogTab />;
     default:
       return null;
   }
@@ -1021,9 +1047,11 @@ export function SettingsPanel({
       )}
 
       <div
-        className={`fixed top-[49px] right-0 bottom-0 w-full max-w-[min(100%,32rem)] bg-surface-1 border-l border-border-subtle z-30 transform transition-transform duration-200 ease-out flex flex-col ${
-          isOpen ? "translate-x-0" : "translate-x-full"
-        }`}
+        className={`fixed top-[49px] right-0 bottom-0 w-full bg-surface-1 border-l border-border-subtle z-30 transform transition-transform duration-200 ease-out flex flex-col ${
+          WIDE_PANEL_SECTIONS.has(section)
+            ? "max-w-[min(100%,52rem)]"
+            : "max-w-[min(100%,28rem)]"
+        } ${isOpen ? "translate-x-0" : "translate-x-full"}`}
       >
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border-subtle shrink-0">
           <div>
@@ -1053,9 +1081,9 @@ export function SettingsPanel({
           </button>
         </div>
 
-        <div className="flex flex-1 min-h-0 flex-col sm:flex-row">
+        <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
           <nav
-            className="sm:w-[148px] shrink-0 border-b sm:border-b-0 sm:border-r border-border-subtle py-2 px-1 sm:px-0 overflow-x-auto sm:overflow-y-auto flex sm:flex-col gap-0.5 sm:gap-0"
+            className="lg:w-44 shrink-0 border-b lg:border-b-0 lg:border-r border-border-subtle py-2 px-2 lg:px-0 overflow-x-auto lg:overflow-y-auto flex lg:flex-col gap-0.5 lg:gap-0"
             aria-label="Settings sections"
           >
             <NavGroupLabel>Personal</NavGroupLabel>
@@ -1093,15 +1121,24 @@ export function SettingsPanel({
                 >
                   Skills
                 </NavItem>
+                <NavItem
+                  active={section === "admin-audit"}
+                  onClick={() => setSection("admin-audit")}
+                  indent
+                >
+                  Audit log
+                </NavItem>
               </>
             )}
           </nav>
 
           <div className="flex-1 flex flex-col min-h-0">
-            <div className="px-4 py-2.5 border-b border-border-subtle shrink-0 md:hidden">
+            <div className="px-4 py-2.5 border-b border-border-subtle shrink-0 lg:hidden">
               <p className="text-sm font-medium text-gray-200">{SECTION_LABELS[section]}</p>
             </div>
-            <div className="flex-1 overflow-y-auto">{renderSection(section, user, paths)}</div>
+            <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
+              {renderSection(section, user, paths)}
+            </div>
           </div>
         </div>
       </div>

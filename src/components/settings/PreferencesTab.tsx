@@ -14,6 +14,9 @@ import {
   inputClass,
   monoInputClass,
 } from "./settings-ui";
+import { SkillBundlesEditor } from "./SkillBundlesEditor";
+import { PlaybooksEditor } from "./PlaybooksEditor";
+import type { SkillPack, SplunkGuardrails } from "../../lib/settings-api";
 
 export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -27,6 +30,10 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
   const [redactMac, setRedactMac] = useState(false);
   const [redactCustomStrings, setRedactCustomStrings] = useState("");
   const [redactCustomPatterns, setRedactCustomPatterns] = useState("");
+  const [skillPacks, setSkillPacks] = useState<SkillPack[]>([]);
+  const [skillPacksTouched, setSkillPacksTouched] = useState(false);
+  const [splunkIndexes, setSplunkIndexes] = useState("");
+  const [splunkMaxHours, setSplunkMaxHours] = useState(168);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +61,10 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
         setRedactMac(Boolean(r?.builtin?.mac));
         setRedactCustomStrings(formatStringList(r?.customStrings));
         setRedactCustomPatterns(formatStringList(r?.customPatterns));
+        setSkillPacks(s.runtime.skillPacks ?? []);
+        const g = s.runtime.splunkGuardrails;
+        setSplunkIndexes(formatStringList(g?.allowedIndexes));
+        setSplunkMaxHours(g?.maxTimeRangeHours ?? 168);
       })
       .catch(() => {});
   }, []);
@@ -134,6 +145,23 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
         formatStringList(prevRedaction.customPatterns) !== redactCustomPatterns.trim();
       if (redactionChanged) partial.redaction = nextRedaction;
 
+      if (skillPacksTouched) {
+        partial.skillPacks = skillPacks;
+      }
+
+      const nextGuardrails: SplunkGuardrails = {
+        allowedIndexes: parseStringList(splunkIndexes),
+        maxTimeRangeHours: splunkMaxHours,
+      };
+      const prevG = settings?.runtime.splunkGuardrails ?? {
+        allowedIndexes: [],
+        maxTimeRangeHours: 168,
+      };
+      const guardrailsChanged =
+        formatStringList(prevG.allowedIndexes) !== splunkIndexes.trim() ||
+        (prevG.maxTimeRangeHours ?? 168) !== splunkMaxHours;
+      if (guardrailsChanged) partial.splunkGuardrails = nextGuardrails;
+
       if (Object.keys(partial).length === 0) {
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
@@ -141,6 +169,8 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
       }
       const updated = await updateSettings(partial);
       setSettings((prev) => (prev ? { ...prev, runtime: updated.runtime } : prev));
+      setSkillPacks(updated.runtime.skillPacks ?? skillPacks);
+      setSkillPacksTouched(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -354,6 +384,64 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
             className={`${monoInputClass} resize-y min-h-[2.5rem]`}
           />
         </div>
+
+        <div className="border-t border-border-subtle pt-4 mt-2 space-y-3">
+          <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wide">
+            Splunk guardrails
+          </h3>
+          <p className="text-[11px] text-gray-600 -mt-1">
+            Block MCP <span className="font-mono">splunk_query</span> calls that violate index or
+            time-window policy.
+          </p>
+          <FieldLabel hint="One index name per line. Leave empty to allow any index.">
+            Allowed indexes
+          </FieldLabel>
+          <textarea
+            value={splunkIndexes}
+            onChange={(e) => setSplunkIndexes(e.target.value)}
+            disabled={!isAdmin}
+            rows={3}
+            placeholder={"okta\nmain"}
+            className={`${monoInputClass} resize-y min-h-[3rem]`}
+          />
+          <FieldLabel hint="Maximum earliest→latest window in hours (default 168 = 7 days).">
+            Max time range (hours)
+          </FieldLabel>
+          <input
+            type="number"
+            value={splunkMaxHours}
+            onChange={(e) =>
+              setSplunkMaxHours(Math.max(1, Math.min(8760, parseInt(e.target.value) || 168)))
+            }
+            disabled={!isAdmin}
+            min={1}
+            max={8760}
+            className={inputClass}
+          />
+        </div>
+
+        <div className="border-t border-border-subtle pt-4 mt-2 space-y-3">
+          <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wide">
+            Skill bundles
+          </h3>
+          <SkillBundlesEditor
+            packs={skillPacks}
+            onChange={(next) => {
+              setSkillPacks(next);
+              setSkillPacksTouched(true);
+            }}
+            disabled={!isAdmin}
+          />
+        </div>
+
+        {isAdmin && (
+          <div className="border-t border-border-subtle pt-4 mt-2 space-y-3">
+            <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wide">
+              Investigation playbooks
+            </h3>
+            <PlaybooksEditor />
+          </div>
+        )}
 
         {error && <p className="text-xs text-red-400">{error}</p>}
 

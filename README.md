@@ -132,7 +132,8 @@ For network deployments, set `OPSBLAZE_OIDC_ISSUER` and related variables (see `
 
 - Register redirect URI: `{OPSBLAZE_PUBLIC_URL}/api/auth/callback`
 - Set `OPSBLAZE_SESSION_SECRET` to at least 32 random characters
-- List admin emails in `OPSBLAZE_OIDC_ADMIN_EMAILS` for MCP/skills/settings changes
+- List admin emails in `OPSBLAZE_OIDC_ADMIN_EMAILS` and/or IdP groups in `OPSBLAZE_OIDC_ADMIN_GROUPS` for MCP/skills/settings changes
+- For IT Security–only deployments where every signed-in user should be an admin, set `OPSBLAZE_OIDC_ALL_USERS_ADMIN=true`
 - Behind a reverse proxy: set `OPSBLAZE_TRUST_PROXY=true` and `OPSBLAZE_SECURE_COOKIES=true`
 
 - The OIDC provider must support Authorization Code flow (with PKCE preferred/required).
@@ -216,9 +217,9 @@ With the Claude backend, the Agent SDK orchestrates MCP tools internally. With O
 
 ### Investigation skills
 
-Investigation skills are markdown playbooks stored on the OpsBlaze server at **`.claude/skills/<name>/SKILL.md`**. Each skill is a folder with a `SKILL.md` file (YAML front matter for `name` / `description`, body for methodology).
+Investigation skills are markdown playbooks stored on the OpsBlaze server at **`.opsblaze/skills/<name>/SKILL.md`** (legacy **`.claude/skills/`** is still read if present). Each skill is a folder with a `SKILL.md` file (YAML front matter for `name` / `description`, body for methodology).
 
-**Why `.claude` if I use Open WebUI?** The directory name follows the [Claude Code](https://docs.anthropic.com/en/docs/claude-code) project layout. OpsBlaze reuses that path so the same skill files work for both backends:
+On first startup, OpsBlaze copies an existing `.claude/skills/` tree into `.opsblaze/skills/` if needed. The `.claude` path follows the [Claude Code](https://docs.anthropic.com/en/docs/claude-code) project layout for SDK compatibility:
 
 | Backend | How skills are applied |
 |---|---|
@@ -239,9 +240,15 @@ If you only deploy Open WebUI, you can ignore the Claude integration—the folde
 
 Disabled skills remain on disk as `SKILL.md.disabled` and are omitted from prompts.
 
-**Git and deploy:** Skills are plain files in the repo tree, not in the database. Commit `.claude/skills/` to version bundled skills; `.claude/skills/_local/` is gitignored for machine-only skills. There is no automatic git sync at runtime—whatever is on the server filesystem when OpsBlaze starts is what runs. After deploy, ensure that directory is present (git pull, rsync, or copy) alongside `server/` and `src/`.
+**Git and deploy:** Skills are plain files in the repo tree, not in the database. Commit `.opsblaze/skills/` or `.claude/skills/` to version bundled skills; `_local/` under either tree is gitignored for machine-only skills. There is no automatic git sync at runtime—whatever is on the server filesystem when OpsBlaze starts is what runs. After deploy, ensure that directory is present (git pull, rsync, or copy) alongside `server/` and `src/`.
 
 Bundled examples include `splunk-analyst`, `investigating-splunk-login-activity`, and Splunk/Okta investigation playbooks. Create more via **Settings → Skills** (admins) or **Distill skill** from a completed investigation.
+
+**Skill bundles** (presets below the chat input) come from built-in defaults or **Settings → Runtime settings → Skill bundles** (admins). Each bundle sets which skills are selected and whether strict mode applies.
+
+**Splunk guardrails** (admins, runtime settings) restrict MCP `splunk_query` to allowed indexes and a maximum time window.
+
+**Investigation playbooks** (admins) are saved prompts with optional skills, shown as chips below the input bar. **Audit log** (admins, Settings → Audit log) records auth, exports, and configuration changes in `data/audit.jsonl`.
 
 ## Troubleshooting
 

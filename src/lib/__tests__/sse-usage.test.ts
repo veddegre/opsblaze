@@ -76,7 +76,7 @@ describe("streamChat SSE parser: usage and context events", () => {
     const usages: UsageData[] = [];
     const cb = makeCallbacks({ onUsage: (d) => usages.push(d) });
 
-    await streamChat("q", [], cb);
+    await streamChat("q", cb);
     expect(usages).toHaveLength(1);
     expect(usages[0].inputTokens).toBe(1500);
     expect(usages[0].outputTokens).toBe(800);
@@ -95,7 +95,7 @@ describe("streamChat SSE parser: usage and context events", () => {
     const contexts: ContextData[] = [];
     const cb = makeCallbacks({ onContext: (d) => contexts.push(d) });
 
-    await streamChat("q", [], cb);
+    await streamChat("q", cb);
     expect(contexts).toHaveLength(1);
     expect(contexts[0].totalTokens).toBe(45000);
     expect(contexts[0].maxTokens).toBe(200000);
@@ -121,7 +121,7 @@ describe("streamChat SSE parser: usage and context events", () => {
       onDone: () => order.push("done"),
     });
 
-    await streamChat("q", [], cb);
+    await streamChat("q", cb);
     expect(order).toEqual(["text", "usage", "context", "done"]);
   });
 
@@ -139,7 +139,7 @@ describe("streamChat SSE parser: usage and context events", () => {
     const usages: UsageData[] = [];
     const cb = makeCallbacks({ onUsage: (d) => usages.push(d) });
 
-    await streamChat("q", [], cb);
+    await streamChat("q", cb);
     expect(usages).toHaveLength(1);
     expect(usages[0].inputTokens).toBe(1500);
   });
@@ -160,7 +160,7 @@ describe("streamChat SSE parser: usage and context events", () => {
       onContext: (d) => contexts.push(d),
     });
 
-    await streamChat("q", [], cb);
+    await streamChat("q", cb);
     expect(usages).toHaveLength(0);
     expect(contexts).toHaveLength(1);
   });

@@ -8,6 +8,8 @@ import {
   validateCustomPatterns,
   type RedactionSettings,
 } from "./redaction.js";
+import { skillPackSchema, validateSkillPacks, type SkillPack } from "./skill-packs.js";
+import { splunkGuardrailsSchema } from "./splunk-guardrails.js";
 
 const redactionBuiltinSchema = z.object({
   email: z.boolean().optional(),
@@ -28,7 +30,11 @@ const runtimeSettingsSchema = z.object({
   maxTurns: z.number().int().min(1).max(200).optional(),
   streamTimeoutMs: z.number().int().min(30_000).max(1_800_000).optional(),
   redaction: redactionSchema.optional(),
+  skillPacks: z.array(skillPackSchema).max(24).optional(),
+  splunkGuardrails: splunkGuardrailsSchema.optional(),
 });
+
+export type { SkillPack };
 
 export type RuntimeSettings = z.infer<typeof runtimeSettingsSchema>;
 
@@ -75,6 +81,10 @@ export async function updateRuntimeSettings(
     if (patternErrors.length > 0) {
       throw new Error(patternErrors[0]);
     }
+  }
+
+  if (partial.skillPacks !== undefined) {
+    merged.skillPacks = validateSkillPacks(partial.skillPacks);
   }
 
   // Remove keys that are explicitly set to undefined
@@ -126,4 +136,10 @@ export async function getStreamTimeoutMs(): Promise<number> {
 export async function getRedactionSettings(): Promise<RedactionSettings> {
   const settings = await loadRuntimeSettings();
   return normalizeRedactionSettings(settings.redaction ?? defaultRedactionSettings());
+}
+
+export async function getConfiguredSkillPacks(): Promise<SkillPack[]> {
+  const { getSkillPacks } = await import("./skill-packs.js");
+  const settings = await loadRuntimeSettings();
+  return getSkillPacks(settings.skillPacks);
 }

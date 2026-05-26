@@ -5,7 +5,9 @@ import {
   compileRedactionPatterns,
   parseStringList,
   validateCustomPatterns,
+  normalizeExportRedactionTerms,
   REDACTION_PLACEHOLDER,
+  MAX_EXPORT_REDACTION_TERM_LEN,
 } from "../redaction.js";
 import type { StoredConversation } from "../conversations.js";
 
@@ -86,5 +88,17 @@ describe("parseStringList", () => {
 describe("validateCustomPatterns", () => {
   it("rejects invalid regex", () => {
     expect(validateCustomPatterns(["("]).length).toBeGreaterThan(0);
+  });
+
+  it("rejects nested quantifier patterns", () => {
+    expect(validateCustomPatterns(["(a+)+"]).length).toBeGreaterThan(0);
+  });
+});
+
+describe("normalizeExportRedactionTerms", () => {
+  it("caps term length and deduplicates", () => {
+    const long = "x".repeat(MAX_EXPORT_REDACTION_TERM_LEN + 50);
+    const out = normalizeExportRedactionTerms(["foo", "FOO", long]);
+    expect(out).toEqual(["foo", "x".repeat(MAX_EXPORT_REDACTION_TERM_LEN)]);
   });
 });

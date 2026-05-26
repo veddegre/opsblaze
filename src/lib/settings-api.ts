@@ -21,6 +21,19 @@ export interface RedactionSettings {
   customPatterns?: string[];
 }
 
+export interface SkillPack {
+  id: string;
+  name: string;
+  description?: string;
+  skills: string[];
+  strict?: boolean;
+}
+
+export interface SplunkGuardrails {
+  allowedIndexes?: string[];
+  maxTimeRangeHours?: number;
+}
+
 export interface AppSettings {
   runtime: {
     claudeModel: string;
@@ -29,6 +42,8 @@ export interface AppSettings {
     streamTimeoutMs: number;
     llmProvider?: "openwebui" | "claude";
     redaction?: RedactionSettings;
+    skillPacks?: SkillPack[];
+    splunkGuardrails?: SplunkGuardrails;
   };
   system?: {
     llmProvider: "openwebui" | "claude";

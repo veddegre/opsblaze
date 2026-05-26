@@ -5,6 +5,7 @@ import { healthCheckLabel } from "../lib/health-labels";
 import type { PublicAuthUser } from "../lib/auth";
 import { UserMenu } from "./UserMenu";
 import { RedactionTermsModal } from "./RedactionTermsModal";
+import { ExportPreviewModal } from "./ExportPreviewModal";
 
 interface HeaderProps {
   user: PublicAuthUser;
@@ -120,6 +121,12 @@ export function Header({
   const [exportSuccess, setExportSuccess] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [redactionModalOpen, setRedactionModalOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewOpts, setPreviewOpts] = useState<{
+    mode: "full" | "findings";
+    redact: ExportRedact;
+    clean: boolean;
+  }>({ mode: "findings", redact: "default", clean: true });
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
@@ -148,6 +155,16 @@ export function Header({
       setExportError(null);
       setExportSuccess(false);
     }, 4000);
+  };
+
+  const openPreview = (
+    mode: "full" | "findings",
+    redact: ExportRedact = "default",
+    clean = true
+  ) => {
+    setExportMenuOpen(false);
+    setPreviewOpts({ mode, redact, clean });
+    setPreviewOpen(true);
   };
 
   const handleExport = async (
@@ -314,9 +331,18 @@ export function Header({
                   type="button"
                   role="menuitem"
                   className="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-surface-3"
+                  onClick={() => openPreview("findings", "default")}
+                >
+                  <span className="font-medium block">Preview findings report</span>
+                  <span className="text-gray-500">Review before download</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-surface-3"
                   onClick={() => handleExport("findings", "default")}
                 >
-                  <span className="font-medium block">Findings report</span>
+                  <span className="font-medium block">Download findings report</span>
                   <span className="text-gray-500">
                     Charts and SPL only — skips errors and retries
                   </span>
@@ -376,11 +402,25 @@ export function Header({
               </div>
             )}
             {conversationId && (
-              <RedactionTermsModal
-                conversationId={conversationId}
-                open={redactionModalOpen}
-                onClose={() => setRedactionModalOpen(false)}
-              />
+              <>
+                <RedactionTermsModal
+                  conversationId={conversationId}
+                  open={redactionModalOpen}
+                  onClose={() => setRedactionModalOpen(false)}
+                />
+                <ExportPreviewModal
+                  conversationId={conversationId}
+                  open={previewOpen}
+                  onClose={() => setPreviewOpen(false)}
+                  mode={previewOpts.mode}
+                  redact={previewOpts.redact}
+                  clean={previewOpts.clean}
+                  onDownload={() => {
+                    void handleExport(previewOpts.mode, previewOpts.redact, previewOpts.clean);
+                    setPreviewOpen(false);
+                  }}
+                />
+              </>
             )}
           </div>
         )}

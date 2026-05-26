@@ -41,8 +41,17 @@ import {
   createSkill,
   deleteSkill,
   validateSkillsParam,
-  SKILLS_DIR_PATH,
+  getSkillsDirPath,
 } from "./skills.js";
+import { ensureOpsblazeSkillsLayout } from "./skills-path.js";
+import { getSplunkGuardrails } from "./splunk-guardrails.js";
+import {
+  listPlaybooks,
+  createPlaybook,
+  deletePlaybook,
+  playbookSchema,
+} from "./playbooks.js";
+import { recordAudit, listAuditEvents } from "./audit-log.js";
 import { extractSkill, refineSkill } from "./skill-extractor.js";
 import { renderExportHtml } from "./export.js";
 import { runHealthChecks } from "./health.js";
@@ -53,8 +62,17 @@ import {
   getMaxTurns,
   getStreamTimeoutMs,
   getRedactionSettings,
+  getConfiguredSkillPacks,
 } from "./runtime-settings.js";
-import { redactConversation } from "./redaction.js";
+import {
+  redactConversation,
+  normalizeExportRedactionTerms,
+  MAX_EXPORT_REDACTION_TERM_LEN,
+  MAX_EXPORT_REDACTION_TERMS,
+  MAX_EXPORT_REDACTION_TOTAL_LEN,
+} from "./redaction.js";
+import { buildChatHistoryFromMessages } from "./chat-history.js";
+import { rateLimitKey } from "./rate-limit-key.js";
 import { isOpenWebUiMode } from "./llm-config.js";
 import { listOpenWebUiModelOptions } from "./openwebui-models.js";
 import { OpenWebUiError } from "./openwebui-client.js";
@@ -147,9 +165,12 @@ app.use((_req, res, next) => {
   next();
 });
 
+const rateLimitKeyGen = (req: import("express").Request) => rateLimitKey(req);
+
 const chatLimiter = rateLimit({
   windowMs: 60_000,
   limit: parseInt(process.env.OPSBLAZE_RATE_LIMIT ?? "10", 10),
+  keyGenerator: rateLimitKeyGen,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later" },
@@ -157,7 +178,8 @@ const chatLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
   windowMs: 60_000,
-  limit: 60,
+  limit: parseInt(process.env.OPSBLAZE_API_RATE_LIMIT ?? "60", 10),
+  keyGenerator: rateLimitKeyGen,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later" },
@@ -175,11 +197,13 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
 
   const {
     message,
+    conversationId: rawConversationId,
     history: rawHistory,
     skills: rawSkills,
     skillsStrict: rawSkillsStrict,
   } = req.body as {
     message: string;
+    conversationId?: string;
     history?: Array<{ role: string; content: string }>;
     skills?: string[];
     skillsStrict?: boolean;
@@ -195,20 +219,27 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
     return;
   }
 
-  const fullLen = rawHistory?.length ?? 0;
-  const VALID_ROLES = new Set(["user", "assistant"]);
-  const history = (rawHistory ?? [])
-    .filter((entry) => VALID_ROLES.has(entry.role))
-    .slice(-MAX_HISTORY)
-    .map((entry) => ({
-      role: entry.role as "user" | "assistant",
-      content:
-        typeof entry.content === "string" && entry.content.length > MAX_HISTORY_ENTRY_LEN
-          ? entry.content.slice(0, MAX_HISTORY_ENTRY_LEN)
-          : (entry.content ?? ""),
-    }));
-  if (fullLen > MAX_HISTORY) {
-    reqLog.warn({ fullLen, kept: MAX_HISTORY }, "history truncated to max exchanges");
+  if (rawHistory !== undefined && rawHistory !== null) {
+    reqLog.warn("client-sent chat history ignored; use conversationId for server-side history");
+  }
+
+  let history: Array<{ role: "user" | "assistant"; content: string }> = [];
+
+  if (typeof rawConversationId === "string" && rawConversationId.trim()) {
+    const convId = rawConversationId.trim();
+    if (!CONVERSATION_ID_RE.test(convId) || convId.length > 128) {
+      res.status(400).json({ error: "Invalid conversationId" });
+      return;
+    }
+    const conv = await getConversation(userId, convId);
+    if (!conv) {
+      res.status(404).json({ error: "Conversation not found" });
+      return;
+    }
+    history = buildChatHistoryFromMessages(conv.messages, message, {
+      maxEntries: MAX_HISTORY,
+      maxEntryLen: MAX_HISTORY_ENTRY_LEN,
+    });
   }
 
   const skillResult = await validateSkillsParam(rawSkills);
@@ -385,8 +416,24 @@ app.put("/api/conversations/:id", apiLimiter, async (req, res) => {
         res.status(400).json({ error: "exportRedactions must be an array of strings" });
         return;
       }
-      if (exportRedactions.length > 100) {
-        res.status(400).json({ error: "At most 100 export redaction terms per investigation" });
+      if (exportRedactions.length > MAX_EXPORT_REDACTION_TERMS) {
+        res.status(400).json({ error: `At most ${MAX_EXPORT_REDACTION_TERMS} export redaction terms` });
+        return;
+      }
+      let totalLen = 0;
+      for (const s of exportRedactions) {
+        if (s.length > MAX_EXPORT_REDACTION_TERM_LEN) {
+          res.status(400).json({
+            error: `Each export redaction term must be at most ${MAX_EXPORT_REDACTION_TERM_LEN} characters`,
+          });
+          return;
+        }
+        totalLen += s.trim().length;
+      }
+      if (totalLen > MAX_EXPORT_REDACTION_TOTAL_LEN) {
+        res.status(400).json({
+          error: `Export redaction terms exceed ${MAX_EXPORT_REDACTION_TOTAL_LEN} characters total`,
+        });
         return;
       }
     }
@@ -396,7 +443,7 @@ app.put("/api/conversations/:id", apiLimiter, async (req, res) => {
       messages: (messages as StoredConversation["messages"]) ?? existing.messages,
       exportRedactions:
         exportRedactions !== undefined
-          ? exportRedactions.map((s) => s.trim()).filter(Boolean)
+          ? normalizeExportRedactionTerms(exportRedactions)
           : existing.exportRedactions,
       updatedAt: new Date().toISOString(),
     };
@@ -448,6 +495,28 @@ app.get("/api/conversations/:id/export", apiLimiter, async (req, res) => {
 
     const clean = req.query.clean !== "0" && req.query.clean !== "false";
     const html = renderExportHtml(conv, { mode, redacted: shouldRedact, clean });
+    const userId = getRequestUserId(req);
+    const isPreview = req.query.preview === "1" || req.query.preview === "true";
+    if (isPreview) {
+      void recordAudit(userId, "export.preview", {
+        conversationId: conv.id,
+        mode,
+        redacted: shouldRedact,
+      });
+      res.json({
+        html,
+        title: conv.title,
+        mode,
+        redacted: shouldRedact,
+        clean,
+      });
+      return;
+    }
+    void recordAudit(userId, "export.download", {
+      conversationId: conv.id,
+      mode,
+      redacted: shouldRedact,
+    });
     const safeTitle = conv.title
       .replace(/[^a-zA-Z0-9 _-]/g, "")
       .replace(/\s+/g, "-")
@@ -485,7 +554,7 @@ app.post("/api/conversations/cleanup", apiLimiter, async (req, res) => {
 // --- Config paths ---
 
 app.get("/api/config-paths", apiLimiter, requireAdmin, (_req, res) => {
-  res.json({ mcpConfig: MCP_CONFIG_PATH, skillsDir: SKILLS_DIR_PATH });
+  res.json({ mcpConfig: MCP_CONFIG_PATH, skillsDir: getSkillsDirPath() });
 });
 
 // --- Runtime settings routes ---
@@ -511,14 +580,21 @@ function buildSystemSettingsPayload() {
 
 app.get("/api/settings", apiLimiter, async (req, res) => {
   try {
-    const [model, effort, maxTurns, streamTimeoutMs, redaction] = await Promise.all([
-      getClaudeModel(),
-      getClaudeEffort(),
-      getMaxTurns(),
-      getStreamTimeoutMs(),
-      getRedactionSettings(),
-    ]);
+    const [model, effort, maxTurns, streamTimeoutMs, redaction, skillPacks, splunkGuardrails] =
+      await Promise.all([
+        getClaudeModel(),
+        getClaudeEffort(),
+        getMaxTurns(),
+        getStreamTimeoutMs(),
+        getRedactionSettings(),
+        getConfiguredSkillPacks(),
+        getSplunkGuardrails(),
+      ]);
     const openWebUi = isOpenWebUiMode();
+    const redactionForClient = isRequestAdmin(req)
+      ? redaction
+      : { applyOnExport: redaction.applyOnExport ?? false };
+
     const payload: {
       runtime: {
         claudeModel: string;
@@ -526,7 +602,9 @@ app.get("/api/settings", apiLimiter, async (req, res) => {
         maxTurns: number;
         streamTimeoutMs: number;
         llmProvider: "openwebui" | "claude";
-        redaction: Awaited<ReturnType<typeof getRedactionSettings>>;
+        redaction: typeof redactionForClient;
+        skillPacks: Awaited<ReturnType<typeof getConfiguredSkillPacks>>;
+        splunkGuardrails?: Awaited<ReturnType<typeof getSplunkGuardrails>>;
       };
       system?: ReturnType<typeof buildSystemSettingsPayload>;
     } = {
@@ -536,7 +614,9 @@ app.get("/api/settings", apiLimiter, async (req, res) => {
         maxTurns,
         streamTimeoutMs,
         llmProvider: openWebUi ? "openwebui" : "claude",
-        redaction,
+        redaction: redactionForClient,
+        skillPacks,
+        ...(isRequestAdmin(req) ? { splunkGuardrails } : {}),
       },
     };
     if (isRequestAdmin(req)) {
@@ -570,15 +650,29 @@ app.get("/api/openwebui/models", apiLimiter, async (_req, res) => {
 app.patch("/api/settings", apiLimiter, requireAdmin, async (req, res) => {
   try {
     await updateRuntimeSettings(req.body);
-    const [model, effort, maxTurns, streamTimeoutMs, redaction] = await Promise.all([
-      getClaudeModel(),
-      getClaudeEffort(),
-      getMaxTurns(),
-      getStreamTimeoutMs(),
-      getRedactionSettings(),
-    ]);
+    void recordAudit(getRequestUserId(req), "settings.update", {
+      keys: Object.keys(req.body ?? {}),
+    });
+    const [model, effort, maxTurns, streamTimeoutMs, redaction, skillPacks, splunkGuardrails] =
+      await Promise.all([
+        getClaudeModel(),
+        getClaudeEffort(),
+        getMaxTurns(),
+        getStreamTimeoutMs(),
+        getRedactionSettings(),
+        getConfiguredSkillPacks(),
+        getSplunkGuardrails(),
+      ]);
     res.json({
-      runtime: { claudeModel: model, claudeEffort: effort, maxTurns, streamTimeoutMs, redaction },
+      runtime: {
+        claudeModel: model,
+        claudeEffort: effort,
+        maxTurns,
+        streamTimeoutMs,
+        redaction,
+        skillPacks,
+        splunkGuardrails,
+      },
     });
   } catch (err) {
     const msg = (err as Error).message;
@@ -612,6 +706,7 @@ app.post("/api/mcp-servers", apiLimiter, requireAdmin, async (req, res) => {
     }
     if (!validateMcpName(name, res)) return;
     await addMcpServer(name, config);
+    void recordAudit(getRequestUserId(req), "mcp.create", { name });
     res.status(201).json({ ok: true });
   } catch (err) {
     const safe = safeErrorMessage(err);
@@ -632,6 +727,7 @@ app.put("/api/mcp-servers/:name", apiLimiter, requireAdmin, async (req, res) => 
     if (!validateMcpName(name, res)) return;
     const config = req.body as McpServerEntry;
     await updateMcpServer(name, config);
+    void recordAudit(getRequestUserId(req), "mcp.update", { name });
     res.json({ ok: true });
   } catch (err) {
     const safe = safeErrorMessage(err);
@@ -651,7 +747,9 @@ app.put("/api/mcp-servers/:name", apiLimiter, requireAdmin, async (req, res) => 
 app.delete("/api/mcp-servers/:name", apiLimiter, requireAdmin, async (req, res) => {
   try {
     if (!validateMcpName(req.params.name as string, res)) return;
-    await deleteMcpServer(req.params.name as string);
+    const name = req.params.name as string;
+    await deleteMcpServer(name);
+    void recordAudit(getRequestUserId(req), "mcp.delete", { name });
     res.json({ ok: true });
   } catch (err) {
     const safe = safeErrorMessage(err);
@@ -674,7 +772,9 @@ app.post("/api/mcp-servers/:name/toggle", apiLimiter, requireAdmin, async (req, 
       res.status(400).json({ error: "enabled (boolean) is required" });
       return;
     }
-    await toggleMcpServer(req.params.name as string, enabled);
+    const name = req.params.name as string;
+    await toggleMcpServer(name, enabled);
+    void recordAudit(getRequestUserId(req), "mcp.toggle", { name, enabled });
     res.json({ ok: true });
   } catch (err) {
     const safe = safeErrorMessage(err);
@@ -724,7 +824,9 @@ app.post("/api/skills/:name/toggle", apiLimiter, requireAdmin, async (req, res) 
       res.status(400).json({ error: "enabled (boolean) is required" });
       return;
     }
-    await toggleSkill(req.params.name as string, enabled);
+    const name = req.params.name as string;
+    await toggleSkill(name, enabled);
+    void recordAudit(getRequestUserId(req), "skill.toggle", { name, enabled });
     res.json({ ok: true });
   } catch (err) {
     const safe = safeErrorMessage(err);
@@ -739,7 +841,9 @@ app.post("/api/skills/:name/toggle", apiLimiter, requireAdmin, async (req, res) 
 
 app.delete("/api/skills/:name", apiLimiter, requireAdmin, async (req, res) => {
   try {
-    await deleteSkill(req.params.name as string);
+    const name = req.params.name as string;
+    await deleteSkill(name);
+    void recordAudit(getRequestUserId(req), "skill.delete", { name });
     res.json({ ok: true });
   } catch (err) {
     const msg = (err as Error).message;
@@ -772,6 +876,7 @@ app.post("/api/skills", apiLimiter, requireAdmin, async (req, res) => {
       return;
     }
     await createSkill(name, content);
+    void recordAudit(getRequestUserId(req), "skill.create", { name });
     res.status(201).json({ ok: true });
   } catch (err) {
     const safe = safeErrorMessage(err);
@@ -789,6 +894,7 @@ app.post("/api/skills", apiLimiter, requireAdmin, async (req, res) => {
 const extractLimiter = rateLimit({
   windowMs: 60_000,
   limit: 5,
+  keyGenerator: rateLimitKeyGen,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: { error: "Too many extraction requests, please try again later" },
@@ -865,6 +971,71 @@ app.post("/api/skills/refine", extractLimiter, async (req, res) => {
     }
     logger.error({ err }, "failed to refine skill");
     if (!res.headersSent) res.status(500).json({ error: "Skill refinement failed" });
+  }
+});
+
+// --- Investigation playbooks ---
+
+app.get("/api/playbooks", apiLimiter, async (_req, res) => {
+  try {
+    res.json({ playbooks: await listPlaybooks() });
+  } catch (err) {
+    logger.error({ err }, "failed to list playbooks");
+    res.status(500).json({ error: "Failed to list playbooks" });
+  }
+});
+
+app.post("/api/playbooks", apiLimiter, requireAdmin, async (req, res) => {
+  try {
+    const parsed = playbookSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid playbook" });
+      return;
+    }
+    const playbook = await createPlaybook(parsed.data);
+    void recordAudit(getRequestUserId(req), "playbook.create", {
+      id: playbook.id,
+      name: playbook.name,
+    });
+    res.status(201).json(playbook);
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg.includes("already exists")) {
+      res.status(409).json({ error: msg });
+    } else {
+      logger.error({ err }, "failed to create playbook");
+      res.status(500).json({ error: "Failed to create playbook" });
+    }
+  }
+});
+
+app.delete("/api/playbooks/:id", apiLimiter, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id as string;
+    const deleted = await deletePlaybook(id);
+    if (!deleted) {
+      res.status(404).json({ error: "Playbook not found" });
+      return;
+    }
+    void recordAudit(getRequestUserId(req), "playbook.delete", { id });
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err, id: req.params.id }, "failed to delete playbook");
+    res.status(500).json({ error: "Failed to delete playbook" });
+  }
+});
+
+// --- Audit log (admin) ---
+
+app.get("/api/audit", apiLimiter, requireAdmin, async (req, res) => {
+  try {
+    const limitRaw = parseInt(String(req.query.limit ?? "200"), 10);
+    const limit = Number.isFinite(limitRaw) ? Math.min(500, Math.max(1, limitRaw)) : 200;
+    const events = await listAuditEvents(limit);
+    res.json({ events });
+  } catch (err) {
+    logger.error({ err }, "failed to list audit events");
+    res.status(500).json({ error: "Failed to list audit events" });
   }
 });
 
@@ -1038,6 +1209,11 @@ try {
 }
 
 const server = app.listen(PORT, HOST, async () => {
+  try {
+    await ensureOpsblazeSkillsLayout();
+  } catch (err) {
+    logger.warn({ err }, "skills directory layout check failed");
+  }
   logger.info({ port: PORT, host: HOST }, "OpsBlaze server running");
   const openWebUi = process.env.OPENWEBUI_BASE_URL?.trim();
   logger.info(

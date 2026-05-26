@@ -7,7 +7,7 @@ import {
   updateConversation,
   deleteConversation as deleteConversationApi,
 } from "../lib/api";
-import type { Message, ChartBlock, SkillBlock, TextBlock, LimitBlock } from "../types";
+import type { Message, ChartBlock, SkillBlock, LimitBlock } from "../types";
 
 const ACTIVE_CONV_KEY = "opsblaze_active_conversation";
 
@@ -335,6 +335,16 @@ export function useChat() {
       const reportSaveError = (msg: string) => onSaveErrorRef.current(msg);
 
       if (activeConvId) {
+        try {
+          await updateConversation(activeConvId, {
+            messages: stripStreamingFlags([...currentMessages, userMessage]),
+          });
+        } catch (err) {
+          reportSaveError(
+            "Could not save this investigation before sending. History may be incomplete."
+          );
+          if (import.meta.env.DEV) console.warn("[OpsBlaze] pre-chat save failed:", err);
+        }
         saveToDisk(local, activeConvId, reportSaveError);
       }
 
@@ -344,23 +354,11 @@ export function useChat() {
         syncStreamingIds();
       }
 
-      const history = currentMessages
-        .filter((m) => m.role === "user" || m.role === "assistant")
-        .map((m) => ({
-          role: m.role,
-          content: m.blocks
-            .filter((b): b is TextBlock => b.type === "text")
-            .map((b) => b.content)
-            .join(""),
-        }))
-        .filter((m) => m.content.trim());
-
       const { apiContent, apiSkills, apiSkillsStrict } = buildSkillRequest(content, skillScope);
 
       try {
         await streamChat(
           apiContent,
-          history,
           {
             onText: (text) => {
               local = appendText(local, assistantId, text);
@@ -420,7 +418,8 @@ export function useChat() {
           },
           abortController.signal,
           apiSkills,
-          apiSkillsStrict
+          apiSkillsStrict,
+          activeConvId ?? undefined
         );
       } catch (err) {
         const isAbort = (err as Error).name === "AbortError";

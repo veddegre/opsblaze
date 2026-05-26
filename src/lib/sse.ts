@@ -38,11 +38,11 @@ export interface SSECallbacks {
 
 export async function streamChat(
   message: string,
-  history: Array<{ role: string; content: string }>,
   callbacks: SSECallbacks,
   signal?: AbortSignal,
   skills?: string[],
-  skillsStrict?: boolean
+  skillsStrict?: boolean,
+  conversationId?: string
 ): Promise<void> {
   const response = await fetch("/api/chat", {
     method: "POST",
@@ -50,7 +50,7 @@ export async function streamChat(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       message,
-      history,
+      ...(conversationId && { conversationId }),
       ...(skills && skills.length > 0 && { skills, skillsStrict: skillsStrict !== false }),
     }),
     signal,

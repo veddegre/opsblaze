@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { sanitizeUserId, LOCAL_USER_ID } from "../auth/types.js";
 import { isPublicApiPath } from "../auth/middleware.js";
-import { resolveAdmin } from "../auth/oidc.js";
+import { resolveIsAdmin, parseCsvEnvSet } from "../auth/roles.js";
 
 describe("sanitizeUserId", () => {
   it("keeps safe characters", () => {
@@ -30,11 +30,27 @@ describe("isPublicApiPath", () => {
   });
 });
 
-describe("resolveAdmin", () => {
+describe("resolveIsAdmin", () => {
   it("matches admin emails case-insensitively", () => {
-    const admins = new Set(["admin@example.edu"]);
-    expect(resolveAdmin(admins, "Admin@Example.edu")).toBe(true);
-    expect(resolveAdmin(admins, "user@example.edu")).toBe(false);
+    const admins = parseCsvEnvSet("admin@example.edu");
+    expect(
+      resolveIsAdmin({
+        adminEmails: admins,
+        adminGroups: new Set(),
+        allUsersAdmin: false,
+        email: "Admin@Example.edu",
+        groups: [],
+      })
+    ).toBe(true);
+    expect(
+      resolveIsAdmin({
+        adminEmails: admins,
+        adminGroups: new Set(),
+        allUsersAdmin: false,
+        email: "user@example.edu",
+        groups: [],
+      })
+    ).toBe(false);
   });
 });
 

@@ -14,7 +14,7 @@ export function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="px-4 py-4 border-b border-border-subtle last:border-b-0">
+    <section className="px-4 sm:px-5 py-4 border-b border-border-subtle last:border-b-0">
       <h3 className="text-sm font-medium text-gray-200">{title}</h3>
       {description && <p className="text-xs text-gray-500 mt-1 leading-relaxed">{description}</p>}
       <div className="mt-3 space-y-3">{children}</div>
@@ -105,8 +105,8 @@ export function NavItem({
       type="button"
       onClick={onClick}
       aria-current={active ? "page" : undefined}
-      className={`shrink-0 sm:w-full text-left text-sm py-2 rounded-md transition-colors whitespace-nowrap sm:whitespace-normal ${
-        indent ? "sm:pl-6 pr-3 sm:pr-3 pl-4" : "px-3"
+      className={`shrink-0 lg:w-full text-left text-sm py-2 rounded-md transition-colors whitespace-nowrap lg:whitespace-normal ${
+        indent ? "lg:pl-6 pr-3 lg:pr-3 pl-4" : "px-3"
       } ${
         active
           ? "bg-accent/15 text-accent-light font-medium"
@@ -120,7 +120,7 @@ export function NavItem({
 
 export function NavGroupLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="hidden sm:block px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600">
+    <p className="hidden lg:block px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600">
       {children}
     </p>
   );

@@ -6,6 +6,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { Logger } from "pino";
 import { listMcpServersRaw } from "./mcp-config.js";
+import { getSplunkGuardrails, validateSplunkQuery } from "./splunk-guardrails.js";
 import type {
   HttpServerConfig,
   McpServerEntry,
@@ -144,6 +145,25 @@ export class McpRuntime {
     }
 
     log.debug({ server: parsed.serverName, tool: parsed.toolName }, "calling MCP tool");
+
+    if (parsed.toolName === "splunk_query" && parsed.serverName === "opsblaze-splunk") {
+      const spl = typeof args.spl === "string" ? args.spl : "";
+      const earliest = typeof args.earliest === "string" ? args.earliest : "-24h";
+      const latest = typeof args.latest === "string" ? args.latest : "now";
+      const guardrails = await getSplunkGuardrails();
+      const violation = validateSplunkQuery(guardrails, spl, earliest, latest);
+      if (violation) {
+        log.warn({ violation }, "splunk query blocked by guardrails");
+        return {
+          text: JSON.stringify({
+            summary: `Query blocked by Splunk guardrails: ${violation}`,
+            chart: null,
+            suppressed: true,
+          }),
+          isError: true,
+        };
+      }
+    }
 
     const result = await server.client.callTool({
       name: parsed.toolName,

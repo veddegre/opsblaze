@@ -3,11 +3,15 @@ import { createPortal } from "react-dom";
 import { listSkillsApi } from "../lib/settings-api";
 import type { SkillInfo } from "../lib/settings-api";
 
+import type { SkillPack } from "../lib/settings-api";
+
 interface SkillPickerProps {
   selectedSkills: string[];
   onSelectedSkillsChange: (skills: string[]) => void;
   allowAdditional: boolean;
   onAllowAdditionalChange: (allow: boolean) => void;
+  skillPacks?: SkillPack[];
+  onApplySkillPack?: (pack: SkillPack) => void;
   disabled?: boolean;
 }
 
@@ -16,6 +20,8 @@ export function SkillPicker({
   onSelectedSkillsChange,
   allowAdditional,
   onAllowAdditionalChange,
+  skillPacks = [],
+  onApplySkillPack,
   disabled,
 }: SkillPickerProps) {
   const [skills, setSkills] = useState<SkillInfo[]>([]);
@@ -164,6 +170,23 @@ export function SkillPicker({
 
   return (
     <div className="relative mt-1.5 flex flex-col gap-1.5 min-h-[28px]">
+      {skillPacks.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1 px-0.5">
+          <span className="text-[10px] text-gray-600 shrink-0 mr-0.5">Bundles:</span>
+          {skillPacks.map((pack) => (
+            <button
+              key={pack.id}
+              type="button"
+              disabled={disabled}
+              title={pack.description ?? pack.skills.join(", ")}
+              onClick={() => onApplySkillPack?.(pack)}
+              className="text-[10px] px-2 py-0.5 rounded-full border border-border-subtle text-gray-400 hover:text-accent-light hover:border-accent/40 transition-colors disabled:opacity-50"
+            >
+              {pack.name}
+            </button>
+          ))}
+        </div>
+      )}
       {loading && skills.length === 0 && (
         <p className="text-[10px] text-gray-600 px-0.5">Loading skills…</p>
       )}

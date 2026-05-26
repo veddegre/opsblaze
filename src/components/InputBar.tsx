@@ -3,6 +3,9 @@ import { SkillPicker } from "./SkillPicker";
 import { UsageBar } from "./UsageBar";
 import type { UsageData, ContextData } from "../lib/sse";
 
+import type { SkillPack } from "../lib/settings-api";
+import type { InvestigationPlaybook } from "../lib/playbooks-api";
+
 interface InputBarProps {
   onSend: (message: string, skillScope?: { skills: string[]; strict: boolean }) => void;
   onStop: () => void;
@@ -11,6 +14,12 @@ interface InputBarProps {
   onSelectedSkillsChange: (skills: string[]) => void;
   allowAdditional: boolean;
   onAllowAdditionalChange: (allow: boolean) => void;
+  skillPacks?: SkillPack[];
+  onApplySkillPack?: (pack: SkillPack) => void;
+  playbooks?: InvestigationPlaybook[];
+  onApplyPlaybook?: (playbook: InvestigationPlaybook) => void;
+  prefillMessage?: string | null;
+  onPrefillConsumed?: () => void;
   queryUsage?: UsageData | null;
   contextUsage?: ContextData | null;
 }
@@ -23,11 +32,29 @@ export function InputBar({
   onSelectedSkillsChange,
   allowAdditional,
   onAllowAdditionalChange,
+  skillPacks,
+  onApplySkillPack,
+  playbooks,
+  onApplyPlaybook,
+  prefillMessage,
+  onPrefillConsumed,
   queryUsage,
   contextUsage,
 }: InputBarProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!prefillMessage) return;
+    setValue(prefillMessage);
+    onPrefillConsumed?.();
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 200) + "px";
+    }
+    el?.focus();
+  }, [prefillMessage, onPrefillConsumed]);
 
   useEffect(() => {
     if (!isStreaming) {
@@ -115,11 +142,30 @@ export function InputBar({
             </button>
           )}
         </div>
+        {playbooks && playbooks.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 px-0.5 mt-1.5">
+            <span className="text-[10px] text-gray-600 shrink-0 mr-0.5">Playbooks:</span>
+            {playbooks.map((pb) => (
+              <button
+                key={pb.id}
+                type="button"
+                disabled={isStreaming}
+                title={pb.prompt}
+                onClick={() => onApplyPlaybook?.(pb)}
+                className="text-[10px] px-2 py-0.5 rounded-full border border-border-subtle text-gray-400 hover:text-accent-light hover:border-accent/40 transition-colors disabled:opacity-50"
+              >
+                {pb.name}
+              </button>
+            ))}
+          </div>
+        )}
         <SkillPicker
           selectedSkills={selectedSkills}
           onSelectedSkillsChange={onSelectedSkillsChange}
           allowAdditional={allowAdditional}
           onAllowAdditionalChange={onAllowAdditionalChange}
+          skillPacks={skillPacks}
+          onApplySkillPack={onApplySkillPack}
           disabled={isStreaming}
         />
         {queryUsage || contextUsage ? (
