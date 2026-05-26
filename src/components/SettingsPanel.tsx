@@ -44,13 +44,8 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   "admin-audit": "Audit log",
 };
 
-/** Wider slide-out for dense admin editors (skills, MCP, bundles). */
-const WIDE_PANEL_SECTIONS = new Set<SettingsSection>([
-  "preferences",
-  "admin-system",
-  "admin-mcp",
-  "admin-skills",
-]);
+/** Shared slide-out width for all settings sections (nav + content). */
+const SETTINGS_PANEL_MAX_WIDTH = "max-w-[min(100%,52rem)]";
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -1047,11 +1042,7 @@ export function SettingsPanel({
       )}
 
       <div
-        className={`fixed top-[49px] right-0 bottom-0 w-full bg-surface-1 border-l border-border-subtle z-30 transform transition-transform duration-200 ease-out flex flex-col ${
-          WIDE_PANEL_SECTIONS.has(section)
-            ? "max-w-[min(100%,52rem)]"
-            : "max-w-[min(100%,28rem)]"
-        } ${isOpen ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed top-[49px] right-0 bottom-0 w-full bg-surface-1 border-l border-border-subtle z-30 transform transition-transform duration-200 ease-out flex flex-col ${SETTINGS_PANEL_MAX_WIDTH} ${isOpen ? "translate-x-0" : "translate-x-full"}`}
       >
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border-subtle shrink-0">
           <div>
