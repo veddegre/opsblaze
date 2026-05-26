@@ -1,6 +1,8 @@
 # Contributing to OpsBlaze
 
-Thank you for your interest in contributing to OpsBlaze.
+Thank you for your interest in contributing to this OpsBlaze fork.
+
+Issues and pull requests for this fork: https://github.com/veddegre/opsblaze/issues
 
 ## Code of Conduct
 

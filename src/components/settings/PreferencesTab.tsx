@@ -369,7 +369,7 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
             onChange={(e) => setRedactCustomStrings(e.target.value)}
             disabled={!isAdmin}
             rows={4}
-            placeholder={"splunk-sh1.example.edu\ngvsu.edu"}
+            placeholder={"splunk-sh1.example.edu\ninternal.example.com"}
             className={`${monoInputClass} resize-y min-h-[4rem]`}
           />
           <FieldLabel hint="Optional. One JavaScript regex per line (advanced).">

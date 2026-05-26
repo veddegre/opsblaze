@@ -1,18 +1,21 @@
 {
   "name": "opsblaze",
   "version": "0.1.0",
-  "private": false,
-  "author": "Jesse Galliers (https://github.com/jagalliers)",
+  "private": true,
+  "author": "Greg Vedders (https://github.com/veddegre)",
   "license": "Apache-2.0",
   "description": "AI-powered Splunk investigation with narrative analysis, MCP tool calling, and Open WebUI or Claude backends",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jagalliers/opsblaze"
+    "url": "https://github.com/veddegre/opsblaze.git"
   },
-  "homepage": "https://github.com/jagalliers/opsblaze",
+  "homepage": "https://github.com/veddegre/opsblaze",
   "bugs": {
-    "url": "https://github.com/jagalliers/opsblaze/issues"
+    "url": "https://github.com/veddegre/opsblaze/issues"
   },
+  "contributors": [
+    "Jesse Galliers <https://github.com/jagalliers> (original OpsBlaze)"
+  ],
   "keywords": [
     "splunk",
     "investigation",

@@ -14,7 +14,7 @@ if (process.platform === "win32") {
   console.error(
     "\n  opsblaze: Windows is not currently supported.\n" +
     "  OpsBlaze requires macOS or Linux.\n" +
-    "  See https://github.com/jagalliers/opsblaze for updates.\n"
+    "  See https://github.com/veddegre/opsblaze for updates.\n"
   );
   process.exit(1);
 }

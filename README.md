@@ -1,6 +1,6 @@
 # OpsBlaze
 
-[![CI](https://github.com/jagalliers/opsblaze/actions/workflows/ci.yml/badge.svg)](https://github.com/jagalliers/opsblaze/actions/workflows/ci.yml)
+[![CI](https://github.com/veddegre/opsblaze/actions/workflows/ci.yml/badge.svg)](https://github.com/veddegre/opsblaze/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org)
 
@@ -348,9 +348,12 @@ Splunk is a registered trademark of Splunk Inc. in the United States and other c
 
 All other trademarks are the property of their respective owners.
 
-## Author
+## Origin and maintenance
 
-**Jesse Galliers** -- [@jagalliers](https://github.com/jagalliers)
+This repository is a fork of [OpsBlaze](https://github.com/jagalliers/opsblaze) by **Jesse Galliers** ([@jagalliers](https://github.com/jagalliers)).
+
+**Maintainer:** **Greg Vedders** — [@veddegre](https://github.com/veddegre)  
+Report bugs and feature requests via [GitHub Issues](https://github.com/veddegre/opsblaze/issues).
 
 ## License
 

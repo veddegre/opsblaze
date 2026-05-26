@@ -429,7 +429,7 @@ The pipeline logic lives in `server/pipeline.ts` as a pure function (`processMes
 
 ## 12) GitHub & Release Workflow
 
-The project is hosted at https://github.com/jagalliers/opsblaze. CI runs automatically on every push to `main` and on every pull request.
+The project is hosted at https://github.com/veddegre/opsblaze (fork of https://github.com/jagalliers/opsblaze). CI runs automatically on every push to `main` and on every pull request.
 
 ### Pushing Changes
 
