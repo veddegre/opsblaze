@@ -112,13 +112,13 @@ export function PlaybooksEditor({ disabled }: PlaybooksEditorProps) {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Failed Okta logins (24h)"
+            placeholder="Failed auth events (24h)"
             className={inputClass}
           />
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Investigate failed Okta logins in the last 24 hours…"
+            placeholder="Investigate failed authentication events in the last 24 hours…"
             rows={3}
             className={`${monoInputClass} resize-y min-h-[4rem]`}
           />

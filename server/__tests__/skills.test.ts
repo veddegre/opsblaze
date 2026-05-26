@@ -99,6 +99,27 @@ describe("skills", () => {
     expect(skills[0].path).toContain(".claude/skills/test-skill/SKILL.md");
   });
 
+  it("listSkills includes deploy-only skills under _local", async () => {
+    const localDir = path.join(skillsDir, "_local", "private-skill");
+    await mkdir(localDir, { recursive: true });
+    await writeFile(
+      path.join(localDir, "SKILL.md"),
+      "---\ndescription: deploy only\n---\n# Private",
+      "utf-8"
+    );
+    await createSkillFile("public-skill", "---\ndescription: public\n---\n# Public");
+
+    const origCwd = process.cwd;
+    process.cwd = () => tmpDir;
+    vi.resetModules();
+    const mod = await import("../skills.js");
+    const skills = await mod.listSkills();
+    process.cwd = origCwd;
+
+    expect(skills.map((s) => s.name).sort()).toEqual(["private-skill", "public-skill"]);
+    expect(skills.find((s) => s.name === "private-skill")?.path).toContain("_local/private-skill");
+  });
+
   it("deleteSkill removes directory", async () => {
     await createSkillFile("doomed-skill", "---\ndescription: bye\n---\n# Gone");
 

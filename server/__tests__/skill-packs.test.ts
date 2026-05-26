@@ -16,7 +16,7 @@ describe("validateSkillPacks", () => {
 
   it("accepts valid packs", () => {
     const packs = validateSkillPacks([
-      { id: "okta", name: "Okta", skills: ["investigating-okta-events"], strict: true },
+      { id: "login", name: "Login activity", skills: ["splunk-analyst"], strict: true },
     ]);
     expect(packs).toHaveLength(1);
   });
@@ -29,7 +29,7 @@ describe("getSkillPacks", () => {
     tmpDir = await mkdtemp(path.join(os.tmpdir(), "opsblaze-packs-"));
     const skillsDir = path.join(tmpDir, ".claude", "skills");
     await mkdir(skillsDir, { recursive: true });
-    for (const name of ["investigating-okta-events", "splunk-analyst"]) {
+    for (const name of ["investigating-splunk-login-activity", "splunk-analyst"]) {
       await mkdir(path.join(skillsDir, name), { recursive: true });
       await writeFile(
         path.join(skillsDir, name, "SKILL.md"),
@@ -58,11 +58,12 @@ describe("getSkillPacks", () => {
     for (const pack of packs) {
       expect(pack.skills.length).toBeGreaterThan(0);
     }
-    const okta = packs.find((p) => p.id === "okta-authentication");
-    expect(okta?.skills).toContain("investigating-okta-events");
+    const login = packs.find((p) => p.id === "splunk-login-activity");
+    expect(login?.skills).toContain("investigating-splunk-login-activity");
   });
 
   it("ships built-in default pack ids", () => {
-    expect(DEFAULT_SKILL_PACKS.some((p) => p.id === "okta-authentication")).toBe(true);
+    expect(DEFAULT_SKILL_PACKS.some((p) => p.id === "splunk-login-activity")).toBe(true);
+    expect(DEFAULT_SKILL_PACKS.some((p) => p.id === "okta-authentication")).toBe(false);
   });
 });

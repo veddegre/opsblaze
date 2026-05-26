@@ -412,7 +412,7 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
             onChange={(e) => setSplunkIndexes(e.target.value)}
             disabled={!isAdmin}
             rows={3}
-            placeholder={"okta\nmain"}
+            placeholder={"main\nsecurity"}
             className={`${monoInputClass} resize-y min-h-[3rem]`}
           />
           <FieldLabel hint="Maximum earliest→latest window in hours (default 168 = 7 days).">

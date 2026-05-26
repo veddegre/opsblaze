@@ -15,10 +15,10 @@ const SKILLS = [
     path: ".claude/skills/splunk-analyst/SKILL.md",
   },
   {
-    name: "investigating-okta-events",
-    description: "Okta auth events",
+    name: "login-investigator",
+    description: "Login activity",
     enabled: true,
-    path: ".claude/skills/investigating-okta-events/SKILL.md",
+    path: ".claude/skills/login-investigator/SKILL.md",
   },
   {
     name: "disabled-skill",
@@ -50,10 +50,10 @@ describe("SkillMultiSelect", () => {
     );
 
     const input = screen.getByPlaceholderText("Search skills to add…");
-    fireEvent.change(input, { target: { value: "okta" } });
+    fireEvent.change(input, { target: { value: "login" } });
 
     await waitFor(() => {
-      expect(screen.getByText("investigating-okta-events")).toBeInTheDocument();
+      expect(screen.getByText("login-investigator")).toBeInTheDocument();
       expect(screen.queryByText("splunk-analyst")).not.toBeInTheDocument();
     });
   });
