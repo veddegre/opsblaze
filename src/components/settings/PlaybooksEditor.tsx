@@ -1,27 +1,31 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   createPlaybook,
+  updatePlaybook,
   deletePlaybook,
   listPlaybooks,
   type InvestigationPlaybook,
 } from "../../lib/playbooks-api";
 import { listSkillsApi, type SkillInfo } from "../../lib/settings-api";
 import { SkillMultiSelect } from "./SkillMultiSelect";
-import { FieldLabel, inputClass, monoInputClass } from "./settings-ui";
+import { FieldLabel, InfoBanner, inputClass, monoInputClass } from "./settings-ui";
 
 interface PlaybooksEditorProps {
   disabled?: boolean;
+  onPlaybooksChanged?: () => void;
 }
 
-export function PlaybooksEditor({ disabled }: PlaybooksEditorProps) {
+export function PlaybooksEditor({ disabled, onPlaybooksChanged }: PlaybooksEditorProps) {
   const [playbooks, setPlaybooks] = useState<InvestigationPlaybook[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
   const [skills, setSkills] = useState<string[]>([]);
   const [strict, setStrict] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [availableSkills, setAvailableSkills] = useState<SkillInfo[]>([]);
 
   const refresh = useCallback(async () => {
@@ -36,24 +40,57 @@ export function PlaybooksEditor({ disabled }: PlaybooksEditorProps) {
     }
   }, []);
 
-  useEffect(() => {
-    refresh();
+  const loadSkills = useCallback(() => {
     listSkillsApi()
       .then(setAvailableSkills)
-      .catch(() => {});
-  }, [refresh]);
+      .catch(() => setAvailableSkills([]));
+  }, []);
 
-  const handleCreate = async () => {
+  useEffect(() => {
+    refresh();
+    loadSkills();
+  }, [refresh, loadSkills]);
+
+  const resetForm = () => {
+    setEditingId(null);
+    setName("");
+    setPrompt("");
+    setSkills([]);
+    setStrict(true);
+  };
+
+  const startEdit = (pb: InvestigationPlaybook) => {
+    setEditingId(pb.id);
+    setName(pb.name);
+    setPrompt(pb.prompt);
+    setSkills(pb.skills);
+    setStrict(pb.strict);
+    setSuccess(null);
+    setError(null);
+    loadSkills();
+  };
+
+  const handleSave = async () => {
     if (!name.trim() || !prompt.trim()) return;
     setSaving(true);
     setError(null);
+    setSuccess(null);
     try {
-      await createPlaybook({ name: name.trim(), prompt: prompt.trim(), skills, strict });
-      setName("");
-      setPrompt("");
-      setSkills([]);
-      setStrict(true);
+      if (editingId) {
+        await updatePlaybook(editingId, {
+          name: name.trim(),
+          prompt: prompt.trim(),
+          skills,
+          strict,
+        });
+        setSuccess("Playbook updated. Close settings to see it under Playbooks: below the chat box.");
+      } else {
+        await createPlaybook({ name: name.trim(), prompt: prompt.trim(), skills, strict });
+        setSuccess("Playbook saved. Close settings to see it under Playbooks: below the chat box.");
+      }
+      resetForm();
       await refresh();
+      onPlaybooksChanged?.();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -64,7 +101,9 @@ export function PlaybooksEditor({ disabled }: PlaybooksEditorProps) {
   const handleDelete = async (id: string) => {
     try {
       await deletePlaybook(id);
+      if (editingId === id) resetForm();
       await refresh();
+      onPlaybooksChanged?.();
     } catch (err) {
       setError((err as Error).message);
     }
@@ -72,43 +111,69 @@ export function PlaybooksEditor({ disabled }: PlaybooksEditorProps) {
 
   return (
     <div className="space-y-4">
-      <p className="text-[11px] text-gray-600">
-        Saved prompts investigators can run from the input bar. Each playbook sets the question text
-        and optional skills.
-      </p>
+      <InfoBanner>
+        Investigation playbooks are saved with the <strong className="text-gray-300">Save playbook</strong>{" "}
+        button here — not <strong className="text-gray-300">Save runtime settings</strong> above. After saving,
+        close Settings and use the <strong className="text-gray-300">Playbooks:</strong> chips under the message
+        box.
+      </InfoBanner>
+
       {loading && playbooks.length === 0 && (
         <p className="text-xs text-gray-500">Loading playbooks…</p>
       )}
+
+      {!loading && playbooks.length === 0 && (
+        <p className="text-xs text-gray-500 italic">No playbooks yet — create one below.</p>
+      )}
+
       {playbooks.length > 0 && (
         <ul className="space-y-2">
           {playbooks.map((pb) => (
             <li
               key={pb.id}
-              className="flex items-start justify-between gap-2 rounded-lg border border-border-subtle px-3 py-2"
+              className={`flex items-start justify-between gap-2 rounded-lg border px-3 py-2 ${
+                editingId === pb.id
+                  ? "border-accent/40 bg-accent/5"
+                  : "border-border-subtle"
+              }`}
             >
               <div className="min-w-0">
                 <p className="text-xs font-medium text-gray-200">{pb.name}</p>
                 <p className="text-[11px] text-gray-500 line-clamp-2">{pb.prompt}</p>
-                {pb.skills.length > 0 && (
-                  <p className="text-[10px] text-gray-600 mt-1">Skills: {pb.skills.join(", ")}</p>
+                {pb.skills.length > 0 ? (
+                  <p className="text-[10px] text-gray-600 mt-1 font-mono">
+                    Skills: {pb.skills.join(", ")}
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-amber-500/80 mt-1">No skills attached</p>
                 )}
               </div>
               {!disabled && (
-                <button
-                  type="button"
-                  onClick={() => handleDelete(pb.id)}
-                  className="text-[10px] text-red-400 hover:text-red-300 shrink-0"
-                >
-                  Delete
-                </button>
+                <div className="flex flex-col gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => startEdit(pb)}
+                    className="text-[10px] text-accent hover:text-accent-light"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(pb.id)}
+                    className="text-[10px] text-red-400 hover:text-red-300"
+                  >
+                    Delete
+                  </button>
+                </div>
               )}
             </li>
           ))}
         </ul>
       )}
+
       {!disabled && (
         <div className="space-y-2 border-t border-border-subtle pt-4">
-          <FieldLabel>New playbook</FieldLabel>
+          <FieldLabel>{editingId ? "Edit playbook" : "New playbook"}</FieldLabel>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -122,7 +187,9 @@ export function PlaybooksEditor({ disabled }: PlaybooksEditorProps) {
             rows={3}
             className={`${monoInputClass} resize-y min-h-[4rem]`}
           />
-          <p className="text-[11px] text-gray-500">Skills (optional)</p>
+          <p className="text-[11px] text-gray-500">
+            Skills (optional) — includes deploy-only skills from <span className="font-mono">_local/</span>
+          </p>
           <SkillMultiSelect
             value={skills}
             onChange={setSkills}
@@ -137,16 +204,29 @@ export function PlaybooksEditor({ disabled }: PlaybooksEditorProps) {
             />
             Only selected skills (strict)
           </label>
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={saving || !name.trim() || !prompt.trim()}
-            className="text-xs px-3 py-1.5 rounded-md bg-accent text-white disabled:opacity-50"
-          >
-            {saving ? "Saving…" : "Add playbook"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || !name.trim() || !prompt.trim()}
+              className="text-sm px-4 py-2 rounded-lg bg-accent text-white font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : editingId ? "Save playbook" : "Save playbook"}
+            </button>
+            {editingId && (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="text-xs text-gray-400 hover:text-gray-200"
+              >
+                Cancel edit
+              </button>
+            )}
+          </div>
         </div>
       )}
+
+      {success && <p className="text-xs text-green-400">{success}</p>}
       {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
   );

@@ -52,6 +52,7 @@ interface SettingsPanelProps {
   onClose: () => void;
   user: PublicAuthUser;
   initialSection?: SettingsSection;
+  onPlaybooksChanged?: () => void;
 }
 
 // --- Shared small components ---
@@ -975,13 +976,16 @@ function SkillRow({
 function renderSection(
   section: SettingsSection,
   user: PublicAuthUser,
-  paths: ConfigPaths | null
+  paths: ConfigPaths | null,
+  onPlaybooksChanged?: () => void
 ): React.ReactNode {
   switch (section) {
     case "account":
       return <AccountTab user={user} />;
     case "preferences":
-      return <PreferencesTab isAdmin={user.isAdmin} />;
+      return (
+        <PreferencesTab isAdmin={user.isAdmin} onPlaybooksChanged={onPlaybooksChanged} />
+      );
     case "admin-system":
       return <AdminSystemTab />;
     case "admin-mcp":
@@ -1000,6 +1004,7 @@ export function SettingsPanel({
   onClose,
   user,
   initialSection = "account",
+  onPlaybooksChanged,
 }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [paths, setPaths] = useState<ConfigPaths | null>(null);
@@ -1128,7 +1133,7 @@ export function SettingsPanel({
               <p className="text-sm font-medium text-gray-200">{SECTION_LABELS[section]}</p>
             </div>
             <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
-              {renderSection(section, user, paths)}
+              {renderSection(section, user, paths, onPlaybooksChanged)}
             </div>
           </div>
         </div>

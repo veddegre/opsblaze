@@ -48,6 +48,7 @@ import { getSplunkGuardrails, getSplunkAdminGuardEnv } from "./splunk-guardrails
 import {
   listPlaybooks,
   createPlaybook,
+  updatePlaybook,
   deletePlaybook,
   playbookSchema,
 } from "./playbooks.js";
@@ -1012,6 +1013,30 @@ app.post("/api/playbooks", apiLimiter, requireAdmin, async (req, res) => {
       logger.error({ err }, "failed to create playbook");
       res.status(500).json({ error: "Failed to create playbook" });
     }
+  }
+});
+
+app.patch("/api/playbooks/:id", apiLimiter, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id as string;
+    const parsed = playbookSchema.safeParse({ ...req.body, id });
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid playbook" });
+      return;
+    }
+    const playbook = await updatePlaybook(id, parsed.data);
+    if (!playbook) {
+      res.status(404).json({ error: "Playbook not found" });
+      return;
+    }
+    void recordAudit(getRequestUserId(req), "playbook.update", {
+      id: playbook.id,
+      name: playbook.name,
+    });
+    res.json(playbook);
+  } catch (err) {
+    logger.error({ err, id: req.params.id }, "failed to update playbook");
+    res.status(500).json({ error: "Failed to update playbook" });
   }
 });
 

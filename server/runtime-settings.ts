@@ -139,7 +139,7 @@ export async function getRedactionSettings(): Promise<RedactionSettings> {
 }
 
 export async function getConfiguredSkillPacks(): Promise<SkillPack[]> {
-  const { getSkillPacks } = await import("./skill-packs.js");
+  const { getStoredSkillPacks } = await import("./skill-packs.js");
   const settings = await loadRuntimeSettings();
-  return getSkillPacks(settings.skillPacks);
+  return getStoredSkillPacks(settings.skillPacks);
 }

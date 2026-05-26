@@ -142,7 +142,7 @@ export function InputBar({
             </button>
           )}
         </div>
-        {playbooks && playbooks.length > 0 && (
+        {playbooks && playbooks.length > 0 ? (
           <div className="flex flex-wrap items-center gap-1 px-0.5 mt-1.5">
             <span className="text-[10px] text-gray-600 shrink-0 mr-0.5">Playbooks:</span>
             {playbooks.map((pb) => (
@@ -158,6 +158,11 @@ export function InputBar({
               </button>
             ))}
           </div>
+        ) : (
+          <p className="text-[10px] text-gray-600 px-0.5 mt-1.5">
+            No investigation playbooks yet — admins add them under Settings → Runtime settings
+            (use <span className="text-gray-500">Save playbook</span>, not Save runtime settings).
+          </p>
         )}
         <SkillPicker
           selectedSkills={selectedSkills}

@@ -81,6 +81,29 @@ export async function createPlaybook(
   return entry;
 }
 
+export async function updatePlaybook(
+  id: string,
+  input: z.infer<typeof playbookSchema>
+): Promise<InvestigationPlaybook | null> {
+  const parsed = playbookSchema.parse({ ...input, id });
+  const playbooks = await readPlaybooks();
+  const index = playbooks.findIndex((p) => p.id === id);
+  if (index === -1) return null;
+
+  const entry: InvestigationPlaybook = {
+    id,
+    name: parsed.name.trim(),
+    prompt: parsed.prompt.trim(),
+    skills: parsed.skills ?? playbooks[index].skills,
+    strict: parsed.strict !== false,
+    updatedAt: new Date().toISOString(),
+  };
+  playbooks[index] = entry;
+  await writePlaybooks(playbooks);
+  logger.info({ id: entry.id, name: entry.name }, "playbook updated");
+  return entry;
+}
+
 export async function deletePlaybook(id: string): Promise<boolean> {
   const playbooks = await readPlaybooks();
   const next = playbooks.filter((p) => p.id !== id);

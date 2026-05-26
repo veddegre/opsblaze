@@ -17,6 +17,7 @@ export type AuditAction =
   | "skill.toggle"
   | "settings.update"
   | "playbook.create"
+  | "playbook.update"
   | "playbook.delete";
 
 export interface AuditEvent {

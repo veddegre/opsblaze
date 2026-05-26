@@ -53,17 +53,33 @@ export function validateSkillPacks(packs: unknown): SkillPack[] {
   return arr;
 }
 
-/** Stored packs if any, otherwise built-in defaults. Filters to enabled skills only. */
-export async function getSkillPacks(stored?: SkillPack[] | null): Promise<SkillPack[]> {
+function resolveSkillPackSource(stored?: SkillPack[] | null): SkillPack[] {
   const source = stored && stored.length > 0 ? stored : DEFAULT_SKILL_PACKS;
+  return source.map((pack) => ({
+    ...pack,
+    strict: pack.strict !== false,
+  }));
+}
+
+/** Packs as stored in settings (for admin editor — keeps all configured skill names). */
+export function getStoredSkillPacks(stored?: SkillPack[] | null): SkillPack[] {
+  return resolveSkillPackSource(stored);
+}
+
+/** Packs for the chat UI — only enabled skills; drops empty bundles. */
+export async function getActiveSkillPacks(stored?: SkillPack[] | null): Promise<SkillPack[]> {
   const allSkills = await listSkills();
   const enabled = new Set(allSkills.filter((s) => s.enabled).map((s) => s.name));
 
-  return source
+  return resolveSkillPackSource(stored)
     .map((pack) => ({
       ...pack,
-      strict: pack.strict !== false,
       skills: pack.skills.filter((name) => enabled.has(name)),
     }))
     .filter((pack) => pack.skills.length > 0);
+}
+
+/** @deprecated Use getActiveSkillPacks or getStoredSkillPacks explicitly. */
+export async function getSkillPacks(stored?: SkillPack[] | null): Promise<SkillPack[]> {
+  return getActiveSkillPacks(stored);
 }

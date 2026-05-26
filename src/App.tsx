@@ -9,8 +9,9 @@ import { InputBar } from "./components/InputBar";
 import { AppNotice } from "./components/AppNotice";
 import { useChat } from "./hooks/useChat";
 import type { PublicAuthUser } from "./lib/auth";
-import { getSettings, type SkillPack } from "./lib/settings-api";
+import { getSettings, listSkillsApi, type SkillPack } from "./lib/settings-api";
 import { listPlaybooks, type InvestigationPlaybook } from "./lib/playbooks-api";
+import { activeSkillPacks } from "./lib/skill-packs-utils";
 
 export function App() {
   return (
@@ -57,8 +58,10 @@ function AppContent({ user }: { user: PublicAuthUser }) {
   const [inputPrefill, setInputPrefill] = useState<string | null>(null);
 
   const refreshRuntimeConfig = useCallback(() => {
-    getSettings()
-      .then((s) => setSkillPacks(s.runtime.skillPacks ?? []))
+    Promise.all([getSettings(), listSkillsApi()])
+      .then(([s, skills]) => {
+        setSkillPacks(activeSkillPacks(s.runtime.skillPacks ?? [], skills));
+      })
       .catch(() => {});
     listPlaybooks()
       .then(setPlaybooks)
@@ -184,6 +187,7 @@ function AppContent({ user }: { user: PublicAuthUser }) {
         onClose={() => setSettingsOpen(false)}
         user={user}
         initialSection={settingsSection}
+        onPlaybooksChanged={refreshRuntimeConfig}
       />
       <SkillExtractor
         isOpen={extractorOpen}

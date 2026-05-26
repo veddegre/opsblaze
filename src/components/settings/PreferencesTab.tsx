@@ -18,7 +18,13 @@ import { SkillBundlesEditor } from "./SkillBundlesEditor";
 import { PlaybooksEditor } from "./PlaybooksEditor";
 import type { SkillPack, SplunkGuardrails } from "../../lib/settings-api";
 
-export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
+export function PreferencesTab({
+  isAdmin,
+  onPlaybooksChanged,
+}: {
+  isAdmin: boolean;
+  onPlaybooksChanged?: () => void;
+}) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("");
@@ -435,6 +441,10 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
           <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wide">
             Skill bundles
           </h3>
+          <p className="text-[11px] text-gray-600 -mt-1">
+            One-click skill presets under the chat input. Saved with{" "}
+            <strong className="text-gray-300">Save runtime settings</strong> below.
+          </p>
           <SkillBundlesEditor
             packs={skillPacks}
             onChange={(next) => {
@@ -450,7 +460,7 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
             <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wide">
               Investigation playbooks
             </h3>
-            <PlaybooksEditor />
+            <PlaybooksEditor onPlaybooksChanged={onPlaybooksChanged} />
           </div>
         )}
 
