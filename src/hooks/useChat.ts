@@ -167,14 +167,19 @@ function saveToDisk(
 export function buildSkillRequest(
   content: string,
   skillScope?: { skills: string[]; strict: boolean }
-): { apiContent: string; apiSkills: string[] | undefined } {
+): {
+  apiContent: string;
+  apiSkills: string[] | undefined;
+  apiSkillsStrict: boolean | undefined;
+} {
   const hasSkills = skillScope && skillScope.skills.length > 0;
   const apiContent =
     hasSkills && !skillScope.strict
       ? `[Use skills: ${skillScope.skills.join(", ")}]\n\n${content}`
       : content;
-  const apiSkills = hasSkills && skillScope.strict ? skillScope.skills : undefined;
-  return { apiContent, apiSkills };
+  const apiSkills = hasSkills ? skillScope.skills : undefined;
+  const apiSkillsStrict = hasSkills ? skillScope.strict : undefined;
+  return { apiContent, apiSkills, apiSkillsStrict };
 }
 
 export function useChat() {
@@ -350,7 +355,7 @@ export function useChat() {
         }))
         .filter((m) => m.content.trim());
 
-      const { apiContent, apiSkills } = buildSkillRequest(content, skillScope);
+      const { apiContent, apiSkills, apiSkillsStrict } = buildSkillRequest(content, skillScope);
 
       try {
         await streamChat(
@@ -414,7 +419,8 @@ export function useChat() {
             },
           },
           abortController.signal,
-          apiSkills
+          apiSkills,
+          apiSkillsStrict
         );
       } catch (err) {
         const isAbort = (err as Error).name === "AbortError";

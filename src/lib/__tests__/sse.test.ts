@@ -259,10 +259,27 @@ describe("streamChat SSE parser", () => {
     });
 
     const cb = makeCallbacks();
-    await streamChat("q", [], cb, undefined, ["skill-a", "skill-b"]);
+    await streamChat("q", [], cb, undefined, ["skill-a", "skill-b"], true);
 
     expect(capturedBody.skills).toEqual(["skill-a", "skill-b"]);
+    expect(capturedBody.skillsStrict).toBe(true);
     expect(capturedBody.message).toBe("q");
+  });
+
+  it("sends skillsStrict false for prefer-all-skills mode", async () => {
+    const chunks = ["event: done\ndata: {}\n\n"];
+    let capturedBody: Record<string, unknown> = {};
+
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      capturedBody = JSON.parse(init.body as string);
+      return mockFetchResponse(chunks);
+    });
+
+    const cb = makeCallbacks();
+    await streamChat("q", [], cb, undefined, ["skill-a"], false);
+
+    expect(capturedBody.skills).toEqual(["skill-a"]);
+    expect(capturedBody.skillsStrict).toBe(false);
   });
 
   it("omits skills from request body when array is empty", async () => {

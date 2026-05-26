@@ -4,43 +4,47 @@ import { buildSkillRequest } from "../useChat";
 describe("buildSkillRequest", () => {
   const MESSAGE = "Show me failed logins";
 
-  describe("advisory mode (strict: false)", () => {
-    it("prepends skill directive to content", () => {
-      const { apiContent, apiSkills } = buildSkillRequest(MESSAGE, {
+  describe("prefer mode (strict: false)", () => {
+    it("prepends skill directive and still sends skills to the API", () => {
+      const { apiContent, apiSkills, apiSkillsStrict } = buildSkillRequest(MESSAGE, {
         skills: ["splunk-analyst", "login-investigator"],
         strict: false,
       });
       expect(apiContent).toBe("[Use skills: splunk-analyst, login-investigator]\n\n" + MESSAGE);
-      expect(apiSkills).toBeUndefined();
+      expect(apiSkills).toEqual(["splunk-analyst", "login-investigator"]);
+      expect(apiSkillsStrict).toBe(false);
     });
 
     it("formats single skill correctly", () => {
-      const { apiContent, apiSkills } = buildSkillRequest(MESSAGE, {
+      const { apiContent, apiSkills, apiSkillsStrict } = buildSkillRequest(MESSAGE, {
         skills: ["splunk-analyst"],
         strict: false,
       });
       expect(apiContent).toBe("[Use skills: splunk-analyst]\n\n" + MESSAGE);
-      expect(apiSkills).toBeUndefined();
+      expect(apiSkills).toEqual(["splunk-analyst"]);
+      expect(apiSkillsStrict).toBe(false);
     });
   });
 
   describe("strict mode (strict: true)", () => {
     it("preserves original content and passes skills array", () => {
-      const { apiContent, apiSkills } = buildSkillRequest(MESSAGE, {
+      const { apiContent, apiSkills, apiSkillsStrict } = buildSkillRequest(MESSAGE, {
         skills: ["splunk-analyst", "login-investigator"],
         strict: true,
       });
       expect(apiContent).toBe(MESSAGE);
       expect(apiSkills).toEqual(["splunk-analyst", "login-investigator"]);
+      expect(apiSkillsStrict).toBe(true);
     });
 
     it("works with single skill", () => {
-      const { apiContent, apiSkills } = buildSkillRequest(MESSAGE, {
+      const { apiContent, apiSkills, apiSkillsStrict } = buildSkillRequest(MESSAGE, {
         skills: ["splunk-analyst"],
         strict: true,
       });
       expect(apiContent).toBe(MESSAGE);
       expect(apiSkills).toEqual(["splunk-analyst"]);
+      expect(apiSkillsStrict).toBe(true);
     });
   });
 

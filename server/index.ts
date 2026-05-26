@@ -177,10 +177,12 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
     message,
     history: rawHistory,
     skills: rawSkills,
+    skillsStrict: rawSkillsStrict,
   } = req.body as {
     message: string;
     history?: Array<{ role: string; content: string }>;
     skills?: string[];
+    skillsStrict?: boolean;
   };
 
   if (!message || typeof message !== "string") {
@@ -215,12 +217,13 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
     return;
   }
   const requestedSkills = skillResult.skills;
+  const skillsStrict = requestedSkills ? rawSkillsStrict !== false : true;
 
   reqLog.info(
     {
       messageLen: message.length,
       historyLen: history.length,
-      ...(requestedSkills && { skills: requestedSkills }),
+      ...(requestedSkills && { skills: requestedSkills, skillsStrict }),
     },
     "chat request received"
   );
@@ -250,7 +253,15 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
   }, timeoutMs);
 
   try {
-    await runAgent(message, history, res, abortController.signal, reqLog, requestedSkills);
+    await runAgent(
+      message,
+      history,
+      res,
+      abortController.signal,
+      reqLog,
+      requestedSkills,
+      skillsStrict
+    );
   } catch (err) {
     if (!abortController.signal.aborted && !res.writableEnded && !res.destroyed) {
       reqLog.error({ err }, "chat error");

@@ -225,7 +225,7 @@ export function SkillPicker({
       {selectedSkills.length > 0 && (
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="text-[10px] text-gray-500 whitespace-nowrap select-none">
-            {allowAdditional ? "May use other skills if needed" : "Only selected skills"}
+            {allowAdditional ? "All skills loaded (prefer selected)" : "Only selected skills"}
           </span>
           <button
             onClick={() => onAllowAdditionalChange(!allowAdditional)}

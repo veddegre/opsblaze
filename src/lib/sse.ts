@@ -41,7 +41,8 @@ export async function streamChat(
   history: Array<{ role: string; content: string }>,
   callbacks: SSECallbacks,
   signal?: AbortSignal,
-  skills?: string[]
+  skills?: string[],
+  skillsStrict?: boolean
 ): Promise<void> {
   const response = await fetch("/api/chat", {
     method: "POST",
@@ -50,7 +51,7 @@ export async function streamChat(
     body: JSON.stringify({
       message,
       history,
-      ...(skills && skills.length > 0 && { skills }),
+      ...(skills && skills.length > 0 && { skills, skillsStrict: skillsStrict !== false }),
     }),
     signal,
   });

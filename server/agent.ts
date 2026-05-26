@@ -97,10 +97,19 @@ export async function runAgent(
   res: Response,
   abortSignal?: AbortSignal,
   log?: Logger,
-  requestedSkills?: string[]
+  requestedSkills?: string[],
+  skillsStrict = true
 ): Promise<void> {
   if (isOpenWebUiMode()) {
-    return runOpenWebUiAgent(userMessage, history, res, abortSignal, log, requestedSkills);
+    return runOpenWebUiAgent(
+      userMessage,
+      history,
+      res,
+      abortSignal,
+      log,
+      requestedSkills,
+      skillsStrict
+    );
   }
 
   const agentLog = log ?? rootLogger;

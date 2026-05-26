@@ -214,6 +214,35 @@ Browser  ←── SSE ──→  OpsBlaze (Express)
 
 With the Claude backend, the Agent SDK orchestrates MCP tools internally. With Open WebUI, OpsBlaze runs the tool loop itself and registers MCP tools with each chat completion request.
 
+### Investigation skills
+
+Investigation skills are markdown playbooks stored on the OpsBlaze server at **`.claude/skills/<name>/SKILL.md`**. Each skill is a folder with a `SKILL.md` file (YAML front matter for `name` / `description`, body for methodology).
+
+**Why `.claude` if I use Open WebUI?** The directory name follows the [Claude Code](https://docs.anthropic.com/en/docs/claude-code) project layout. OpsBlaze reuses that path so the same skill files work for both backends:
+
+| Backend | How skills are applied |
+|---|---|
+| **Open WebUI** (recommended) | OpsBlaze reads `SKILL.md` from disk and **injects the content into the system prompt** for each chat. Open WebUI does not read `.claude/` itself. |
+| **Claude** (Agent SDK) | The SDK discovers skills under `.claude/skills/` as native `Skill` tools when `OPENWEBUI_BASE_URL` is unset. |
+
+If you only deploy Open WebUI, you can ignore the Claude integration—the folder is still OpsBlaze’s skill library; the name is historical compatibility, not a requirement to run Claude.
+
+**Shared vs per-user:** Skills are **server-wide**. Every user on an instance sees the same catalog (`GET /api/skills`). Per-user data is limited to saved investigations under `data/conversations/<user-id>/` (not in git). In the chat UI you can pick which skills apply to a given message; that selection is sent with the request, not stored as a separate skill library per user.
+
+**Who can change skills:**
+
+| Action | Who |
+|---|---|
+| Pick skills for a message | Any signed-in user |
+| Distill a draft from a conversation (extract/refine) | Any signed-in user |
+| Save, enable/disable, or delete skills on disk | **Admins** (`OPSBLAZE_OIDC_ADMIN_EMAILS`, or local mode) |
+
+Disabled skills remain on disk as `SKILL.md.disabled` and are omitted from prompts.
+
+**Git and deploy:** Skills are plain files in the repo tree, not in the database. Commit `.claude/skills/` to version bundled skills; `.claude/skills/_local/` is gitignored for machine-only skills. There is no automatic git sync at runtime—whatever is on the server filesystem when OpsBlaze starts is what runs. After deploy, ensure that directory is present (git pull, rsync, or copy) alongside `server/` and `src/`.
+
+Bundled examples include `splunk-analyst`, `investigating-splunk-login-activity`, and Splunk/Okta investigation playbooks. Create more via **Settings → Skills** (admins) or **Distill skill** from a completed investigation.
+
 ## Troubleshooting
 
 Run `node bin/opsblaze.cjs check` first -- it validates your entire setup in one shot.

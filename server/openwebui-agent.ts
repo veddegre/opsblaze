@@ -46,14 +46,17 @@ async function readSkillBody(skillPath: string): Promise<string> {
   return stripped;
 }
 
-async function buildSystemPrompt(requestedSkills?: string[]): Promise<{
+async function buildSystemPrompt(
+  requestedSkills?: string[],
+  skillsStrict = true
+): Promise<{
   prompt: string;
   activeSkillNames: string[];
 }> {
   const allSkills = await listSkills();
   let enabled = allSkills.filter((s) => s.enabled);
 
-  if (requestedSkills && requestedSkills.length > 0) {
+  if (requestedSkills && requestedSkills.length > 0 && skillsStrict) {
     const allowed = new Set(requestedSkills);
     enabled = enabled.filter((s) => allowed.has(s.name));
   }
@@ -61,9 +64,16 @@ async function buildSystemPrompt(requestedSkills?: string[]): Promise<{
   const parts = [INVESTIGATION_SYSTEM];
 
   if (requestedSkills && requestedSkills.length > 0) {
-    parts.push(
-      `For this request, apply only these investigation skill(s): ${requestedSkills.join(", ")}.`
-    );
+    if (skillsStrict) {
+      parts.push(
+        `For this request, apply only these investigation skill(s): ${requestedSkills.join(", ")}.`
+      );
+    } else {
+      parts.push(
+        `Prioritize these investigation skill(s): ${requestedSkills.join(", ")}. ` +
+          `You may use other loaded skills below only when necessary.`
+      );
+    }
   }
 
   for (const skill of enabled) {
@@ -128,7 +138,8 @@ export async function runOpenWebUiAgent(
   res: Response,
   abortSignal?: AbortSignal,
   log?: Logger,
-  requestedSkills?: string[]
+  requestedSkills?: string[],
+  skillsStrict = true
 ): Promise<void> {
   const agentLog = log ?? rootLogger;
   const emit = (event: string, data: unknown) => sendSSE(res, event, data);
@@ -137,7 +148,10 @@ export async function runOpenWebUiAgent(
   const maxTurns = await getMaxTurns();
   const streamTimeoutMs = await getStreamTimeoutMs();
 
-  const { prompt: systemPrompt, activeSkillNames } = await buildSystemPrompt(requestedSkills);
+  const { prompt: systemPrompt, activeSkillNames } = await buildSystemPrompt(
+    requestedSkills,
+    skillsStrict
+  );
 
   for (const skill of activeSkillNames) {
     emit("skill", { skill });

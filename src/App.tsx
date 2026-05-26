@@ -44,7 +44,7 @@ function AppContent({ user }: { user: PublicAuthUser }) {
   >("account");
   const [extractorOpen, setExtractorOpen] = useState(false);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [allowAdditional, setAllowAdditional] = useState(true);
+  const [allowAdditional, setAllowAdditional] = useState(false);
 
   const openSettings = useCallback(
     (section: typeof settingsSection = "account") => {
@@ -76,7 +76,7 @@ function AppContent({ user }: { user: PublicAuthUser }) {
   const handleNewConversation = useCallback(() => {
     startNewConversation();
     setSelectedSkills([]);
-    setAllowAdditional(true);
+    setAllowAdditional(false);
   }, [startNewConversation]);
 
   const handleLoadConversation = useCallback(
@@ -84,7 +84,7 @@ function AppContent({ user }: { user: PublicAuthUser }) {
       clearNotice();
       loadExistingConversation(id);
       setSelectedSkills([]);
-      setAllowAdditional(true);
+      setAllowAdditional(false);
     },
     [loadExistingConversation, clearNotice]
   );
@@ -93,7 +93,7 @@ function AppContent({ user }: { user: PublicAuthUser }) {
     async (id: string) => {
       await deleteConversation(id);
       setSelectedSkills([]);
-      setAllowAdditional(true);
+      setAllowAdditional(false);
     },
     [deleteConversation]
   );
