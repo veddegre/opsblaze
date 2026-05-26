@@ -3,6 +3,7 @@ import {
   parseIndexesFromSpl,
   estimateTimeRangeHours,
   validateSplunkQuery,
+  applySplunkGuardrailsForUser,
 } from "../splunk-guardrails.js";
 
 describe("splunk guardrails", () => {
@@ -29,5 +30,36 @@ describe("splunk guardrails", () => {
   it("estimates relative time windows", () => {
     expect(estimateTimeRangeHours("-24h", "now")).toBe(24);
     expect(estimateTimeRangeHours("-7d", "now")).toBe(168);
+  });
+
+  it("merges admin extra indexes into allowlist", () => {
+    const prev = process.env.OPSBLAZE_SPLUNK_GUARD_ADMIN_EXTRA_INDEXES;
+    const prevBypass = process.env.OPSBLAZE_SPLUNK_GUARD_ADMIN_BYPASS_INDEXES;
+    process.env.OPSBLAZE_SPLUNK_GUARD_ADMIN_EXTRA_INDEXES = "audit,_internal";
+    delete process.env.OPSBLAZE_SPLUNK_GUARD_ADMIN_BYPASS_INDEXES;
+
+    const base = { allowedIndexes: ["okta", "main"], maxTimeRangeHours: 168 };
+    const effective = applySplunkGuardrailsForUser(base, { isAdmin: true });
+    expect(effective.allowedIndexes).toEqual(
+      expect.arrayContaining(["okta", "main", "audit", "_internal"])
+    );
+
+    if (prev === undefined) delete process.env.OPSBLAZE_SPLUNK_GUARD_ADMIN_EXTRA_INDEXES;
+    else process.env.OPSBLAZE_SPLUNK_GUARD_ADMIN_EXTRA_INDEXES = prev;
+    if (prevBypass === undefined) delete process.env.OPSBLAZE_SPLUNK_GUARD_ADMIN_BYPASS_INDEXES;
+    else process.env.OPSBLAZE_SPLUNK_GUARD_ADMIN_BYPASS_INDEXES = prevBypass;
+  });
+
+  it("allows admin bypass to clear index allowlist", () => {
+    const prev = process.env.OPSBLAZE_SPLUNK_GUARD_ADMIN_BYPASS_INDEXES;
+    process.env.OPSBLAZE_SPLUNK_GUARD_ADMIN_BYPASS_INDEXES = "true";
+
+    const base = { allowedIndexes: ["okta"], maxTimeRangeHours: 24 };
+    const effective = applySplunkGuardrailsForUser(base, { isAdmin: true });
+    expect(effective.allowedIndexes).toEqual([]);
+    expect(validateSplunkQuery(effective, "index=secret | stats count", "-1h", "now")).toBeNull();
+
+    if (prev === undefined) delete process.env.OPSBLAZE_SPLUNK_GUARD_ADMIN_BYPASS_INDEXES;
+    else process.env.OPSBLAZE_SPLUNK_GUARD_ADMIN_BYPASS_INDEXES = prev;
   });
 });

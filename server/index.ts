@@ -44,7 +44,7 @@ import {
   getSkillsDirPath,
 } from "./skills.js";
 import { ensureOpsblazeSkillsLayout } from "./skills-path.js";
-import { getSplunkGuardrails } from "./splunk-guardrails.js";
+import { getSplunkGuardrails, getSplunkAdminGuardEnv } from "./splunk-guardrails.js";
 import {
   listPlaybooks,
   createPlaybook,
@@ -291,7 +291,8 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
       abortController.signal,
       reqLog,
       requestedSkills,
-      skillsStrict
+      skillsStrict,
+      isRequestAdmin(req)
     );
   } catch (err) {
     if (!abortController.signal.aborted && !res.writableEnded && !res.destroyed) {
@@ -561,6 +562,7 @@ app.get("/api/config-paths", apiLimiter, requireAdmin, (_req, res) => {
 
 function buildSystemSettingsPayload() {
   const openWebUi = isOpenWebUiMode();
+  const adminSplunk = getSplunkAdminGuardEnv();
   return {
     llmProvider: openWebUi ? ("openwebui" as const) : ("claude" as const),
     splunkHost: process.env.SPLUNK_HOST ?? "",
@@ -575,6 +577,10 @@ function buildSystemSettingsPayload() {
         ? "API Key"
         : "CLI",
     serverMode: process.env.NODE_ENV === "production" ? "Prod" : "Dev",
+    splunkGuardrailsAdmin: {
+      bypassIndexes: adminSplunk.bypassIndexes,
+      extraIndexes: adminSplunk.extraIndexes,
+    },
   };
 }
 

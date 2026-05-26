@@ -391,8 +391,19 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
           </h3>
           <p className="text-[11px] text-gray-600 -mt-1">
             Block MCP <span className="font-mono">splunk_query</span> calls that violate index or
-            time-window policy.
+            time-window policy. Applies to all investigators; admins may get extra indexes or a
+            break-glass bypass via server environment variables (see System health).
           </p>
+          {isAdmin && settings?.system?.splunkGuardrailsAdmin && (
+            <InfoBanner>
+              <span className="font-medium text-gray-300">Admin break-glass (from .env):</span>{" "}
+              {settings.system.splunkGuardrailsAdmin.bypassIndexes
+                ? "index allowlist bypass is ON for administrators (time window still enforced)."
+                : settings.system.splunkGuardrailsAdmin.extraIndexes.length > 0
+                  ? `extra indexes for admins: ${settings.system.splunkGuardrailsAdmin.extraIndexes.join(", ")}.`
+                  : "no admin index override configured."}
+            </InfoBanner>
+          )}
           <FieldLabel hint="One index name per line. Leave empty to allow any index.">
             Allowed indexes
           </FieldLabel>

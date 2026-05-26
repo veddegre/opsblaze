@@ -246,7 +246,7 @@ Bundled examples include `splunk-analyst`, `investigating-splunk-login-activity`
 
 **Skill bundles** (presets below the chat input) come from built-in defaults or **Settings → Runtime settings → Skill bundles** (admins). Each bundle sets which skills are selected and whether strict mode applies.
 
-**Splunk guardrails** (admins, runtime settings) restrict MCP `splunk_query` to allowed indexes and a maximum time window.
+**Splunk guardrails** (admins, runtime settings) restrict MCP `splunk_query` to allowed indexes and a maximum time window for everyone. Optional **admin break-glass** via `.env`: `OPSBLAZE_SPLUNK_GUARD_ADMIN_EXTRA_INDEXES` (union with the allowlist) or `OPSBLAZE_SPLUNK_GUARD_ADMIN_BYPASS_INDEXES=true` (admins skip index checks; time window still applies).
 
 **Investigation playbooks** (admins) are saved prompts with optional skills, shown as chips below the input bar. **Audit log** (admins, Settings → Audit log) records auth, exports, and configuration changes in `data/audit.jsonl`.
 

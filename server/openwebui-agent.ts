@@ -139,7 +139,8 @@ export async function runOpenWebUiAgent(
   abortSignal?: AbortSignal,
   log?: Logger,
   requestedSkills?: string[],
-  skillsStrict = true
+  skillsStrict = true,
+  isAdmin = false
 ): Promise<void> {
   const agentLog = log ?? rootLogger;
   const emit = (event: string, data: unknown) => sendSSE(res, event, data);
@@ -249,7 +250,9 @@ export async function runOpenWebUiAgent(
         if (abortSignal?.aborted) break;
 
         const args = parseToolArguments(call.function.arguments);
-        const { text, isError } = await mcp.callTool(call.function.name, args, agentLog);
+        const { text, isError } = await mcp.callTool(call.function.name, args, agentLog, {
+          isAdmin,
+        });
 
         if (!isError) {
           emitSplunkToolResult(text, emit, agentLog);

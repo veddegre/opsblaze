@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseCsvEnvSet } from "./auth/roles.js";
 
 const splunkGuardrailsSchema = z.object({
   /** Empty = allow any index (default). */
@@ -11,6 +12,11 @@ export type SplunkGuardrails = z.infer<typeof splunkGuardrailsSchema>;
 
 const DEFAULT_MAX_HOURS = 168;
 
+export interface SplunkGuardrailContext {
+  isAdmin?: boolean;
+}
+
+/** Server-wide guardrails from runtime settings (before admin env overrides). */
 export async function getSplunkGuardrails(): Promise<Required<SplunkGuardrails>> {
   const { loadRuntimeSettings } = await import("./runtime-settings.js");
   const settings = await loadRuntimeSettings();
@@ -20,6 +26,49 @@ export async function getSplunkGuardrails(): Promise<Required<SplunkGuardrails>>
     allowedIndexes: g.allowedIndexes ?? [],
     maxTimeRangeHours: g.maxTimeRangeHours ?? DEFAULT_MAX_HOURS,
   };
+}
+
+export interface SplunkAdminGuardEnv {
+  /** When true, admins are not restricted by the index allowlist (time window still applies). */
+  bypassIndexes: boolean;
+  /** Extra indexes unioned into the allowlist for admins (ignored if bypassIndexes). */
+  extraIndexes: string[];
+}
+
+export function getSplunkAdminGuardEnv(): SplunkAdminGuardEnv {
+  const bypassRaw = process.env.OPSBLAZE_SPLUNK_GUARD_ADMIN_BYPASS_INDEXES?.trim().toLowerCase();
+  const bypassIndexes = bypassRaw === "true" || bypassRaw === "1" || bypassRaw === "yes";
+  const extra = [...parseCsvEnvSet(process.env.OPSBLAZE_SPLUNK_GUARD_ADMIN_EXTRA_INDEXES)];
+  return { bypassIndexes, extraIndexes: extra };
+}
+
+/** Effective guardrails for a user (global settings + optional admin env break-glass). */
+export async function resolveSplunkGuardrails(
+  ctx?: SplunkGuardrailContext
+): Promise<Required<SplunkGuardrails>> {
+  const base = await getSplunkGuardrails();
+  return applySplunkGuardrailsForUser(base, ctx);
+}
+
+export function applySplunkGuardrailsForUser(
+  base: Required<SplunkGuardrails>,
+  ctx?: SplunkGuardrailContext
+): Required<SplunkGuardrails> {
+  if (!ctx?.isAdmin) return base;
+
+  const admin = getSplunkAdminGuardEnv();
+  if (admin.bypassIndexes) {
+    return { ...base, allowedIndexes: [] };
+  }
+
+  if (admin.extraIndexes.length > 0 && base.allowedIndexes.length > 0) {
+    const merged = new Set(
+      [...base.allowedIndexes, ...admin.extraIndexes].map((i) => i.toLowerCase())
+    );
+    return { ...base, allowedIndexes: [...merged] };
+  }
+
+  return base;
 }
 
 export function parseIndexesFromSpl(spl: string): string[] {

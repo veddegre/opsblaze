@@ -55,6 +55,10 @@ export interface AppSettings {
     bindAddress: string;
     claudeAuthMethod: string;
     serverMode: string;
+    splunkGuardrailsAdmin?: {
+      bypassIndexes: boolean;
+      extraIndexes: string[];
+    };
   };
 }
 

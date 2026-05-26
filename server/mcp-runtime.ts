@@ -6,7 +6,11 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { Logger } from "pino";
 import { listMcpServersRaw } from "./mcp-config.js";
-import { getSplunkGuardrails, validateSplunkQuery } from "./splunk-guardrails.js";
+import {
+  resolveSplunkGuardrails,
+  validateSplunkQuery,
+  type SplunkGuardrailContext,
+} from "./splunk-guardrails.js";
 import type {
   HttpServerConfig,
   McpServerEntry,
@@ -127,7 +131,8 @@ export class McpRuntime {
   async callTool(
     qualifiedName: string,
     args: Record<string, unknown>,
-    log: Logger
+    log: Logger,
+    guardrailCtx?: SplunkGuardrailContext
   ): Promise<{ text: string; isError: boolean }> {
     const parsed = parseQualifiedToolName(qualifiedName);
     if (!parsed) {
@@ -150,7 +155,7 @@ export class McpRuntime {
       const spl = typeof args.spl === "string" ? args.spl : "";
       const earliest = typeof args.earliest === "string" ? args.earliest : "-24h";
       const latest = typeof args.latest === "string" ? args.latest : "now";
-      const guardrails = await getSplunkGuardrails();
+      const guardrails = await resolveSplunkGuardrails(guardrailCtx);
       const violation = validateSplunkQuery(guardrails, spl, earliest, latest);
       if (violation) {
         log.warn({ violation }, "splunk query blocked by guardrails");

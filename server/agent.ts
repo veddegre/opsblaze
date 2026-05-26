@@ -98,7 +98,8 @@ export async function runAgent(
   abortSignal?: AbortSignal,
   log?: Logger,
   requestedSkills?: string[],
-  skillsStrict = true
+  skillsStrict = true,
+  isAdmin = false
 ): Promise<void> {
   if (isOpenWebUiMode()) {
     return runOpenWebUiAgent(
@@ -108,7 +109,8 @@ export async function runAgent(
       abortSignal,
       log,
       requestedSkills,
-      skillsStrict
+      skillsStrict,
+      isAdmin
     );
   }
 
