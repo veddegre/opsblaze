@@ -138,18 +138,26 @@ async function collectSkillsInDirectory(
 }
 
 export async function listSkills(): Promise<SkillInfo[]> {
-  const skills: SkillInfo[] = [];
+  const byName = new Map<string, SkillInfo>();
   const base = skillsDir();
 
-  await collectSkillsInDirectory(base, skills, { skipLocalFolder: true });
+  const bundled: SkillInfo[] = [];
+  await collectSkillsInDirectory(base, bundled, { skipLocalFolder: true });
+  for (const skill of bundled) {
+    byName.set(skill.name, skill);
+  }
 
   const localRoot = path.join(base, "_local");
   if (await isDirectory(localRoot)) {
-    await collectSkillsInDirectory(localRoot, skills, { skipLocalFolder: false });
+    const local: SkillInfo[] = [];
+    await collectSkillsInDirectory(localRoot, local, { skipLocalFolder: false });
+    for (const skill of local) {
+      // Deploy-only skills in _local override same-named bundled skills.
+      byName.set(skill.name, skill);
+    }
   }
 
-  skills.sort((a, b) => a.name.localeCompare(b.name));
-  return skills;
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 const RESERVED_WORDS = ["anthropic", "claude"];

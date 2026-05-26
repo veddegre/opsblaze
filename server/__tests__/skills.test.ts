@@ -120,6 +120,29 @@ describe("skills", () => {
     expect(skills.find((s) => s.name === "private-skill")?.path).toContain("_local/private-skill");
   });
 
+  it("prefers _local when the same skill name exists in both trees", async () => {
+    await createSkillFile("dup-skill", "---\ndescription: bundled\n---\n# Bundled");
+    const localDir = path.join(skillsDir, "_local", "dup-skill");
+    await mkdir(localDir, { recursive: true });
+    await writeFile(
+      path.join(localDir, "SKILL.md"),
+      "---\ndescription: local wins\n---\n# Local",
+      "utf-8"
+    );
+
+    const origCwd = process.cwd;
+    process.cwd = () => tmpDir;
+    vi.resetModules();
+    const mod = await import("../skills.js");
+    const skills = await mod.listSkills();
+    process.cwd = origCwd;
+
+    const dup = skills.filter((s) => s.name === "dup-skill");
+    expect(dup).toHaveLength(1);
+    expect(dup[0].description).toBe("local wins");
+    expect(dup[0].path).toContain("_local/dup-skill");
+  });
+
   it("deleteSkill removes directory", async () => {
     await createSkillFile("doomed-skill", "---\ndescription: bye\n---\n# Gone");
 

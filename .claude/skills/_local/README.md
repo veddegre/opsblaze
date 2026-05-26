@@ -14,3 +14,5 @@ rsync -a .claude/skills/_local/ /path/to/opsblaze/.opsblaze/skills/_local/
 ```
 
 Bundled public skills live in the parent `skills/` directory. Configure skill bundles that reference `_local` skill names in **Settings → Runtime settings** on the server (not in the public repo).
+
+**Do not copy the same skill into both** `skills/<name>/` and `skills/_local/<name>/` — if both exist, `_local` wins and duplicates in the UI are avoided only when the top-level copy is removed.
