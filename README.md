@@ -98,46 +98,161 @@ The setup wizard also offers this as an optional step during initial configurati
 
 ## Configuration
 
-All configuration lives in `.env` (created by the setup wizard). Key variables:
+All configuration lives in **`.env`** in the project root. The setup wizard (`node bin/setup.cjs`) creates a **minimal** file; **`.env.example`** is the full catalog of optional settings and shows what a configured file looks like.
+
+### `.env` file anatomy
+
+A production-ready `.env` is usually built **top to bottom** in this order:
+
+| Section | Required? | Written by setup? | Purpose |
+|---------|-----------|-------------------|---------|
+| **1. Splunk** | Yes | Yes | Where investigations query data (`SPLUNK_HOST`, port, token or user/pass) |
+| **2. Server** | `PORT` yes | Partial (`PORT` only) | Listen port; optional `HOST` for LAN (`0.0.0.0`) |
+| **3. LLM** | Pick one | If you chose Open WebUI or API key | **Open WebUI** (`OPENWEBUI_*`) **or** **Claude** (CLI login and/or `ANTHROPIC_API_KEY`) |
+| **4. Auth** | Pick one | Rarely | **Open** (no login), **local** (`OPSBLAZE_LOCAL_AUTH_FILE`), or **OIDC** (`OPSBLAZE_OIDC_*`) |
+| **5. Runtime** | No | No | Rate limits, timeouts, log level, data directories |
+| **6. MCP / guardrails** | No | No | Query row limits, SPL safety, admin index break-glass |
+| **7. Telemetry** | No | No | Optional Splunk HEC and/or OpenTelemetry (`OTEL_*`) |
+
+**Legend in `.env.example`:** `[REQUIRED]`, `[SETUP]`, `[PICK ONE]`, `[OPTIONAL]` on each section.
+
+Three commented **example profiles** in `.env.example` show the shape of a real file:
+
+- **Profile A** — localhost dev, Splunk + Claude CLI, no auth vars  
+- **Profile B** — LAN, Open WebUI + local username/password + `HOST=0.0.0.0`  
+- **Profile C** — production, Open WebUI + OIDC + reverse-proxy cookies  
+
+```bash
+cp .env.example .env    # start from the catalog
+# edit .env, or run: node bin/setup.cjs
+chmod 600 .env
+node bin/opsblaze.cjs check
+```
+
+### Environment variable reference
+
+Tables below list **every** `.env` variable OpsBlaze reads. **`.env.example`** uses the same section order, adds `[REQUIRED]` / `[OPTIONAL]` tags, and includes three commented **example profiles** you can copy from.
+
+When a variable says **Pick one auth**, only configure variables for a single auth mode (open, local, or OIDC).
+
+#### 1. Splunk — required
 
 | Variable | Default | Description |
-|---|---|---|
-| `SPLUNK_HOST` | — | Splunk management host (required) |
-| `SPLUNK_PORT` | `8089` | Splunk management port |
+|----------|---------|-------------|
+| `SPLUNK_HOST` | — | Splunk management host (**required**) |
+| `SPLUNK_PORT` | `8089` | Management port |
 | `SPLUNK_SCHEME` | `https` | `https` or `http` |
-| `SPLUNK_TOKEN` | — | Bearer auth token (use this or username/password) |
-| `SPLUNK_USERNAME` | — | Splunk username (alternative to token) |
-| `SPLUNK_PASSWORD` | — | Splunk password (alternative to token) |
-| `SPLUNK_VERIFY_SSL` | `true` | Verify Splunk's SSL certificate |
-| `OPENWEBUI_BASE_URL` | — | Open WebUI instance URL (enables Open WebUI backend when set) |
-| `OPENWEBUI_API_KEY` | — | API key from Open WebUI Settings → Account (required with base URL) |
-| `OPENWEBUI_MODEL` | — | Model id as shown in Open WebUI |
-| `ANTHROPIC_API_KEY` | — | Anthropic API key (Claude backend only; optional alternative to CLI) |
-| `PORT` | `3000` | Server port |
-| `HOST` | `127.0.0.1` | Bind address (use `0.0.0.0` for LAN access) |
-| `OPSBLAZE_RATE_LIMIT` | `10` | Max chat requests per minute per IP |
-| `OPSBLAZE_STREAM_TIMEOUT_MS` | `300000` | Max streaming duration (5 minutes) |
-| `CLAUDE_MODEL` | `claude-opus-4-6` | Model id (Open WebUI model when using Open WebUI; Claude model otherwise) |
-| `CLAUDE_EFFORT` | `high` | Thinking effort for Claude backend only: `low`, `medium`, `high`, or `max` |
-| `LOG_LEVEL` | `info` | Log verbosity: `fatal`, `error`, `warn`, `info`, `debug`, or `trace` |
+| `SPLUNK_TOKEN` | — | Bearer token (preferred over username/password) |
+| `SPLUNK_USERNAME` | — | Username if not using token |
+| `SPLUNK_PASSWORD` | — | Password if not using token |
+| `SPLUNK_VERIFY_SSL` | `true` | Verify Splunk TLS certificate |
+| `SPLUNK_TIMEOUT_MS` | `60000` | Splunk REST timeout (ms) |
 
-When `OPENWEBUI_BASE_URL` is set, Claude CLI and `ANTHROPIC_API_KEY` are not required. The Settings UI **Model** field sets the Open WebUI model id in that mode.
+#### 2. Server — setup writes `PORT`
 
-See `.env.example` for the complete list of all available options with inline descriptions.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3000` | HTTP listen port (**written by setup**) |
+| `HOST` | `127.0.0.1` | Bind address; `0.0.0.0` = all interfaces (LAN) |
+| `OPSBLAZE_ALLOWED_ORIGINS` | localhost URLs | CORS allowed origins (comma-separated) |
+| `OPSBLAZE_RATE_LIMIT` | `10` | Chat requests per minute per user or IP |
+| `OPSBLAZE_API_RATE_LIMIT` | `60` | Other API requests per minute per user or IP |
+| `OPSBLAZE_STREAM_TIMEOUT_MS` | `300000` | Max SSE stream duration (ms) |
+| `OPSBLAZE_MAX_TURNS` | `30` | Max agent turns per investigation |
+| `OPSBLAZE_MAX_HISTORY` | `20` | Max prior exchanges sent to the LLM |
+| `OPSBLAZE_MAX_MESSAGE_LEN` | `10000` | Max user message length (characters) |
+| `OPSBLAZE_DATA_DIR` | `./data/conversations` | Saved investigations directory |
+| `OPSBLAZE_RECORD_DIR` | — | Record SDK streams to JSONL (dev/testing) |
+| `LOG_LEVEL` | `info` | `fatal` … `trace` |
 
-To configure manually instead of using the wizard, copy `.env.example` to `.env` and fill in the required values.
+#### 3. LLM — pick Open WebUI **or** Claude
 
-### Authentication
+Set **`OPENWEBUI_BASE_URL`** to use Open WebUI (institutional). Leave it unset for Claude. Do not configure both backends.
 
-OpsBlaze supports three modes (only one login method at a time):
+| Variable | Default | When / description |
+|----------|---------|-------------------|
+| `OPENWEBUI_BASE_URL` | — | Open WebUI root URL → enables Open WebUI backend |
+| `OPENWEBUI_API_KEY` | — | Required when base URL is set (Open WebUI → Settings → Account) |
+| `OPENWEBUI_MODEL` | — | Model id from Open WebUI |
+| `OPENWEBUI_CHAT_API_PREFIX` | auto | e.g. `ollama/v1` if chat API 404s |
+| `ANTHROPIC_API_KEY` | — | Claude API billing (optional if using `claude auth login`) |
+| `CLAUDE_MODEL` | `claude-opus-4-6` | Model id (Claude, or runtime override for Open WebUI) |
+| `CLAUDE_EFFORT` | `high` | Claude only: `low` \| `medium` \| `high` \| `max` |
 
-| Mode | How it is enabled | Sign-in | Best for |
-|------|-------------------|---------|----------|
-| **Open** | No `OPSBLAZE_OIDC_ISSUER` and no `OPSBLAZE_LOCAL_AUTH_FILE` | None (single shared “Local user”) | Localhost dev only, or `OPSBLAZE_LOCAL_MODE=true` lab |
-| **Local** | `OPSBLAZE_LOCAL_AUTH_FILE` points at a JSON user database | Username + password | Lab / air-gapped / pre-OIDC network testing |
-| **OIDC** | `OPSBLAZE_OIDC_ISSUER` and related vars | Organization SSO | Production multi-user |
+The Settings UI **Model** field can override the model at runtime. When Open WebUI is configured, Claude CLI is not required.
 
-In all authenticated modes, each user’s saved investigations live under `data/conversations/<user-id>/`. Open **Settings → Account** after login to see groups and how administrator access was granted.
+#### 4. Authentication — pick open, local, **or** OIDC
+
+Use **one** column below. Variables from other columns should stay unset.
+
+| Variable | Open (no login) | Local auth | OIDC (SSO) |
+|----------|-----------------|------------|------------|
+| *How users sign in* | No login — shared “Local user” | Username + password (`local-auth.json`) | Redirect to IdP |
+| *Enable by* | Leave auth vars unset | `OPSBLAZE_LOCAL_AUTH_FILE` | `OPSBLAZE_OIDC_ISSUER` + client |
+| `OPSBLAZE_LOCAL_MODE` | Set `true` for LAN **without** login (lab only) | — | — |
+| `OPSBLAZE_LOCAL_AUTH_FILE` | — | Path to `local-auth.json` | — |
+| `OPSBLAZE_SESSION_SECRET` | — | Min 32 chars (cookie signing) | Min 32 chars (required) |
+| `OPSBLAZE_ADMIN_GROUPS` | — | Admin if user’s `groups` includes name | Same (or use OIDC column) |
+| `OPSBLAZE_LOCAL_AUTH_ADMIN_USERS` | — | Usernames that are always admin | — |
+| `OPSBLAZE_ADMIN_USERS` | — | Alias for `OPSBLAZE_LOCAL_AUTH_ADMIN_USERS` | — |
+| `OPSBLAZE_OIDC_ISSUER` | — | — | IdP issuer URL |
+| `OPSBLAZE_OIDC_CLIENT_ID` | — | — | OAuth client id |
+| `OPSBLAZE_OIDC_CLIENT_SECRET` | — | — | OAuth client secret |
+| `OPSBLAZE_OIDC_REDIRECT_URI` | — | — | Callback URL (must match IdP app) |
+| `OPSBLAZE_PUBLIC_URL` | — | — | Public site URL (also used for callbacks) |
+| `OPSBLAZE_OIDC_SCOPES` | — | — | Default `openid profile email` |
+| `OPSBLAZE_OIDC_ADMIN_EMAILS` | — | — | Comma-separated admin emails |
+| `OPSBLAZE_OIDC_ADMIN_GROUPS` | — | — | Comma-separated IdP group names for admin |
+| `OPSBLAZE_OIDC_ALL_USERS_ADMIN` | — | — | `true` = every SSO user is admin |
+| `OPSBLAZE_TRUST_PROXY` | — | — | `true` behind TLS reverse proxy |
+| `OPSBLAZE_SECURE_COOKIES` | — | — | `true` for HTTPS deployments |
+
+**Rules:** Do not set `OPSBLAZE_OIDC_ISSUER` and `OPSBLAZE_LOCAL_AUTH_FILE` together. Non-loopback `HOST` requires OIDC, local auth, or explicit `OPSBLAZE_LOCAL_MODE` (open lab only).
+
+In **local** and **OIDC** modes, each user’s investigations live under `data/conversations/<user-id>/`. Open **Settings → Account** after login for groups and admin resolution.
+
+#### 6. MCP and Splunk guardrails — optional
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MAX_ROW_LIMIT` | `10000` | Max rows per MCP Splunk query |
+| `SPL_SAFETY_ENABLED` | `true` | SPL safety validation on MCP queries |
+| `OPSBLAZE_ALLOW_DOCKER_MCP` | off | Allow `docker` as MCP stdio command |
+| `OPSBLAZE_SPLUNK_GUARD_ADMIN_EXTRA_INDEXES` | — | Extra indexes for admins (env break-glass) |
+| `OPSBLAZE_SPLUNK_GUARD_ADMIN_BYPASS_INDEXES` | off | Admins skip index allowlist |
+
+Global index/time allowlists are configured in **Settings → Runtime** (stored on disk, not in `.env`).
+
+#### 7. Telemetry — optional
+
+These are **not** required to run OpsBlaze. They export **usage/performance signals about the app** (investigation turns, token counts, tool calls)—not the same as **§1 Splunk**, which is the management API the agent uses to run SPL.
+
+| Backend | How to enable | What it sends |
+|---------|---------------|---------------|
+| **Splunk HEC** | Set **both** `SPLUNK_HEC_URL` and `SPLUNK_HEC_TOKEN` | Batched JSON events to your HEC endpoint (index/sourcetype configurable below) |
+| **OpenTelemetry** | `OTEL_ENABLED=true` | Traces to an OTLP/HTTP collector at `OTEL_EXPORTER_OTLP_ENDPOINT` (default `http://localhost:4318`) |
+
+You can enable HEC, OTEL, both, or neither. The setup wizard does not configure telemetry. HEC and OTEL are independent of each other and of auth/LLM choices.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SPLUNK_HEC_URL` | — | HEC endpoint, e.g. `https://splunk.example:8088/services/collector/event` |
+| `SPLUNK_HEC_TOKEN` | — | HEC token (required with URL) |
+| `SPLUNK_HEC_INDEX` | `main` | Destination index |
+| `SPLUNK_HEC_SOURCE` | `opsblaze` | HEC `source` field |
+| `SPLUNK_HEC_SOURCETYPE` | `opsblaze:agent` | HEC `sourcetype` field |
+| `SPLUNK_HEC_VERIFY_SSL` | `true` | Verify HEC TLS |
+| `SPLUNK_HEC_BATCH_SIZE` | `10` | Events per batch |
+| `SPLUNK_HEC_FLUSH_MS` | `5000` | Max time before flushing a partial batch (ms) |
+| `OTEL_ENABLED` | `false` | Set `true` to start the OTEL trace exporter |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` | OTLP/HTTP collector (port 4318 is typical) |
+| `OTEL_SERVICE_NAME` | `opsblaze` | `service.name` on exported traces |
+
+OpenTelemetry packages are **optional** npm dependencies. If enabling OTEL fails at startup, run `npm install` so `@opentelemetry/*` is present, then restart. Server logs note when each exporter starts (`Splunk HEC telemetry exporter enabled` / `OpenTelemetry exporter enabled`).
+
+### Authentication (setup guides)
+
+The table in [§4. Authentication](#4-authentication--pick-open-local-or-oidc) is the variable reference. Below is how to configure each mode in practice.
 
 #### Local authentication (`local-auth.json`)
 
