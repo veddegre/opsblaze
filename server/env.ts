@@ -70,6 +70,18 @@ const envSchema = z.object({
     .optional()
     .transform((v) => v === "true" || v === "1"),
 
+  /** Path to JSON user database for username/password authentication (see data/local-auth.example.json). */
+  OPSBLAZE_LOCAL_AUTH_FILE: z.string().optional(),
+
+  /** Admin groups for local auth (and optional OIDC); falls back to OPSBLAZE_OIDC_ADMIN_GROUPS. */
+  OPSBLAZE_ADMIN_GROUPS: z.string().optional(),
+
+  /** Usernames that always receive admin when using local authentication. */
+  OPSBLAZE_LOCAL_AUTH_ADMIN_USERS: z.string().optional(),
+
+  /** Alias for OPSBLAZE_LOCAL_AUTH_ADMIN_USERS. */
+  OPSBLAZE_ADMIN_USERS: z.string().optional(),
+
   /** Allow docker as MCP stdio command (disabled by default). */
   OPSBLAZE_ALLOW_DOCKER_MCP: z
     .enum(["true", "false", "1", "0"])

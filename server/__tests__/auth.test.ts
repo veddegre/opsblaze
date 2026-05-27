@@ -60,6 +60,19 @@ describe("resolveAdminDetails", () => {
     });
   });
 
+  it("reports admin_username source", () => {
+    expect(
+      resolveAdminDetails({
+        adminEmails: new Set(),
+        adminGroups: new Set(),
+        adminUsernames: new Set(["admin"]),
+        allUsersAdmin: false,
+        username: "admin",
+        groups: [],
+      })
+    ).toEqual({ isAdmin: true, source: "admin_username" });
+  });
+
   it("reports all_users_admin", () => {
     expect(
       resolveAdminDetails({

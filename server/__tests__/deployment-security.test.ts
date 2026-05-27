@@ -20,7 +20,21 @@ describe("validateDeploymentSecurity", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       const errors = validateDeploymentSecurity(result.env);
-      expect(errors.some((e) => e.includes("OPSBLAZE_OIDC_ISSUER"))).toBe(true);
+      expect(errors.some((e) => e.includes("no authentication is configured"))).toBe(true);
+    }
+  });
+
+  it("allows non-loopback HOST with local auth file configured", async () => {
+    vi.stubEnv("HOST", "0.0.0.0");
+    vi.stubEnv("OPSBLAZE_LOCAL_AUTH_FILE", "./data/local-auth.json");
+    vi.stubEnv("OPSBLAZE_SESSION_SECRET", "a".repeat(32));
+    vi.resetModules();
+    const { validateEnv } = await import("../env.js");
+    const { validateDeploymentSecurity } = await import("../deployment-security.js");
+    const result = validateEnv();
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(validateDeploymentSecurity(result.env)).toEqual([]);
     }
   });
 

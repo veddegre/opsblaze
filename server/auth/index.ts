@@ -1,60 +1,81 @@
 import type { Express } from "express";
 import session from "express-session";
 import { logger } from "../logger.js";
+import { getAuthMode, isAuthRequired } from "./mode.js";
 import { isRequestAdmin, requireAdmin, requireAuth } from "./middleware.js";
+import { isLocalAuthEnabled } from "./local-auth.js";
 import { isOidcEnabled, loadOidcEnv } from "./oidc.js";
 import { authRouter } from "./routes.js";
 
 export { getRequestUser, getRequestUserId, LOCAL_USER_ID, sanitizeUserId } from "./types.js";
+export { getAuthMode, isAuthRequired } from "./mode.js";
+export { isLocalAuthEnabled, validateLocalAuthFile } from "./local-auth.js";
+export { hashPassword } from "./password.js";
 export { isOidcEnabled, isRequestAdmin, requireAdmin, requireAuth };
 
-export function setupAuth(app: Express): void {
-  const oidcEnv = loadOidcEnv();
+function sessionSecret(): string | null {
+  const secret = process.env.OPSBLAZE_SESSION_SECRET?.trim();
+  if (!secret || secret.length < 32) return null;
+  return secret;
+}
 
-  if (isOidcEnabled()) {
-    const secret = process.env.OPSBLAZE_SESSION_SECRET?.trim();
-    if (!secret || secret.length < 32) {
-      throw new Error(
-        "OPSBLAZE_SESSION_SECRET is required (min 32 characters) when OPSBLAZE_OIDC_ISSUER is set"
-      );
-    }
-
-    const trustProxy =
-      process.env.OPSBLAZE_TRUST_PROXY === "true" || process.env.NODE_ENV === "production";
-    if (trustProxy) {
-      app.set("trust proxy", 1);
-    }
-
-    const secureCookies =
-      process.env.OPSBLAZE_SECURE_COOKIES === "true" ||
-      (process.env.NODE_ENV === "production" && process.env.OPSBLAZE_SECURE_COOKIES !== "false");
-
-    app.use(
-      session({
-        name: "opsblaze.sid",
-        secret,
-        resave: false,
-        saveUninitialized: false,
-        cookie: {
-          httpOnly: true,
-          secure: secureCookies,
-          sameSite: "lax",
-          maxAge: 24 * 60 * 60 * 1000,
-        },
-      })
+function configureSession(app: Express, label: string): void {
+  const secret = sessionSecret();
+  if (!secret) {
+    throw new Error(
+      "OPSBLAZE_SESSION_SECRET is required (min 32 characters) when authentication is enabled"
     );
+  }
 
+  const trustProxy =
+    process.env.OPSBLAZE_TRUST_PROXY === "true" || process.env.NODE_ENV === "production";
+  if (trustProxy) {
+    app.set("trust proxy", 1);
+  }
+
+  const secureCookies =
+    process.env.OPSBLAZE_SECURE_COOKIES === "true" ||
+    (process.env.NODE_ENV === "production" && process.env.OPSBLAZE_SECURE_COOKIES !== "false");
+
+  app.use(
+    session({
+      name: "opsblaze.sid",
+      secret,
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        httpOnly: true,
+        secure: secureCookies,
+        sameSite: "lax",
+        maxAge: 24 * 60 * 60 * 1000,
+      },
+    })
+  );
+
+  logger.info({ label, secureCookies, trustProxy }, "session authentication enabled");
+}
+
+export function setupAuth(app: Express): void {
+  const mode = getAuthMode();
+
+  if (mode === "oidc") {
+    configureSession(app, "oidc");
+    const oidcEnv = loadOidcEnv();
     logger.info(
       {
         issuer: oidcEnv?.issuer,
         redirectUri: oidcEnv?.redirectUri,
-        secureCookies,
-        trustProxy,
       },
       "OIDC authentication enabled"
     );
+  } else if (mode === "local") {
+    configureSession(app, "local");
+    logger.info(
+      { usersFile: process.env.OPSBLAZE_LOCAL_AUTH_FILE?.trim() },
+      "local username/password authentication enabled"
+    );
   } else {
-    logger.info("OIDC disabled — single-user local mode (conversations under user 'local')");
+    logger.info("authentication disabled — open local mode (conversations under user 'local')");
   }
 
   app.use("/api/auth", authRouter);

@@ -49,6 +49,7 @@ export type AdminSource =
   | "all_users_admin"
   | "admin_email"
   | "admin_group"
+  | "admin_username"
   | "none"
   | "local_mode";
 
@@ -61,8 +62,10 @@ export interface AdminResolution {
 export function resolveAdminDetails(opts: {
   adminEmails: Set<string>;
   adminGroups: Set<string>;
+  adminUsernames?: Set<string>;
   allUsersAdmin: boolean;
   email?: string;
+  username?: string;
   groups: string[];
 }): AdminResolution {
   if (opts.allUsersAdmin) {
@@ -72,6 +75,11 @@ export function resolveAdminDetails(opts: {
   const email = opts.email?.trim().toLowerCase();
   if (email && opts.adminEmails.has(email)) {
     return { isAdmin: true, source: "admin_email" };
+  }
+
+  const username = opts.username?.trim().toLowerCase();
+  if (username && opts.adminUsernames?.has(username)) {
+    return { isAdmin: true, source: "admin_username" };
   }
 
   for (const g of opts.groups) {
@@ -86,8 +94,10 @@ export function resolveAdminDetails(opts: {
 export function resolveIsAdmin(opts: {
   adminEmails: Set<string>;
   adminGroups: Set<string>;
+  adminUsernames?: Set<string>;
   allUsersAdmin: boolean;
   email?: string;
+  username?: string;
   groups: string[];
 }): boolean {
   return resolveAdminDetails(opts).isAdmin;

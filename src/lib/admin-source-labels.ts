@@ -11,8 +11,10 @@ export function adminSourceLabel(
       return "Administrator — your email is listed in OPSBLAZE_OIDC_ADMIN_EMAILS";
     case "admin_group":
       return matchedAdminGroup
-        ? `Administrator — IdP group “${matchedAdminGroup}” matches OPSBLAZE_OIDC_ADMIN_GROUPS`
-        : "Administrator — an IdP group matches OPSBLAZE_OIDC_ADMIN_GROUPS";
+        ? `Administrator — group “${matchedAdminGroup}” matches OPSBLAZE_ADMIN_GROUPS (or OPSBLAZE_OIDC_ADMIN_GROUPS)`
+        : "Administrator — a group matches the configured admin groups";
+    case "admin_username":
+      return "Administrator — username is listed in OPSBLAZE_LOCAL_AUTH_ADMIN_USERS or OPSBLAZE_ADMIN_USERS";
     case "local_mode":
       return "Local mode — single-user deployment (full access)";
     case "none":

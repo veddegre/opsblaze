@@ -1,7 +1,10 @@
+export type AuthMode = "oidc" | "local" | "open";
+
 export type AdminSource =
   | "all_users_admin"
   | "admin_email"
   | "admin_group"
+  | "admin_username"
   | "none"
   | "local_mode";
 
@@ -16,6 +19,8 @@ export interface PublicAuthUser {
 }
 
 export interface AuthConfig {
+  mode: AuthMode;
+  /** @deprecated Use `mode` — true when mode is oidc or local */
   enabled: boolean;
 }
 
@@ -41,6 +46,26 @@ export async function fetchAuthMe(): Promise<AuthMeResponse> {
 
 export function loginRedirect(): void {
   window.location.href = "/api/auth/login";
+}
+
+export async function localLogin(username: string, password: string): Promise<PublicAuthUser> {
+  const res = await fetch("/api/auth/local/login", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  const data = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    user?: PublicAuthUser;
+  };
+  if (!res.ok) {
+    throw new Error(data.error ?? `Login failed (${res.status})`);
+  }
+  if (!data.user) {
+    throw new Error("Login succeeded but no user returned");
+  }
+  return data.user;
 }
 
 export async function logout(): Promise<void> {

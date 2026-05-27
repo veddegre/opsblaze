@@ -254,7 +254,29 @@ Tip: if Entra returns tokens but your users aren’t recognized as admins, verif
 
 When OIDC is **not** configured, OpsBlaze runs in single-user local mode (`HOST=127.0.0.1` recommended).
 
-### Reach OpsBlaze from another machine (lab, no OIDC yet)
+### Local authentication (username/password + groups)
+
+For network or lab deploys **without** an IdP, use a JSON user file instead of open `OPSBLAZE_LOCAL_MODE`:
+
+```bash
+cp data/local-auth.example.json data/local-auth.json
+node bin/opsblaze.cjs hash-password 'your-secure-password'
+# paste the scrypt hash into passwordHash for each user in data/local-auth.json
+```
+
+```env
+OPSBLAZE_LOCAL_AUTH_FILE=./data/local-auth.json
+OPSBLAZE_SESSION_SECRET=<32+ random characters>
+OPSBLAZE_ADMIN_GROUPS=admins
+HOST=0.0.0.0
+PORT=3000
+```
+
+Each user has a `groups` array (e.g. `investigators`, `admins`). Users in a group listed in `OPSBLAZE_ADMIN_GROUPS` receive administrator rights. You can also set `OPSBLAZE_LOCAL_AUTH_ADMIN_USERS=admin` for explicit admin usernames.
+
+Do **not** set `OPSBLAZE_OIDC_ISSUER` at the same time. Per-user investigations are stored under `data/conversations/<user-id>/`.
+
+### Reach OpsBlaze from another machine (open lab mode, no login)
 
 By default the server binds to **loopback only** (`HOST=127.0.0.1`), so `http://<server-ip>:3000` from another PC will not connect. To listen on all interfaces:
 

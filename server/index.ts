@@ -80,7 +80,13 @@ import { rateLimitKey } from "./rate-limit-key.js";
 import { isOpenWebUiMode } from "./llm-config.js";
 import { listOpenWebUiModelOptions } from "./openwebui-models.js";
 import { OpenWebUiError } from "./openwebui-client.js";
-import { getRequestUserId, isRequestAdmin, requireAdmin, setupAuth } from "./auth/index.js";
+import {
+  getRequestUserId,
+  isRequestAdmin,
+  requireAdmin,
+  setupAuth,
+  validateLocalAuthFile,
+} from "./auth/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
@@ -1231,6 +1237,12 @@ function validateStartup(): boolean {
 
 if (!validateStartup()) {
   logger.fatal("Startup validation failed — fix the errors above and restart");
+  process.exit(1);
+}
+
+const localAuthStartupError = await validateLocalAuthFile();
+if (localAuthStartupError) {
+  logger.fatal({ error: localAuthStartupError }, "local authentication configuration invalid");
   process.exit(1);
 }
 

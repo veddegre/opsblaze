@@ -9,4 +9,8 @@ describe("adminSourceLabel", () => {
   it("describes local mode", () => {
     expect(adminSourceLabel("local_mode")).toContain("Local mode");
   });
+
+  it("describes admin_username", () => {
+    expect(adminSourceLabel("admin_username")).toContain("OPSBLAZE_LOCAL_AUTH_ADMIN_USERS");
+  });
 });

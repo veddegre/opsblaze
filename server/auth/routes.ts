@@ -1,18 +1,30 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
+import rateLimit from "express-rate-limit";
 import { logger } from "../logger.js";
 import {
   buildLoginRedirectUrl,
   exchangeCallback,
   getOidcConfiguration,
-  isOidcEnabled,
   loadOidcEnv,
   resolveAdminAccess,
 } from "./oidc.js";
+import { authenticateLocalUser, isLocalAuthEnabled } from "./local-auth.js";
+import { getAuthMode } from "./mode.js";
 import { sanitizeUserId, toPublicUser, type AuthUser } from "./types.js";
 import { recordAudit } from "../audit-log.js";
+import { rateLimitKey } from "../rate-limit-key.js";
 
 export const authRouter = Router();
+
+const localLoginLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 15,
+  keyGenerator: rateLimitKey,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Try again in a minute." },
+});
 
 function regenerateSession(req: Request): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -38,11 +50,17 @@ function buildCallbackUrl(req: Request, redirectUri: string): URL {
 }
 
 authRouter.get("/config", (_req, res) => {
-  res.json({ enabled: isOidcEnabled() });
+  const mode = getAuthMode();
+  res.json({
+    mode,
+    enabled: mode !== "open",
+  });
 });
 
 authRouter.get("/me", (req, res) => {
-  if (!isOidcEnabled()) {
+  const mode = getAuthMode();
+
+  if (mode === "open") {
     res.json({
       authenticated: true,
       user: toPublicUser({
@@ -62,6 +80,49 @@ authRouter.get("/me", (req, res) => {
     return;
   }
   res.json({ authenticated: true, user: toPublicUser(user) });
+});
+
+authRouter.post("/local/login", localLoginLimiter, async (req, res) => {
+  if (!isLocalAuthEnabled()) {
+    res.status(404).json({ error: "Local authentication is not configured" });
+    return;
+  }
+
+  const { username, password } = req.body as { username?: string; password?: string };
+  if (!username?.trim() || typeof password !== "string" || !password) {
+    res.status(400).json({ error: "username and password are required" });
+    return;
+  }
+
+  try {
+    const user = await authenticateLocalUser(username, password);
+    if (!user) {
+      res.status(401).json({ error: "Invalid username or password" });
+      return;
+    }
+
+    await regenerateSession(req);
+    if (!req.session) {
+      res.status(500).json({ error: "Session not available" });
+      return;
+    }
+    req.session.user = user;
+
+    logger.info(
+      { userId: user.id, username: username.trim().toLowerCase(), isAdmin: user.isAdmin, groups: user.groups },
+      "local user signed in"
+    );
+    void recordAudit(user.id, "auth.login", {
+      method: "local",
+      isAdmin: user.isAdmin,
+      groups: user.groups,
+    });
+
+    res.json({ ok: true, user: toPublicUser(user) });
+  } catch (err) {
+    logger.error({ err }, "local login failed");
+    res.status(500).json({ error: "Login failed" });
+  }
 });
 
 authRouter.get("/login", async (req, res) => {

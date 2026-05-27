@@ -1,9 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
-import { isOidcEnabled } from "./oidc.js";
+import { isAuthRequired } from "./mode.js";
 import { getRequestUser, type AuthUser } from "./types.js";
 
 export function isRequestAdmin(req: Request): boolean {
-  if (!isOidcEnabled()) return true;
+  if (!isAuthRequired()) return true;
   return getRequestUser(req)?.isAdmin ?? false;
 }
 
@@ -13,7 +13,7 @@ export function isPublicApiPath(path: string): boolean {
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  if (!isOidcEnabled()) {
+  if (!isAuthRequired()) {
     next();
     return;
   }
@@ -33,7 +33,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  if (!isOidcEnabled()) {
+  if (!isAuthRequired()) {
     next();
     return;
   }

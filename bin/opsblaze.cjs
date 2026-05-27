@@ -917,6 +917,12 @@ const commands = {
   check,
   dev: startDev,
   "install-splunk-viz": installSplunkViz,
+  "hash-password": () => {
+    const script = path.join(__dirname, "local-auth-hash.cjs");
+    const args = process.argv.slice(3);
+    const result = spawnSync(process.execPath, [script, ...args], { stdio: "inherit" });
+    process.exit(result.status ?? 1);
+  },
 };
 
 if (!command || !commands[command]) {
@@ -930,6 +936,7 @@ if (!command || !commands[command]) {
   console.log("  logs               Tail production logs");
   console.log("  check              Validate environment and prerequisites");
   console.log("  install-splunk-viz Install optional Splunk visualization packages");
+  console.log("  hash-password      Hash a password for OPSBLAZE_LOCAL_AUTH_FILE");
   console.log("");
   console.log("Start/dev always stops the other mode first. Stop cleans everything.");
   process.exit(command ? 1 : 0);
