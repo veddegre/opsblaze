@@ -5,6 +5,8 @@ const path = require("path");
 const fs = require("fs");
 
 const ROOT = path.resolve(__dirname, "..");
+const { pidsOnPort } = require("./port-utils.cjs");
+const { isEnvFileTooPermissive, tailLogLines, hintsFromErrLog } = require("./startup-hints.cjs");
 const SUPERVISOR_SCRIPT = path.join(__dirname, "supervisor.cjs");
 const DATA_DIR = path.join(ROOT, "data");
 const ENV_FILE = path.join(ROOT, ".env");
@@ -101,25 +103,6 @@ function pidAlive(pid) {
   } catch {
     return false;
   }
-}
-
-function pidsOnPort(port) {
-  try {
-    const result = spawnSync("lsof", ["-i", `:${port}`, "-t"], {
-      encoding: "utf-8",
-      timeout: 3000,
-    });
-    if (result.stdout && result.stdout.trim()) {
-      return result.stdout
-        .trim()
-        .split("\n")
-        .map((p) => parseInt(p, 10))
-        .filter((p) => !isNaN(p));
-    }
-  } catch {
-    // lsof not available
-  }
-  return [];
 }
 
 function killPid(pid, signal = "SIGTERM") {
@@ -286,10 +269,49 @@ function checkBuild() {
 function checkEnv() {
   if (!fs.existsSync(ENV_FILE)) {
     console.error(
-      "No .env file found. Run 'node bin/setup.cjs' to configure the app."
+      `No .env file found in ${ROOT}.\n` +
+        "Run from the project root: node bin/setup.cjs\n" +
+        "Or copy .env.example to .env and fill in required values."
     );
     process.exit(1);
   }
+  if (isEnvFileTooPermissive(ENV_FILE)) {
+    console.error(
+      ".env is readable by group or other users. Production mode will crash-loop until fixed.\n" +
+        "Run: chmod 600 .env\n" +
+        "Then: node bin/opsblaze.cjs restart"
+    );
+    process.exit(1);
+  }
+}
+
+function printCrashDiagnostics() {
+  const DIM = "\x1b[2m";
+  const YELLOW = "\x1b[33m";
+  const RESET = "\x1b[0m";
+
+  const errTail = tailLogLines(ERR_LOG, 12);
+  if (errTail.length > 0) {
+    console.error(`\n${YELLOW}Recent errors (data/opsblaze-err.log):${RESET}`);
+    for (const line of errTail) {
+      console.error(`  ${DIM}${line}${RESET}`);
+    }
+  }
+
+  const hints = [
+    ...(isEnvFileTooPermissive(ENV_FILE)
+      ? ["Run: chmod 600 .env"]
+      : []),
+    ...hintsFromErrLog(errTail),
+  ];
+  const unique = [...new Set(hints)];
+  if (unique.length > 0) {
+    console.error(`\n${YELLOW}Suggested fixes:${RESET}`);
+    for (const h of unique) {
+      console.error(`  • ${h}`);
+    }
+  }
+  console.error(`\n${DIM}Full log: node bin/opsblaze.cjs logs${RESET}\n`);
 }
 
 function supervisorIsRunning() {
@@ -404,9 +426,15 @@ async function startProd() {
     console.log(`\nOpsBlaze is running at http://localhost:${port}`);
   } else {
     console.log(" timed out.");
-    console.error(
-      "Server may still be starting. Check 'node bin/opsblaze.cjs status' or data/opsblaze-err.log"
-    );
+    const state = readState();
+    if (state?.restarts > 0) {
+      console.error(
+        `Server is crash-looping (${state.restarts} restart(s)). It will not become healthy until startup errors are fixed.`
+      );
+    } else {
+      console.error("Server did not respond on /api/health in time.");
+    }
+    printCrashDiagnostics();
   }
 }
 
@@ -512,7 +540,31 @@ async function status() {
       console.log(`  Memory    ${memMb != null ? memMb + "MB" : "?"}`);
       console.log(`  Restarts  ${state.restarts || 0}`);
     } else if (supervisorAlive) {
-      console.log(`  Backend   ${C.YELLOW}●${C.RESET}  :${port}  ${C.DIM}(starting or restarting)${C.RESET}`);
+      const restarts = state.restarts || 0;
+      const label =
+        restarts > 2
+          ? "(crash-looping — see errors below)"
+          : "(starting or restarting)";
+      console.log(`  Backend   ${C.YELLOW}●${C.RESET}  :${port}  ${C.DIM}${label}${C.RESET}`);
+      if (restarts > 0) {
+        console.log(`  Restarts  ${restarts}`);
+      }
+      if (isEnvFileTooPermissive(ENV_FILE)) {
+        console.log(`  ${C.RED}⚠${C.RESET}  .env permissions too open — run: ${C.BOLD}chmod 600 .env${C.RESET}`);
+      }
+      const errTail = tailLogLines(ERR_LOG, 8);
+      if (errTail.length > 0) {
+        console.log(`\n  ${C.DIM}Recent errors:${C.RESET}`);
+        for (const line of errTail) {
+          const trimmed = line.length > 100 ? line.slice(0, 97) + "..." : line;
+          console.log(`    ${C.DIM}${trimmed}${C.RESET}`);
+        }
+        const hints = hintsFromErrLog(errTail);
+        if (hints.length > 0) {
+          console.log(`\n  ${C.YELLOW}→${C.RESET}  ${hints[0]}`);
+        }
+      }
+      console.log(`\n  ${C.DIM}→ node bin/opsblaze.cjs logs${C.RESET}`);
     } else {
       console.log(`  Backend   ${C.RED}●${C.RESET}  :${port}  ${C.DIM}(supervisor not running)${C.RESET}`);
     }
@@ -610,6 +662,13 @@ function check() {
     } else {
       fail(".env exists but SPLUNK_HOST is not set");
       allOk = false;
+    }
+    if (isEnvFileTooPermissive(ENV_FILE)) {
+      fail(".env is group/world-readable — production will crash-loop");
+      console.log(`    ${DIM}Fix: chmod 600 .env${RESET}`);
+      allOk = false;
+    } else {
+      ok(".env file permissions (600 or stricter)");
     }
   } else {
     fail(".env file not found — run 'node bin/setup.cjs'");

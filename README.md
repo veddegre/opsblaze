@@ -320,6 +320,31 @@ lsof -i :3000
 
 Or edit `.env` and change the `PORT` value to a different port (e.g. `PORT=3001`).
 
+On minimal Linux (Ubuntu server images), install `lsof` or use `ss` / `fuser` — OpsBlaze falls back automatically when `lsof` is missing.
+
+### Status shows "starting or restarting" or crash-looping
+
+The production supervisor is running but the Node server keeps exiting before `/api/health` succeeds.
+
+```bash
+node bin/opsblaze.cjs stop
+node bin/opsblaze.cjs logs          # or: tail -30 data/opsblaze-err.log
+node bin/opsblaze.cjs check
+```
+
+**Most common fix on Linux:** `.env` was created with default permissions (`644`). Production mode refuses to start until only your user can read it:
+
+```bash
+chmod 600 .env
+node bin/opsblaze.cjs restart
+```
+
+Other frequent causes (see `data/opsblaze-err.log`):
+
+- Claude CLI not installed or not logged in (use Open WebUI or `ANTHROPIC_API_KEY` instead)
+- `HOST=0.0.0.0` without `OPSBLAZE_LOCAL_MODE=true` or OIDC configured
+- Missing build: `npm run build`
+
 ### Open WebUI authentication failed
 
 - Confirm `OPENWEBUI_API_KEY` matches the key from **Settings → Account** in Open WebUI

@@ -14,6 +14,7 @@ const fs = require("fs");
 
 const ROOT = path.resolve(__dirname, "..");
 const { loadEnvFile } = require("./env-loader.cjs");
+const { portInUse } = require("./port-utils.cjs");
 const DATA_DIR = path.join(ROOT, "data");
 const STATE_FILE = path.join(DATA_DIR, ".opsblaze-state.json");
 const OUT_LOG = path.join(DATA_DIR, "opsblaze-out.log");
@@ -68,18 +69,6 @@ function readPort() {
     return match ? parseInt(match[1], 10) : 3000;
   } catch {
     return 3000;
-  }
-}
-
-function portInUse(port) {
-  try {
-    const result = spawnSync("lsof", ["-i", `:${port}`, "-t"], {
-      encoding: "utf-8",
-      timeout: 3000,
-    });
-    return !!(result.stdout && result.stdout.trim());
-  } catch {
-    return false;
   }
 }
 

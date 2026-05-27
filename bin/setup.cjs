@@ -9,6 +9,8 @@ const http = require("http");
 
 const ROOT = path.resolve(__dirname, "..");
 const ENV_FILE = path.join(ROOT, ".env");
+const { pidsOnPort } = require("./port-utils.cjs");
+const { isEnvFileTooPermissive } = require("./startup-hints.cjs");
 
 if (process.platform === "win32") {
   console.error(
@@ -199,23 +201,12 @@ function pidAlive(pid) {
   }
 }
 
-function pidsOnPort(port) {
-  try {
-    const result = spawnSync("lsof", ["-i", `:${port}`, "-t"], {
-      encoding: "utf-8",
-      timeout: 3000,
-    });
-    if (result.stdout && result.stdout.trim()) {
-      return result.stdout
-        .trim()
-        .split("\n")
-        .map((p) => parseInt(p, 10))
-        .filter((p) => !isNaN(p));
-    }
-  } catch {
-    // lsof not available
+function ensureEnvPermissions() {
+  if (!fs.existsSync(ENV_FILE)) return;
+  if (isEnvFileTooPermissive(ENV_FILE)) {
+    fs.chmodSync(ENV_FILE, 0o600);
+    ok("Secured .env file permissions (chmod 600)");
   }
-  return [];
 }
 
 function killPid(pid, signal = "SIGTERM") {
@@ -521,6 +512,7 @@ async function main() {
     );
     if (!overwrite) {
       heading("Skipping configuration \u2014 using existing .env");
+      ensureEnvPermissions();
       await installAndBuild();
       await finish();
       return;
@@ -691,7 +683,8 @@ async function main() {
   envLines.push("");
 
   fs.writeFileSync(ENV_FILE, envLines.join("\n") + "\n");
-  ok("Configuration written to .env");
+  fs.chmodSync(ENV_FILE, 0o600);
+  ok("Configuration written to .env (permissions 600)");
 
   // --- Install & Build ---
   await installAndBuild();
