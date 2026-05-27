@@ -1,5 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { logout, type PublicAuthUser } from "../lib/auth";
+import { userMenuPanelClass } from "../lib/overlay-layout";
 
 interface UserMenuProps {
   user: PublicAuthUser;
@@ -9,14 +11,40 @@ interface UserMenuProps {
 
 export function UserMenu({ user, onOpenAccount, onOpenPreferences }: UserMenuProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const displayName = user.name ?? user.email ?? "User";
   const initial = displayName.charAt(0).toUpperCase();
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) {
+      setMenuPos(null);
+      return;
+    }
+    const update = () => {
+      const rect = triggerRef.current!.getBoundingClientRect();
+      setMenuPos({
+        top: rect.bottom + 4,
+        right: Math.max(8, window.innerWidth - rect.right),
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
@@ -28,7 +56,7 @@ export function UserMenu({ user, onOpenAccount, onOpenPreferences }: UserMenuPro
   };
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={triggerRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -57,48 +85,53 @@ export function UserMenu({ user, onOpenAccount, onOpenPreferences }: UserMenuPro
         </svg>
       </button>
 
-      {open && (
-        <div
-          role="menu"
-          className="absolute right-0 top-full mt-1 w-56 bg-surface-2/95 backdrop-blur-xl rounded-lg border border-border-subtle shadow-lg z-50 py-1"
-        >
-          <div className="px-3 py-2 border-b border-border-subtle">
-            <p className="text-sm text-gray-100 truncate">{displayName}</p>
-            {user.email && <p className="text-xs text-gray-500 truncate">{user.email}</p>}
-            <p className="text-[10px] text-gray-600 mt-1">
-              {user.isAdmin ? "Administrator" : "Analyst"}
-            </p>
-          </div>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => openSection(onOpenAccount)}
-            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-surface-3 transition-colors"
+      {open &&
+        menuPos &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            style={{ top: menuPos.top, right: menuPos.right }}
+            className={`${userMenuPanelClass} w-56 bg-surface-2/95 backdrop-blur-xl rounded-lg border border-border-subtle shadow-lg py-1`}
           >
-            My account
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => openSection(onOpenPreferences)}
-            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-surface-3 transition-colors"
-          >
-            Runtime settings
-          </button>
-          <div className="my-1 border-t border-border-subtle" />
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              logout().then(() => window.location.reload());
-            }}
-            className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:bg-surface-3 hover:text-gray-200 transition-colors"
-          >
-            Sign out
-          </button>
-        </div>
-      )}
+            <div className="px-3 py-2 border-b border-border-subtle">
+              <p className="text-sm text-gray-100 truncate">{displayName}</p>
+              {user.email && <p className="text-xs text-gray-500 truncate">{user.email}</p>}
+              <p className="text-[10px] text-gray-600 mt-1">
+                {user.isAdmin ? "Administrator" : "Analyst"}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => openSection(onOpenAccount)}
+              className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-surface-3 transition-colors"
+            >
+              My account
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => openSection(onOpenPreferences)}
+              className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-surface-3 transition-colors"
+            >
+              Runtime settings
+            </button>
+            <div className="my-1 border-t border-border-subtle" />
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                logout().then(() => window.location.reload());
+              }}
+              className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:bg-surface-3 hover:text-gray-200 transition-colors"
+            >
+              Sign out
+            </button>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

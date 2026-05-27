@@ -28,6 +28,7 @@ import { AuditLogTab } from "./settings/AuditLogTab";
 import { AdminSystemTab } from "./settings/AdminSystemTab";
 import { NavGroupLabel, NavItem, Section } from "./settings/settings-ui";
 import { inputClass, monoInputClass } from "./settings/settings-ui";
+import { settingsBackdropClass, settingsPanelClass } from "../lib/overlay-layout";
 
 export type SettingsSection =
   | "account"
@@ -1069,13 +1070,14 @@ export function SettingsPanel({
     <>
       {isOpen && (
         <div
-          className="fixed inset-0 top-[49px] bg-black/40 z-20 transition-opacity"
+          className={`${settingsBackdropClass} bg-black/40 transition-opacity`}
           onClick={onClose}
+          aria-hidden
         />
       )}
 
       <div
-        className={`fixed top-[49px] right-0 bottom-0 w-full bg-surface-1 border-l border-border-subtle z-30 transform transition-transform duration-200 ease-out flex flex-col ${SETTINGS_PANEL_MAX_WIDTH} ${isOpen ? "translate-x-0" : "translate-x-full"}`}
+        className={`${settingsPanelClass} w-full bg-surface-1 border-l border-border-subtle transform transition-transform duration-200 ease-out flex flex-col ${SETTINGS_PANEL_MAX_WIDTH} ${isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
       >
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border-subtle shrink-0">
           <div>

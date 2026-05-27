@@ -1,17 +1,20 @@
 import React, { useState, useLayoutEffect, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { SkillPack } from "../lib/settings-api";
+import { pickerBackdropClass, pickerPanelClass } from "../lib/overlay-layout";
 
 interface SkillBundlePickerProps {
   skillPacks: SkillPack[];
   onApplySkillPack?: (pack: SkillPack) => void;
   disabled?: boolean;
+  overlaysSuspended?: boolean;
 }
 
 export function SkillBundlePicker({
   skillPacks,
   onApplySkillPack,
   disabled,
+  overlaysSuspended = false,
 }: SkillBundlePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -40,12 +43,12 @@ export function SkillBundlePicker({
   }, []);
 
   useEffect(() => {
-    if (disabled) {
+    if (disabled || overlaysSuspended) {
       setIsOpen(false);
       setSearchQuery("");
       setActiveIndex(0);
     }
-  }, [disabled]);
+  }, [disabled, overlaysSuspended]);
 
   useLayoutEffect(() => {
     if (!isOpen || !triggerRef.current) {
@@ -152,14 +155,15 @@ export function SkillBundlePicker({
       </button>
 
       {isOpen &&
+        !overlaysSuspended &&
         panelPos &&
         createPortal(
           <>
-            <div className="fixed inset-0 z-[35]" onClick={close} aria-hidden="true" />
+            <div className={pickerBackdropClass} onClick={close} aria-hidden="true" />
 
             <div
               role="listbox"
-              className="fixed z-[36] w-96 max-w-[calc(100vw-2rem)] flex flex-col bg-surface-2/95 backdrop-blur-xl rounded-lg border border-border-subtle shadow-2xl"
+              className={`${pickerPanelClass} w-96 max-w-[calc(100vw-2rem)] flex flex-col bg-surface-2/95 backdrop-blur-xl rounded-lg border border-border-subtle shadow-2xl`}
               style={{
                 bottom: panelPos.bottom,
                 left: panelPos.left,

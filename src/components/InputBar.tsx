@@ -24,6 +24,8 @@ interface InputBarProps {
   onPrefillConsumed?: () => void;
   queryUsage?: UsageData | null;
   contextUsage?: ContextData | null;
+  /** Dismiss skill/playbook picker overlays (e.g. while settings is open). */
+  overlaysSuspended?: boolean;
 }
 
 export function InputBar({
@@ -42,6 +44,7 @@ export function InputBar({
   onPrefillConsumed,
   queryUsage,
   contextUsage,
+  overlaysSuspended = false,
 }: InputBarProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -147,11 +150,13 @@ export function InputBar({
                 playbooks={playbooks ?? []}
                 onApplyPlaybook={onApplyPlaybook}
                 disabled={isStreaming}
+                overlaysSuspended={overlaysSuspended}
               />
               <SkillBundlePicker
                 skillPacks={skillPacks ?? []}
                 onApplySkillPack={onApplySkillPack}
                 disabled={isStreaming}
+                overlaysSuspended={overlaysSuspended}
               />
             </div>
           ) : null}
@@ -161,6 +166,7 @@ export function InputBar({
             allowAdditional={allowAdditional}
             onAllowAdditionalChange={onAllowAdditionalChange}
             disabled={isStreaming}
+            overlaysSuspended={overlaysSuspended}
           />
         </div>
         {queryUsage || contextUsage ? (

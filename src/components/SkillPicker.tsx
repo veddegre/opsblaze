@@ -2,6 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from
 import { createPortal } from "react-dom";
 import { listSkillsApi } from "../lib/settings-api";
 import type { SkillInfo } from "../lib/settings-api";
+import { pickerBackdropClass, pickerPanelClass } from "../lib/overlay-layout";
 
 interface SkillPickerProps {
   selectedSkills: string[];
@@ -9,6 +10,8 @@ interface SkillPickerProps {
   allowAdditional: boolean;
   onAllowAdditionalChange: (allow: boolean) => void;
   disabled?: boolean;
+  /** Close dropdown and hide backdrop (e.g. while settings sidebar is open). */
+  overlaysSuspended?: boolean;
 }
 
 export function SkillPicker({
@@ -17,6 +20,7 @@ export function SkillPicker({
   allowAdditional,
   onAllowAdditionalChange,
   disabled,
+  overlaysSuspended = false,
 }: SkillPickerProps) {
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -32,12 +36,12 @@ export function SkillPicker({
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (disabled) {
+    if (disabled || overlaysSuspended) {
       setIsDropdownOpen(false);
       setSearchQuery("");
       setActiveIndex(-1);
     }
-  }, [disabled]);
+  }, [disabled, overlaysSuspended]);
 
   useEffect(() => {
     let cancelled = false;
@@ -286,13 +290,14 @@ export function SkillPicker({
           </div>
 
           {isDropdownOpen &&
+        !overlaysSuspended &&
         panelPos &&
         createPortal(
           <>
-            <div className="fixed inset-0 z-[35]" onClick={closeDropdown} aria-hidden="true" />
+            <div className={pickerBackdropClass} onClick={closeDropdown} aria-hidden="true" />
 
             <div
-              className="fixed z-[36] w-96 max-w-[calc(100vw-2rem)] flex flex-col bg-surface-2/95 backdrop-blur-xl rounded-lg border border-border-subtle shadow-2xl"
+              className={`${pickerPanelClass} w-96 max-w-[calc(100vw-2rem)] flex flex-col bg-surface-2/95 backdrop-blur-xl rounded-lg border border-border-subtle shadow-2xl`}
               style={{
                 bottom: panelPos.bottom,
                 left: panelPos.left,

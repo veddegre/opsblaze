@@ -1,14 +1,21 @@
 import React, { useState, useLayoutEffect, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { InvestigationPlaybook } from "../lib/playbooks-api";
+import { pickerBackdropClass, pickerPanelClass } from "../lib/overlay-layout";
 
 interface PlaybookPickerProps {
   playbooks: InvestigationPlaybook[];
   onApplyPlaybook?: (playbook: InvestigationPlaybook) => void;
   disabled?: boolean;
+  overlaysSuspended?: boolean;
 }
 
-export function PlaybookPicker({ playbooks, onApplyPlaybook, disabled }: PlaybookPickerProps) {
+export function PlaybookPicker({
+  playbooks,
+  onApplyPlaybook,
+  disabled,
+  overlaysSuspended = false,
+}: PlaybookPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -36,12 +43,12 @@ export function PlaybookPicker({ playbooks, onApplyPlaybook, disabled }: Playboo
   }, []);
 
   useEffect(() => {
-    if (disabled) {
+    if (disabled || overlaysSuspended) {
       setIsOpen(false);
       setSearchQuery("");
       setActiveIndex(0);
     }
-  }, [disabled]);
+  }, [disabled, overlaysSuspended]);
 
   useLayoutEffect(() => {
     if (!isOpen || !triggerRef.current) {
@@ -148,14 +155,15 @@ export function PlaybookPicker({ playbooks, onApplyPlaybook, disabled }: Playboo
       </button>
 
       {isOpen &&
+        !overlaysSuspended &&
         panelPos &&
         createPortal(
           <>
-            <div className="fixed inset-0 z-[35]" onClick={close} aria-hidden="true" />
+            <div className={pickerBackdropClass} onClick={close} aria-hidden="true" />
 
             <div
               role="listbox"
-              className="fixed z-[36] w-96 max-w-[calc(100vw-2rem)] flex flex-col bg-surface-2/95 backdrop-blur-xl rounded-lg border border-border-subtle shadow-2xl"
+              className={`${pickerPanelClass} w-96 max-w-[calc(100vw-2rem)] flex flex-col bg-surface-2/95 backdrop-blur-xl rounded-lg border border-border-subtle shadow-2xl`}
               style={{
                 bottom: panelPos.bottom,
                 left: panelPos.left,

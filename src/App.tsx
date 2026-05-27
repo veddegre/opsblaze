@@ -260,6 +260,7 @@ function AppContent({ user }: { user: PublicAuthUser }) {
         onPrefillConsumed={() => setInputPrefill(null)}
         queryUsage={queryUsage}
         contextUsage={contextUsage}
+        overlaysSuspended={settingsOpen || sidebarOpen || extractorOpen}
       />
     </div>
   );
