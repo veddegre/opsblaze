@@ -254,6 +254,24 @@ Tip: if Entra returns tokens but your users aren’t recognized as admins, verif
 
 When OIDC is **not** configured, OpsBlaze runs in single-user local mode (`HOST=127.0.0.1` recommended).
 
+### Reach OpsBlaze from another machine (lab, no OIDC yet)
+
+By default the server binds to **loopback only** (`HOST=127.0.0.1`), so `http://<server-ip>:3000` from another PC will not connect. To listen on all interfaces:
+
+```env
+HOST=0.0.0.0
+OPSBLAZE_LOCAL_MODE=true
+```
+
+Restart the server. This is **intentionally insecure** (no login) — use a firewall, VPN, or SSH tunnel if you only need yourself:
+
+```bash
+ssh -L 3000:127.0.0.1:3000 user@your-ubuntu-host
+# then open http://localhost:3000 on your laptop
+```
+
+If you set `HOST=0.0.0.0` **without** `OPSBLAZE_LOCAL_MODE=true` (and without OIDC), startup **fails** by design. Run `node bin/opsblaze.cjs check` to see bind and permission issues.
+
 ## Architecture
 
 ```

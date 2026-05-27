@@ -4,6 +4,11 @@
 
 const fs = require("fs");
 
+function isLoopbackHost(host) {
+  const h = (host || "127.0.0.1").trim().toLowerCase();
+  return h === "127.0.0.1" || h === "localhost" || h === "::1" || h === "[::1]";
+}
+
 function envFileMode(envPath) {
   try {
     return fs.statSync(envPath).mode & 0o777;
@@ -63,6 +68,7 @@ function hintsFromErrLog(lines) {
 }
 
 module.exports = {
+  isLoopbackHost,
   envFileMode,
   isEnvFileTooPermissive,
   secureEnvFile,

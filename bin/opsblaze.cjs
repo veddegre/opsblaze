@@ -6,7 +6,12 @@ const fs = require("fs");
 
 const ROOT = path.resolve(__dirname, "..");
 const { pidsOnPort } = require("./port-utils.cjs");
-const { isEnvFileTooPermissive, tailLogLines, hintsFromErrLog } = require("./startup-hints.cjs");
+const {
+  isLoopbackHost,
+  isEnvFileTooPermissive,
+  tailLogLines,
+  hintsFromErrLog,
+} = require("./startup-hints.cjs");
 const SUPERVISOR_SCRIPT = path.join(__dirname, "supervisor.cjs");
 const DATA_DIR = path.join(ROOT, "data");
 const ENV_FILE = path.join(ROOT, ".env");
@@ -669,6 +674,23 @@ function check() {
       allOk = false;
     } else {
       ok(".env file permissions (600 or stricter)");
+    }
+
+    const bindHost = fileEnv.HOST || "127.0.0.1";
+    const oidcOn = Boolean(fileEnv.OPSBLAZE_OIDC_ISSUER?.trim());
+    const localMode =
+      fileEnv.OPSBLAZE_LOCAL_MODE === "true" || fileEnv.OPSBLAZE_LOCAL_MODE === "1";
+    if (isLoopbackHost(bindHost)) {
+      ok(`Network bind: ${bindHost} (this machine only)`);
+      console.log(
+        `    ${DIM}Other devices cannot reach port ${fileEnv.PORT || "3000"}. For LAN access set HOST=0.0.0.0 and OPSBLAZE_LOCAL_MODE=true${RESET}`
+      );
+    } else if (!oidcOn && !localMode) {
+      fail(`HOST=${bindHost} without OPSBLAZE_LOCAL_MODE or OIDC — server will not start`);
+      console.log(`    ${DIM}Add OPSBLAZE_LOCAL_MODE=true (lab) or configure OPSBLAZE_OIDC_ISSUER${RESET}`);
+      allOk = false;
+    } else {
+      warn(`Network bind: ${bindHost} — reachable from other machines (lab/OIDC only)`);
     }
   } else {
     fail(".env file not found — run 'node bin/setup.cjs'");

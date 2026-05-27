@@ -10,7 +10,7 @@ const http = require("http");
 const ROOT = path.resolve(__dirname, "..");
 const ENV_FILE = path.join(ROOT, ".env");
 const { pidsOnPort } = require("./port-utils.cjs");
-const { isEnvFileTooPermissive } = require("./startup-hints.cjs");
+const { isEnvFileTooPermissive, isLoopbackHost } = require("./startup-hints.cjs");
 
 if (process.platform === "win32") {
   console.error(
@@ -666,8 +666,12 @@ async function main() {
     envLines.push(`ANTHROPIC_API_KEY=${anthropicKey}`);
   }
 
-  if (host && host !== "127.0.0.1") {
+  if (host && !isLoopbackHost(host)) {
     envLines.push(`HOST=${host}`);
+    envLines.push("OPSBLAZE_LOCAL_MODE=true");
+    warn(
+      "Remote bind enabled — unauthenticated lab mode. Anyone on the network can use OpsBlaze. Use OIDC for production."
+    );
   }
 
   if (chosenModel) {
