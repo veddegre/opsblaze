@@ -13,6 +13,17 @@ export function resolveSkillsDir(): string {
   return SKILLS_DIR_PRIMARY;
 }
 
+/** All skill roots to scan (legacy first, then primary — primary wins on name conflicts). */
+export function listSkillsRoots(): string[] {
+  const roots: string[] = [];
+  if (existsSync(SKILLS_DIR_LEGACY)) roots.push(SKILLS_DIR_LEGACY);
+  if (existsSync(SKILLS_DIR_PRIMARY) && !roots.includes(SKILLS_DIR_PRIMARY)) {
+    roots.push(SKILLS_DIR_PRIMARY);
+  }
+  if (roots.length === 0) roots.push(SKILLS_DIR_PRIMARY);
+  return roots;
+}
+
 /** Copy legacy tree into .opsblaze/skills once if only .claude exists. */
 export async function ensureOpsblazeSkillsLayout(): Promise<void> {
   if (existsSync(SKILLS_DIR_PRIMARY)) return;

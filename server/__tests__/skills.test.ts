@@ -153,6 +153,26 @@ describe("skills", () => {
     expect(skills.find((s) => s.name === "private-skill")?.path).toContain("_local/private-skill");
   });
 
+  it("merges skills from .opsblaze/skills and .claude/skills when both exist", async () => {
+    const opsblazeDir = path.join(tmpDir, ".opsblaze", "skills", "ops-only");
+    await mkdir(opsblazeDir, { recursive: true });
+    await writeFile(
+      path.join(opsblazeDir, "SKILL.md"),
+      "---\ndescription: from opsblaze tree\n---\n# Ops",
+      "utf-8"
+    );
+    await createSkillFile("claude-only", "---\ndescription: from claude tree\n---\n# Claude");
+
+    const origCwd = process.cwd;
+    process.cwd = () => tmpDir;
+    vi.resetModules();
+    const mod = await import("../skills.js");
+    const skills = await mod.listSkills();
+    process.cwd = origCwd;
+
+    expect(skills.map((s) => s.name).sort()).toEqual(["claude-only", "ops-only"]);
+  });
+
   it("prefers _local when the same skill name exists in both trees", async () => {
     await createSkillFile("dup-skill", "---\ndescription: bundled\n---\n# Bundled");
     const localDir = path.join(skillsDir, "_local", "dup-skill");

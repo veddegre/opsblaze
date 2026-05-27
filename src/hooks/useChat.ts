@@ -209,6 +209,12 @@ export function useChat() {
     setStreamingConversationIds([...abortControllers.current.keys()]);
   }, []);
 
+  const syncDisplayedStreamingState = useCallback(() => {
+    syncStreamingIds();
+    const current = convIdRef.current;
+    setIsStreaming(current ? abortControllers.current.has(current) : false);
+  }, [syncStreamingIds]);
+
   useEffect(() => {
     onSaveErrorRef.current = (message) => setNotice(message);
   }, []);
@@ -403,7 +409,7 @@ export function useChat() {
       const abortController = new AbortController();
       if (activeConvId) {
         abortControllers.current.set(activeConvId, abortController);
-        syncStreamingIds();
+        syncDisplayedStreamingState();
       }
 
       const { apiContent, apiSkills, apiSkillsStrict } = buildSkillRequest(content, skillScope);
@@ -466,14 +472,13 @@ export function useChat() {
               if (activeConvId) {
                 saveToDisk(local, activeConvId, skillScopeRef.current, reportSaveError);
                 abortControllers.current.delete(activeConvId);
-                syncStreamingIds();
+                syncDisplayedStreamingState();
                 if (!isDisplayed(activeConvId)) {
                   setNotice("A background investigation finished.");
                 }
               }
               if (activeConvId && isDisplayed(activeConvId)) {
                 setMessages(local);
-                setIsStreaming(false);
               }
             },
           },
@@ -493,15 +498,14 @@ export function useChat() {
         if (activeConvId) {
           saveToDisk(local, activeConvId, skillScopeRef.current, reportSaveError);
           abortControllers.current.delete(activeConvId);
-          syncStreamingIds();
+          syncDisplayedStreamingState();
         }
         if (activeConvId && isDisplayed(activeConvId)) {
           setMessages(local);
-          setIsStreaming(false);
         }
       }
     },
-    [isStreaming, conversationId, isDisplayed, syncStreamingIds]
+    [isStreaming, conversationId, isDisplayed, syncDisplayedStreamingState]
   );
 
   const stopStreaming = useCallback(() => {
@@ -531,7 +535,7 @@ export function useChat() {
     if (abortControllers.current.has(id)) {
       abortControllers.current.get(id)!.abort();
       abortControllers.current.delete(id);
-      syncStreamingIds();
+      syncDisplayedStreamingState();
     }
     await deleteConversationApi(id);
 
@@ -546,7 +550,7 @@ export function useChat() {
       setContextUsage(null);
       localStorage.removeItem(ACTIVE_CONV_KEY);
     }
-  }, [syncStreamingIds]);
+  }, [syncDisplayedStreamingState]);
 
   const clearNotice = useCallback(() => setNotice(null), []);
 

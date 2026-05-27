@@ -118,7 +118,7 @@ describe("useChat: usage and context state", () => {
   it("queryUsage state is set when onUsage fires", async () => {
     const { result } = await setupConversation();
 
-    mockStreamChat.mockImplementation(async (_msg, _history, callbacks: SSECallbacks) => {
+    mockStreamChat.mockImplementation(async (_msg, callbacks: SSECallbacks) => {
       callbacks.onUsage(sampleUsage as any);
       callbacks.onDone();
     });
@@ -133,7 +133,7 @@ describe("useChat: usage and context state", () => {
   it("contextUsage state is set when onContext fires", async () => {
     const { result } = await setupConversation();
 
-    mockStreamChat.mockImplementation(async (_msg, _history, callbacks: SSECallbacks) => {
+    mockStreamChat.mockImplementation(async (_msg, callbacks: SSECallbacks) => {
       callbacks.onContext(sampleContext as any);
       callbacks.onDone();
     });
@@ -148,7 +148,7 @@ describe("useChat: usage and context state", () => {
   it("queryUsage and contextUsage are reset to null when sendMessage is called", async () => {
     const { result } = await setupConversation();
 
-    mockStreamChat.mockImplementation(async (_msg, _history, callbacks: SSECallbacks) => {
+    mockStreamChat.mockImplementation(async (_msg, callbacks: SSECallbacks) => {
       callbacks.onUsage(sampleUsage as any);
       callbacks.onContext(sampleContext as any);
       callbacks.onDone();
@@ -161,7 +161,7 @@ describe("useChat: usage and context state", () => {
     expect(result.current.queryUsage).not.toBeNull();
     expect(result.current.contextUsage).not.toBeNull();
 
-    mockStreamChat.mockImplementation(async (_msg, _history, callbacks: SSECallbacks) => {
+    mockStreamChat.mockImplementation(async (_msg, callbacks: SSECallbacks) => {
       callbacks.onDone();
     });
 
@@ -176,7 +176,7 @@ describe("useChat: usage and context state", () => {
   it("queryUsage and contextUsage are reset to null on startNewConversation", async () => {
     const { result } = await setupConversation();
 
-    mockStreamChat.mockImplementation(async (_msg, _history, callbacks: SSECallbacks) => {
+    mockStreamChat.mockImplementation(async (_msg, callbacks: SSECallbacks) => {
       callbacks.onUsage(sampleUsage as any);
       callbacks.onContext(sampleContext as any);
       callbacks.onDone();
@@ -200,7 +200,7 @@ describe("useChat: usage and context state", () => {
   it("queryUsage and contextUsage are reset to null on loadExistingConversation", async () => {
     const { result } = await setupConversation();
 
-    mockStreamChat.mockImplementation(async (_msg, _history, callbacks: SSECallbacks) => {
+    mockStreamChat.mockImplementation(async (_msg, callbacks: SSECallbacks) => {
       callbacks.onUsage(sampleUsage as any);
       callbacks.onContext(sampleContext as any);
       callbacks.onDone();

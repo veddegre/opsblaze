@@ -32,6 +32,14 @@ export function SkillPicker({
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (disabled) {
+      setIsDropdownOpen(false);
+      setSearchQuery("");
+      setActiveIndex(-1);
+    }
+  }, [disabled]);
+
+  useEffect(() => {
     let cancelled = false;
     listSkillsApi()
       .then((result) => {
@@ -281,10 +289,10 @@ export function SkillPicker({
         panelPos &&
         createPortal(
           <>
-            <div className="fixed inset-0 z-[9998]" onClick={closeDropdown} aria-hidden="true" />
+            <div className="fixed inset-0 z-[35]" onClick={closeDropdown} aria-hidden="true" />
 
             <div
-              className="fixed z-[9999] w-96 max-w-[calc(100vw-2rem)] flex flex-col bg-surface-2/95 backdrop-blur-xl rounded-lg border border-border-subtle shadow-2xl"
+              className="fixed z-[36] w-96 max-w-[calc(100vw-2rem)] flex flex-col bg-surface-2/95 backdrop-blur-xl rounded-lg border border-border-subtle shadow-2xl"
               style={{
                 bottom: panelPos.bottom,
                 left: panelPos.left,

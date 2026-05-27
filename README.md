@@ -620,6 +620,8 @@ If you only deploy Open WebUI, you can ignore the Claude integration—the folde
 
 **Shared vs per-user:** Skills are **server-wide**. Every user on an instance sees the same catalog (`GET /api/skills`). Per-user data is limited to saved investigations under `data/conversations/<user-id>/` (not in git). In the chat UI you can pick which skills apply to a given message; that selection is sent with the request, not stored as a separate skill library per user.
 
+**Skill directories:** OpsBlaze scans **both** `.opsblaze/skills/` and `.claude/skills/` when present (legacy + migrated trees). Deploy-only overrides go in `_local/` under either tree (e.g. `.opsblaze/skills/_local/my-skill/SKILL.md`). Each skill is one folder with a `SKILL.md` file — do not copy the whole `skills` tree *into* `_local` (nested folders without `SKILL.md` are ignored).
+
 **Who can change skills:**
 
 | Action | Who |

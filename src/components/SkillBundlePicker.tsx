@@ -39,6 +39,14 @@ export function SkillBundlePicker({
     });
   }, []);
 
+  useEffect(() => {
+    if (disabled) {
+      setIsOpen(false);
+      setSearchQuery("");
+      setActiveIndex(0);
+    }
+  }, [disabled]);
+
   useLayoutEffect(() => {
     if (!isOpen || !triggerRef.current) {
       setPanelPos(null);
@@ -147,11 +155,11 @@ export function SkillBundlePicker({
         panelPos &&
         createPortal(
           <>
-            <div className="fixed inset-0 z-[9998]" onClick={close} aria-hidden="true" />
+            <div className="fixed inset-0 z-[35]" onClick={close} aria-hidden="true" />
 
             <div
               role="listbox"
-              className="fixed z-[9999] w-96 max-w-[calc(100vw-2rem)] flex flex-col bg-surface-2/95 backdrop-blur-xl rounded-lg border border-border-subtle shadow-2xl"
+              className="fixed z-[36] w-96 max-w-[calc(100vw-2rem)] flex flex-col bg-surface-2/95 backdrop-blur-xl rounded-lg border border-border-subtle shadow-2xl"
               style={{
                 bottom: panelPos.bottom,
                 left: panelPos.left,

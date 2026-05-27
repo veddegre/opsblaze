@@ -1,7 +1,7 @@
 import { readFile, readdir, rename, stat, mkdir, writeFile, rm } from "fs/promises";
 import path from "path";
 import { logger } from "./logger.js";
-import { resolveSkillsDir } from "./skills-path.js";
+import { listSkillsRoots, resolveSkillsDir } from "./skills-path.js";
 
 export interface SkillInfo {
   name: string;
@@ -69,10 +69,12 @@ export async function validateSkillsParam(rawSkills: unknown): Promise<SkillVali
 }
 
 async function resolveSkillDirectory(name: string): Promise<string | null> {
-  const direct = path.join(skillsDir(), name);
-  if (await isDirectory(direct)) return direct;
-  const local = path.join(skillsDir(), "_local", name);
-  if (await isDirectory(local)) return local;
+  for (const base of listSkillsRoots().slice().reverse()) {
+    const direct = path.join(base, name);
+    if (await isDirectory(direct)) return direct;
+    const local = path.join(base, "_local", name);
+    if (await isDirectory(local)) return local;
+  }
   return null;
 }
 
@@ -93,6 +95,7 @@ async function collectSkillsInDirectory(
 
   for (const entry of entries) {
     if (opts.skipLocalFolder && entry === "_local") continue;
+    if (entry.startsWith(".")) continue;
 
     const dir = path.join(parentDir, entry);
     if (!(await isDirectory(dir))) continue;
@@ -139,21 +142,22 @@ async function collectSkillsInDirectory(
 
 export async function listSkills(): Promise<SkillInfo[]> {
   const byName = new Map<string, SkillInfo>();
-  const base = skillsDir();
 
-  const bundled: SkillInfo[] = [];
-  await collectSkillsInDirectory(base, bundled, { skipLocalFolder: true });
-  for (const skill of bundled) {
-    byName.set(skill.name, skill);
-  }
-
-  const localRoot = path.join(base, "_local");
-  if (await isDirectory(localRoot)) {
-    const local: SkillInfo[] = [];
-    await collectSkillsInDirectory(localRoot, local, { skipLocalFolder: false });
-    for (const skill of local) {
-      // Deploy-only skills in _local override same-named bundled skills.
+  for (const base of listSkillsRoots()) {
+    const bundled: SkillInfo[] = [];
+    await collectSkillsInDirectory(base, bundled, { skipLocalFolder: true });
+    for (const skill of bundled) {
       byName.set(skill.name, skill);
+    }
+
+    const localRoot = path.join(base, "_local");
+    if (await isDirectory(localRoot)) {
+      const local: SkillInfo[] = [];
+      await collectSkillsInDirectory(localRoot, local, { skipLocalFolder: false });
+      for (const skill of local) {
+        // Deploy-only skills in _local override same-named bundled skills.
+        byName.set(skill.name, skill);
+      }
     }
   }
 
