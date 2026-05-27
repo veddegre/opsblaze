@@ -2,7 +2,11 @@
 
 Skills in this directory are loaded by OpsBlaze at runtime but **are not committed to git**.
 
-Use this folder for organization-specific playbooks (identity provider indexes, custom SPL, internal index names). Copy or rsync this tree onto each server under:
+Use this folder for organization-specific playbooks (identity provider indexes, custom SPL, internal index names).
+
+**Recommended:** `splunk-index-catalog` — a markdown table of your indexes, sourcetypes, and routing notes. Edit it in **Settings → Skills** after deploy, or on disk under `_local/splunk-index-catalog/SKILL.md`. Enable it in a skill bundle with `splunk-analyst`.
+
+Copy or rsync this tree onto each server under:
 
 - `.opsblaze/skills/_local/` (preferred), or
 - `.claude/skills/_local/` (legacy)

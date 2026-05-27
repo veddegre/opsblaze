@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`splunk-index-catalog`** deploy-only skill template (`.opsblaze/skills/_local/`) — markdown table of organization indexes for faster routing.
+- **Settings → Skills** — admins can edit existing `SKILL.md` content in the UI (GET/PUT `/api/skills/:name`).
+- **Settings → Investigation playbooks** — inline edit per playbook (**Update playbook**), separate from creating new ones.
+- **Conversation skill scope** — selected skills and strict mode persist on the investigation and restore when reopening from the sidebar (older chats infer skills from message history).
+- **Settings → Account → Sign-in details** for OIDC: shows token groups, user id, and how admin access was assigned (email, group, or `OPSBLAZE_OIDC_ALL_USERS_ADMIN`).
+- **Skill bundle menu** below the chat input (searchable dropdown, same pattern as investigation playbooks).
 - **Open WebUI model picker** in Settings → Runtime settings: loads models from `GET /api/openwebui/models` and saves the selection via runtime settings (no `.env` edit required).
 - **OIDC authentication** with per-user conversation storage (`server/auth/`, `OPSBLAZE_OIDC_*` env vars). Admins (`OPSBLAZE_OIDC_ADMIN_EMAILS`) can manage MCP servers, skills, and runtime settings.
 - **Open WebUI** as an LLM backend: set `OPENWEBUI_BASE_URL`, `OPENWEBUI_API_KEY`, and `OPENWEBUI_MODEL` to route investigations through any model configured in Open WebUI.
@@ -26,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- README: reverse-proxy examples (Caddy, nginx) and clarification that **`OPSBLAZE_TRUST_PROXY`** / **`OPSBLAZE_SECURE_COOKIES`** replace the removed **`OPSBLAZE_MODE=server`** flag (HSTS belongs on the proxy).
 - UX: delete confirmation, SPL copy buttons, background-run indicators in sidebar, smart scroll while streaming, investigation rename, skill picker empty states, export success feedback, responsive settings/header, in-app error notices, corrected limit-setting help text.
 - When `OPENWEBUI_BASE_URL` is set, Claude CLI and `ANTHROPIC_API_KEY` are not required.
 - Skills are injected into the system prompt under Open WebUI (no Claude `Skill` tool).
@@ -50,14 +57,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Skill scoping (advisory and strict modes) with SkillPicker UI.
 - Structured logging in MCP server via `LOG_LEVEL` env var (`fatal`/`error`/`warn`/`info`/`debug`/`trace`).
 - Log rotation in production supervisor (10 MB per file, keeps 3 rotations).
-- `OPSBLAZE_MODE=server` for remote deployments: enables HSTS, `trust proxy` for rate limiting behind reverse proxies.
+- Remote deployment env: `OPSBLAZE_TRUST_PROXY` and `OPSBLAZE_SECURE_COOKIES` for reverse-proxy deployments (supersedes the later-removed `OPSBLAZE_MODE=server`).
 - `.env` file permission check at startup (warns if group/other-readable).
 - Test coverage for conversations, export, MCP config, recorder, skill extractor, API client, settings API, and Splunk client.
 
 ### Security
 
 - Content Security Policy tightened: removed `unsafe-eval`, added `frame-ancestors 'none'`, `base-uri 'self'`, `form-action 'self'`.
-- HSTS header (`Strict-Transport-Security`) when running in server mode.
+- Documented HSTS at the reverse proxy; app-side proxy trust uses `OPSBLAZE_TRUST_PROXY`.
 - MCP server argument blocklist: rejects dangerous args (`--require`, `--eval`, `--import`, `--loader`).
 - MCP server environment blocklist: rejects dangerous env vars (`NODE_OPTIONS`, `LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`, etc.).
 - Error message sanitization: API responses only surface known validation messages, preventing internal detail leakage.
@@ -68,7 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- EC2/Caddy deployment infrastructure (`deploy/` directory, `ec2-bootstrap.sh`, `Caddyfile.template`). OpsBlaze runs as a local-first app; multi-user support will come with proper auth and user models. The `OPSBLAZE_MODE=server` env var is retained for security header and proxy trust configuration.
+- EC2/Caddy deployment infrastructure (`deploy/` directory, `ec2-bootstrap.sh`, `Caddyfile.template`). Multi-user OIDC auth replaced the old `OPSBLAZE_MODE=server` flag; use `OPSBLAZE_TRUST_PROXY` and `OPSBLAZE_SECURE_COOKIES` behind a TLS terminator instead.
 - Windows support. Process management relies on Unix-only APIs (`lsof`, process groups, `SIGKILL`, `tail`) that do not work on Windows. CLI entry points now exit with a clear message on `win32`.
 
 [0.1.0]: https://github.com/jagalliers/opsblaze/releases/tag/v0.1.0

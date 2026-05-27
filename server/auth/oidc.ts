@@ -1,7 +1,12 @@
 import * as oidc from "openid-client";
 import type { Configuration } from "openid-client";
 import { logger } from "../logger.js";
-import { extractGroupsFromClaims, parseCsvEnvSet, resolveIsAdmin } from "./roles.js";
+import {
+  extractGroupsFromClaims,
+  parseCsvEnvSet,
+  resolveAdminDetails,
+  type AdminResolution,
+} from "./roles.js";
 
 export interface OidcEnvConfig {
   issuer: string;
@@ -75,8 +80,8 @@ export async function getOidcConfiguration(): Promise<Configuration> {
 export function resolveAdminAccess(
   env: Pick<OidcEnvConfig, "adminEmails" | "adminGroups" | "allUsersAdmin">,
   profile: { email?: string; groups: string[] }
-): boolean {
-  return resolveIsAdmin({
+): AdminResolution {
+  return resolveAdminDetails({
     adminEmails: env.adminEmails,
     adminGroups: env.adminGroups,
     allUsersAdmin: env.allUsersAdmin,

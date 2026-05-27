@@ -266,6 +266,36 @@ export async function toggleSkillApi(name: string, enabled: boolean): Promise<vo
   }
 }
 
+export interface SkillContentResponse {
+  name: string;
+  content: string;
+  enabled: boolean;
+}
+
+export async function fetchSkillContentApi(name: string): Promise<SkillContentResponse> {
+  const res = await fetch(`/api/skills/${encodeURIComponent(name)}`, fetchInit({ headers: headers() }));
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data as { error?: string }).error ?? `Failed to load skill: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updateSkillApi(name: string, content: string): Promise<void> {
+  const res = await fetch(
+    `/api/skills/${encodeURIComponent(name)}`,
+    fetchInit({
+      method: "PUT",
+      headers: headers(),
+      body: JSON.stringify({ content }),
+    })
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data as { error?: string }).error ?? `Failed to update skill: ${res.status}`);
+  }
+}
+
 export async function deleteSkillApi(name: string): Promise<void> {
   const res = await fetch(
     `/api/skills/${encodeURIComponent(name)}`,

@@ -13,6 +13,7 @@ export type AuditAction =
   | "mcp.delete"
   | "mcp.toggle"
   | "skill.create"
+  | "skill.update"
   | "skill.delete"
   | "skill.toggle"
   | "settings.update"

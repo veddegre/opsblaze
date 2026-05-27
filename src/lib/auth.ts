@@ -1,8 +1,18 @@
+export type AdminSource =
+  | "all_users_admin"
+  | "admin_email"
+  | "admin_group"
+  | "none"
+  | "local_mode";
+
 export interface PublicAuthUser {
   id: string;
   email?: string;
   name?: string;
   isAdmin: boolean;
+  groups?: string[];
+  adminSource?: AdminSource;
+  matchedAdminGroup?: string;
 }
 
 export interface AuthConfig {

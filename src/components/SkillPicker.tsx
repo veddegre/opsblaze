@@ -3,15 +3,11 @@ import { createPortal } from "react-dom";
 import { listSkillsApi } from "../lib/settings-api";
 import type { SkillInfo } from "../lib/settings-api";
 
-import type { SkillPack } from "../lib/settings-api";
-
 interface SkillPickerProps {
   selectedSkills: string[];
   onSelectedSkillsChange: (skills: string[]) => void;
   allowAdditional: boolean;
   onAllowAdditionalChange: (allow: boolean) => void;
-  skillPacks?: SkillPack[];
-  onApplySkillPack?: (pack: SkillPack) => void;
   disabled?: boolean;
 }
 
@@ -20,8 +16,6 @@ export function SkillPicker({
   onSelectedSkillsChange,
   allowAdditional,
   onAllowAdditionalChange,
-  skillPacks = [],
-  onApplySkillPack,
   disabled,
 }: SkillPickerProps) {
   const [skills, setSkills] = useState<SkillInfo[]>([]);
@@ -167,116 +161,105 @@ export function SkillPicker({
 
   const hasResults = matchingEnabled.length > 0 || matchingDisabled.length > 0;
   const loadFailed = !loading && skills.length === 0;
+  const catalogReady = !loading && !loadFailed;
 
   return (
-    <div className="relative mt-1.5 flex flex-col gap-1.5 min-h-[28px]">
-      {skillPacks.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1 px-0.5">
-          <span className="text-[10px] text-gray-600 shrink-0 mr-0.5">Bundles:</span>
-          {skillPacks.map((pack) => (
-            <button
-              key={pack.id}
-              type="button"
-              disabled={disabled}
-              title={pack.description ?? pack.skills.join(", ")}
-              onClick={() => onApplySkillPack?.(pack)}
-              className="text-[10px] px-2 py-0.5 rounded-full border border-border-subtle text-gray-400 hover:text-accent-light hover:border-accent/40 transition-colors disabled:opacity-50"
+    <div className="relative flex flex-col gap-1.5 min-h-[28px]">
+      {selectedSkills.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 px-0.5">
+          <span className="text-[10px] text-gray-600 shrink-0">Skills for this search:</span>
+          {selectedSkills.map((name) => (
+            <span
+              key={name}
+              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-accent/15 text-accent-light border border-accent/20"
             >
-              {pack.name}
-            </button>
+              <span className="font-mono">{name}</span>
+              <button
+                type="button"
+                onClick={() => removeSkill(name)}
+                disabled={disabled}
+                className="hover:text-red-400 transition-colors leading-none"
+                aria-label={`Remove skill ${name}`}
+              >
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </span>
           ))}
+          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+            <span className="text-[10px] text-gray-500 whitespace-nowrap select-none">
+              {allowAdditional ? "All skills loaded (prefer selected)" : "Only selected skills"}
+            </span>
+            <button
+              onClick={() => onAllowAdditionalChange(!allowAdditional)}
+              disabled={disabled}
+              className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors shrink-0 ${
+                allowAdditional ? "bg-accent" : "bg-gray-700"
+              }`}
+              aria-label={
+                allowAdditional
+                  ? "Allow using skills beyond those selected"
+                  : "Restrict to selected skills only"
+              }
+              title={
+                allowAdditional
+                  ? "Agent may add other skills when helpful"
+                  : "Agent must stay within selected skills only"
+              }
+            >
+              <span
+                className={`inline-block h-2.5 w-2.5 rounded-full bg-white transition-transform ${
+                  allowAdditional ? "translate-x-3.5" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+          </div>
         </div>
       )}
-      {loading && skills.length === 0 && (
+
+      {loading && skills.length === 0 && selectedSkills.length === 0 && (
         <p className="text-[10px] text-gray-600 px-0.5">Loading skills…</p>
       )}
-      {loadFailed && (
+      {loading && skills.length === 0 && selectedSkills.length > 0 && (
+        <p className="text-[10px] text-gray-600 px-0.5">Loading skill list…</p>
+      )}
+      {loadFailed && selectedSkills.length === 0 && (
         <p className="text-[10px] text-gray-500 px-0.5">
           No skills available. Ask an admin to enable skills in Settings, or distill one from a
           completed investigation.
         </p>
       )}
-      {!loading && !loadFailed && (
-    <div className="relative flex items-center gap-2">
-      <div className="flex-1 flex items-center gap-1.5 flex-wrap min-w-0">
-        {selectedSkills.map((name) => (
-          <span
-            key={name}
-            className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-accent/15 text-accent-light border border-accent/20"
-          >
-            <span className="truncate max-w-[120px]">{name}</span>
-            <button
-              onClick={() => removeSkill(name)}
+
+      {catalogReady && (
+        <div className="relative flex items-center gap-2">
+          <div ref={triggerRef} className="flex-1 min-w-0">
+            <input
+              ref={inputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsDropdownOpen(true);
+              }}
+              onFocus={() => setIsDropdownOpen(true)}
+              onKeyDown={handleKeyDown}
               disabled={disabled}
-              className="hover:text-red-400 transition-colors leading-none"
-              aria-label={`Remove skill ${name}`}
-            >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-              >
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </span>
-        ))}
-
-        <div ref={triggerRef} className="flex-1 min-w-[80px]">
-          <input
-            ref={inputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setIsDropdownOpen(true);
-            }}
-            onFocus={() => setIsDropdownOpen(true)}
-            onKeyDown={handleKeyDown}
-            disabled={disabled}
-            placeholder={selectedSkills.length === 0 ? "Add skills..." : "Add more..."}
-            className="w-full bg-transparent text-xs text-gray-300 placeholder-gray-600 outline-none disabled:opacity-50"
-          />
-        </div>
-      </div>
-
-      {selectedSkills.length > 0 && (
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span className="text-[10px] text-gray-500 whitespace-nowrap select-none">
-            {allowAdditional ? "All skills loaded (prefer selected)" : "Only selected skills"}
-          </span>
-          <button
-            onClick={() => onAllowAdditionalChange(!allowAdditional)}
-            disabled={disabled}
-            className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors shrink-0 ${
-              allowAdditional ? "bg-accent" : "bg-gray-700"
-            }`}
-            aria-label={
-              allowAdditional
-                ? "Allow using skills beyond those selected"
-                : "Restrict to selected skills only"
-            }
-            title={
-              allowAdditional
-                ? "Agent may add other skills when helpful"
-                : "Agent must stay within selected skills only"
-            }
-          >
-            <span
-              className={`inline-block h-2.5 w-2.5 rounded-full bg-white transition-transform ${
-                allowAdditional ? "translate-x-3.5" : "translate-x-0.5"
-              }`}
+              placeholder={selectedSkills.length === 0 ? "Add skills..." : "Add more..."}
+              className="w-full bg-transparent text-xs text-gray-300 placeholder-gray-600 outline-none disabled:opacity-50"
             />
-          </button>
-        </div>
-      )}
+          </div>
 
-      {isDropdownOpen &&
+          {isDropdownOpen &&
         panelPos &&
         createPortal(
           <>
@@ -343,6 +326,21 @@ export function SkillPicker({
                     ? `${matchingEnabled.length + matchingDisabled.length} of ${totalAvailable} skills`
                     : `${totalAvailable} skill${totalAvailable !== 1 ? "s" : ""}`}
                 </p>
+                {selectedSkills.length > 0 && (
+                  <div className="mt-2 px-0.5">
+                    <p className="text-[10px] text-gray-500 mb-1">Selected for this search</p>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedSkills.map((name) => (
+                        <span
+                          key={name}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent-light font-mono border border-accent/20"
+                        >
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div ref={listRef} className="overflow-y-auto overscroll-contain flex-1 py-1">
@@ -397,7 +395,7 @@ export function SkillPicker({
           </>,
           document.body
         )}
-    </div>
+        </div>
       )}
     </div>
   );

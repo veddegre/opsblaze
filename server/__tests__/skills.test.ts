@@ -56,6 +56,25 @@ describe("skills", () => {
     expect(disabled?.enabled).toBe(false);
   });
 
+  it("reads and updates skill content", async () => {
+    const content = "---\ndescription: Editable\n---\n# Body\nStep one.";
+    await createSkillFile("edit-me", content);
+
+    const origCwd = process.cwd;
+    process.cwd = () => tmpDir;
+    vi.resetModules();
+    const mod = await import("../skills.js");
+    const loaded = await mod.getSkillContent("edit-me");
+    expect(loaded.enabled).toBe(true);
+    expect(loaded.content).toBe(content);
+
+    const updated = "---\ndescription: Editable\n---\n# Body\nStep two.";
+    await mod.updateSkill("edit-me", updated);
+    const again = await mod.getSkillContent("edit-me");
+    expect(again.content).toBe(updated);
+    process.cwd = origCwd;
+  });
+
   it("rejects path traversal in toggleSkill", async () => {
     const origCwd = process.cwd;
     process.cwd = () => tmpDir;

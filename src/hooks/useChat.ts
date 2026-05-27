@@ -8,6 +8,8 @@ import {
   deleteConversation as deleteConversationApi,
 } from "../lib/api";
 import type { Message, ChartBlock, SkillBlock, LimitBlock } from "../types";
+import type { ConversationSkillScope } from "../lib/api";
+import { inferSkillScopeFromMessages } from "../lib/conversation-skill-scope";
 
 const ACTIVE_CONV_KEY = "opsblaze_active_conversation";
 
@@ -154,10 +156,12 @@ function markDone(msgs: Message[], id: string): Message[] {
 function saveToDisk(
   msgs: Message[],
   convId: string,
+  skillScope: ConversationSkillScope | undefined,
   onError?: (message: string) => void
 ) {
   updateConversation(convId, {
     messages: stripStreamingFlags(msgs),
+    ...(skillScope !== undefined && { skillScope }),
   }).catch((err) => {
     if (import.meta.env.DEV) console.warn("[OpsBlaze] failed to save conversation:", err);
     onError?.("Could not save this investigation. Check your connection and try again.");
@@ -191,9 +195,12 @@ export function useChat() {
   const [contextUsage, setContextUsage] = useState<ContextData | null>(null);
   const [streamingConversationIds, setStreamingConversationIds] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [conversationSkillScope, setConversationSkillScope] =
+    useState<ConversationSkillScope | null>(null);
 
   const convIdRef = useRef<string | null>(null);
   const messagesRef = useRef<Message[]>([]);
+  const skillScopeRef = useRef<ConversationSkillScope | undefined>(undefined);
   const onSaveErrorRef = useRef<(message: string) => void>(() => {});
   // Abort controllers keyed by conversation ID
   const abortControllers = useRef<Map<string, AbortController>>(new Map());
@@ -232,9 +239,17 @@ export function useChat() {
 
     loadConversation(stored)
       .then((conv) => {
+        const msgs = conv.messages as Message[];
+        const scope =
+          conv.skillScope ?? inferSkillScopeFromMessages(msgs) ?? null;
+        skillScopeRef.current = scope ?? undefined;
+        setConversationSkillScope(scope);
         setConversationId(conv.id);
         setConversationTitle(conv.title);
-        setMessages(conv.messages as Message[]);
+        setMessages(msgs);
+        if (!conv.skillScope && scope) {
+          updateConversation(conv.id, { skillScope: scope }).catch(() => {});
+        }
       })
       .catch(() => {
         localStorage.removeItem(ACTIVE_CONV_KEY);
@@ -245,13 +260,20 @@ export function useChat() {
     // Flush whatever is on screen, but do NOT abort background streams
     const convId = convIdRef.current;
     if (convId && messagesRef.current.length > 0) {
-      saveToDisk(messagesRef.current, convId, (msg) => onSaveErrorRef.current(msg));
+      saveToDisk(
+        messagesRef.current,
+        convId,
+        skillScopeRef.current,
+        (msg) => onSaveErrorRef.current(msg)
+      );
     }
 
     setMessages([]);
     setIsStreaming(false);
     setConversationId(null);
     setConversationTitle(null);
+    setConversationSkillScope(null);
+    skillScopeRef.current = undefined;
     setQueryUsage(null);
     setContextUsage(null);
     localStorage.removeItem(ACTIVE_CONV_KEY);
@@ -261,7 +283,12 @@ export function useChat() {
     // Flush current view, but do NOT abort background streams
     const convId = convIdRef.current;
     if (convId && messagesRef.current.length > 0) {
-      saveToDisk(messagesRef.current, convId, (msg) => onSaveErrorRef.current(msg));
+      saveToDisk(
+        messagesRef.current,
+        convId,
+        skillScopeRef.current,
+        (msg) => onSaveErrorRef.current(msg)
+      );
     }
 
     setIsStreaming(false);
@@ -270,10 +297,18 @@ export function useChat() {
 
     try {
       const conv = await loadConversation(id);
+      const msgs = conv.messages as Message[];
+      const scope =
+        conv.skillScope ?? inferSkillScopeFromMessages(msgs) ?? null;
+      skillScopeRef.current = scope ?? undefined;
+      setConversationSkillScope(scope);
       setConversationId(conv.id);
       setConversationTitle(conv.title);
-      setMessages(conv.messages as Message[]);
+      setMessages(msgs);
       localStorage.setItem(ACTIVE_CONV_KEY, conv.id);
+      if (!conv.skillScope && scope) {
+        updateConversation(conv.id, { skillScope: scope }).catch(() => {});
+      }
 
       if (abortControllers.current.has(conv.id)) {
         setIsStreaming(true);
@@ -282,9 +317,26 @@ export function useChat() {
       setMessages([]);
       setConversationId(null);
       setConversationTitle(null);
+      setConversationSkillScope(null);
+      skillScopeRef.current = undefined;
       setNotice(`Could not load investigation: ${(err as Error).message}`);
     }
   }, []);
+
+  const persistSkillScope = useCallback(
+    (scope: ConversationSkillScope | null) => {
+      skillScopeRef.current = scope ?? undefined;
+      setConversationSkillScope(scope);
+      const convId = convIdRef.current;
+      if (!convId) return;
+      updateConversation(convId, {
+        skillScope: scope ?? null,
+      }).catch((err) => {
+        if (import.meta.env.DEV) console.warn("[OpsBlaze] failed to save skill scope:", err);
+      });
+    },
+    []
+  );
 
   const sendMessage = useCallback(
     async (content: string, skillScope?: { skills: string[]; strict: boolean }) => {
@@ -345,7 +397,7 @@ export function useChat() {
           );
           if (import.meta.env.DEV) console.warn("[OpsBlaze] pre-chat save failed:", err);
         }
-        saveToDisk(local, activeConvId, reportSaveError);
+        saveToDisk(local, activeConvId, skillScopeRef.current, reportSaveError);
       }
 
       const abortController = new AbortController();
@@ -355,6 +407,15 @@ export function useChat() {
       }
 
       const { apiContent, apiSkills, apiSkillsStrict } = buildSkillRequest(content, skillScope);
+
+      if (skillScope && skillScope.skills.length > 0) {
+        const persisted: ConversationSkillScope = {
+          skills: skillScope.skills,
+          strict: skillScope.strict,
+        };
+        skillScopeRef.current = persisted;
+        setConversationSkillScope(persisted);
+      }
 
       try {
         await streamChat(
@@ -403,7 +464,7 @@ export function useChat() {
             onDone: () => {
               local = markDone(local, assistantId);
               if (activeConvId) {
-                saveToDisk(local, activeConvId, reportSaveError);
+                saveToDisk(local, activeConvId, skillScopeRef.current, reportSaveError);
                 abortControllers.current.delete(activeConvId);
                 syncStreamingIds();
                 if (!isDisplayed(activeConvId)) {
@@ -430,7 +491,7 @@ export function useChat() {
         local = markDone(local, assistantId);
 
         if (activeConvId) {
-          saveToDisk(local, activeConvId, reportSaveError);
+          saveToDisk(local, activeConvId, skillScopeRef.current, reportSaveError);
           abortControllers.current.delete(activeConvId);
           syncStreamingIds();
         }
@@ -479,6 +540,8 @@ export function useChat() {
       setIsStreaming(false);
       setConversationId(null);
       setConversationTitle(null);
+      setConversationSkillScope(null);
+      skillScopeRef.current = undefined;
       setQueryUsage(null);
       setContextUsage(null);
       localStorage.removeItem(ACTIVE_CONV_KEY);
@@ -492,6 +555,8 @@ export function useChat() {
     isStreaming,
     conversationId,
     conversationTitle,
+    conversationSkillScope,
+    persistSkillScope,
     queryUsage,
     contextUsage,
     streamingConversationIds,

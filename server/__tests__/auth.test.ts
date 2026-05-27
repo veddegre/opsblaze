@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { sanitizeUserId, LOCAL_USER_ID } from "../auth/types.js";
 import { isPublicApiPath } from "../auth/middleware.js";
-import { resolveIsAdmin, parseCsvEnvSet } from "../auth/roles.js";
+import { resolveIsAdmin, resolveAdminDetails, parseCsvEnvSet } from "../auth/roles.js";
 
 describe("sanitizeUserId", () => {
   it("keeps safe characters", () => {
@@ -27,6 +27,49 @@ describe("isPublicApiPath", () => {
   it("blocks protected routes", () => {
     expect(isPublicApiPath("/chat")).toBe(false);
     expect(isPublicApiPath("/conversations")).toBe(false);
+  });
+});
+
+describe("resolveAdminDetails", () => {
+  it("reports admin_email source", () => {
+    const admins = parseCsvEnvSet("admin@example.edu");
+    expect(
+      resolveAdminDetails({
+        adminEmails: admins,
+        adminGroups: new Set(),
+        allUsersAdmin: false,
+        email: "Admin@Example.edu",
+        groups: [],
+      })
+    ).toEqual({ isAdmin: true, source: "admin_email" });
+  });
+
+  it("reports admin_group with matched name", () => {
+    expect(
+      resolveAdminDetails({
+        adminEmails: new Set(),
+        adminGroups: parseCsvEnvSet("IT-Security"),
+        allUsersAdmin: false,
+        email: "user@example.edu",
+        groups: ["IT-Security"],
+      })
+    ).toEqual({
+      isAdmin: true,
+      source: "admin_group",
+      matchedAdminGroup: "IT-Security",
+    });
+  });
+
+  it("reports all_users_admin", () => {
+    expect(
+      resolveAdminDetails({
+        adminEmails: new Set(),
+        adminGroups: new Set(),
+        allUsersAdmin: true,
+        email: "user@example.edu",
+        groups: [],
+      }).source
+    ).toBe("all_users_admin");
   });
 });
 

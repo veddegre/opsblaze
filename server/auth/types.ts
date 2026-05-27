@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import type { AdminSource } from "./roles.js";
 
 /** Stable local user when OIDC is disabled (single-user / dev mode). */
 export const LOCAL_USER_ID = "local";
@@ -8,6 +9,10 @@ export interface AuthUser {
   email?: string;
   name?: string;
   isAdmin: boolean;
+  /** IdP groups/roles from the last login (OIDC only). */
+  groups?: string[];
+  adminSource?: AdminSource;
+  matchedAdminGroup?: string;
 }
 
 export interface PublicAuthUser {
@@ -15,6 +20,9 @@ export interface PublicAuthUser {
   email?: string;
   name?: string;
   isAdmin: boolean;
+  groups?: string[];
+  adminSource?: AdminSource;
+  matchedAdminGroup?: string;
 }
 
 export function toPublicUser(user: AuthUser): PublicAuthUser {
@@ -23,6 +31,9 @@ export function toPublicUser(user: AuthUser): PublicAuthUser {
     email: user.email,
     name: user.name,
     isAdmin: user.isAdmin,
+    groups: user.groups,
+    adminSource: user.adminSource,
+    matchedAdminGroup: user.matchedAdminGroup,
   };
 }
 

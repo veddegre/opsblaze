@@ -49,6 +49,8 @@ authRouter.get("/me", (req, res) => {
         id: "local",
         name: "Local user",
         isAdmin: true,
+        groups: [],
+        adminSource: "local_mode",
       }),
     });
     return;
@@ -96,14 +98,18 @@ authRouter.get("/callback", async (req, res) => {
     const callbackUrl = buildCallbackUrl(req, env.redirectUri);
 
     const profile = await exchangeCallback(config, callbackUrl, req.session.oidc);
+    const admin = resolveAdminAccess(env, {
+      email: profile.email,
+      groups: profile.groups,
+    });
     const user: AuthUser = {
       id: sanitizeUserId(profile.sub),
       email: profile.email,
       name: profile.name,
-      isAdmin: resolveAdminAccess(env, {
-        email: profile.email,
-        groups: profile.groups,
-      }),
+      isAdmin: admin.isAdmin,
+      groups: profile.groups,
+      adminSource: admin.source,
+      matchedAdminGroup: admin.matchedAdminGroup,
     };
 
     await regenerateSession(req);

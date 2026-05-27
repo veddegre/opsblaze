@@ -3,6 +3,7 @@ import { fetchHealth, fetchInit, headers } from "../lib/api";
 import type { HealthResponse } from "../lib/api";
 import { healthCheckLabel } from "../lib/health-labels";
 import type { PublicAuthUser } from "../lib/auth";
+import type { ConversationSkillScope } from "../lib/conversation-skill-scope";
 import { UserMenu } from "./UserMenu";
 import { RedactionTermsModal } from "./RedactionTermsModal";
 import { ExportPreviewModal } from "./ExportPreviewModal";
@@ -18,6 +19,7 @@ interface HeaderProps {
   canDistill: boolean;
   conversationTitle?: string | null;
   conversationId?: string | null;
+  activeSkillScope?: ConversationSkillScope | null;
   canExport: boolean;
 }
 
@@ -114,8 +116,16 @@ export function Header({
   canDistill,
   conversationTitle,
   conversationId,
+  activeSkillScope,
   canExport,
 }: HeaderProps) {
+  const activeSkills = activeSkillScope?.skills ?? [];
+  const skillScopeSubtitle =
+    activeSkills.length > 0
+      ? `Skills: ${activeSkills.join(", ")}${
+          activeSkillScope?.strict ? " (selected only)" : " (+ others allowed)"
+        }`
+      : null;
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportSuccess, setExportSuccess] = useState(false);
@@ -260,9 +270,18 @@ export function Header({
           <h1 className="text-sm font-semibold text-gray-100 tracking-tight truncate">
             {conversationTitle ?? "OpsBlaze"}
           </h1>
-          <p className="hidden sm:block text-xs text-gray-500 -mt-0.5">
-            AI-Powered Narrative Investigation
-          </p>
+          {skillScopeSubtitle ? (
+            <p
+              className="text-xs text-accent-light/90 -mt-0.5 truncate max-w-[min(100%,42rem)]"
+              title={skillScopeSubtitle}
+            >
+              {skillScopeSubtitle}
+            </p>
+          ) : (
+            <p className="hidden sm:block text-xs text-gray-500 -mt-0.5">
+              AI-Powered Narrative Investigation
+            </p>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-0.5 sm:gap-2 shrink-0">

@@ -3,6 +3,38 @@ import path from "path";
 import { logger } from "./logger.js";
 import { LOCAL_USER_ID, sanitizeUserId } from "./auth/types.js";
 
+export interface ConversationSkillScope {
+  skills: string[];
+  strict: boolean;
+}
+
+const MAX_SKILL_SCOPE_SKILLS = 12;
+const MAX_SKILL_NAME_LEN = 64;
+
+/** Parse or clear skill scope from API body. Returns `undefined` to leave unchanged. */
+export function resolveSkillScopeUpdate(
+  raw: unknown,
+  existing?: ConversationSkillScope
+): ConversationSkillScope | undefined {
+  if (raw === undefined) return existing;
+  if (raw === null) return undefined;
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error("skillScope must be an object or null");
+  }
+  const { skills, strict } = raw as { skills?: unknown; strict?: unknown };
+  if (!Array.isArray(skills)) {
+    throw new Error("skillScope.skills must be an array");
+  }
+  const normalized = skills
+    .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+    .map((s) => s.trim().slice(0, MAX_SKILL_NAME_LEN))
+    .slice(0, MAX_SKILL_SCOPE_SKILLS);
+  return {
+    skills: normalized,
+    strict: strict !== false,
+  };
+}
+
 export interface StoredConversation {
   id: string;
   title: string;
@@ -10,6 +42,8 @@ export interface StoredConversation {
   createdAt: string;
   updatedAt: string;
   userId?: string;
+  /** Skills attached to this investigation (restored in the input bar when reopening). */
+  skillScope?: ConversationSkillScope;
   /** Extra literal strings to redact when exporting this investigation. */
   exportRedactions?: string[];
 }

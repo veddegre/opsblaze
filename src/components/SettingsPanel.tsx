@@ -20,6 +20,7 @@ import type {
   ConfigPaths,
 } from "../lib/settings-api";
 import type { PublicAuthUser } from "../lib/auth";
+import { SkillEditor } from "./settings/SkillEditor";
 import { AccountTab } from "./settings/AccountTab";
 import { PreferencesTab } from "./settings/PreferencesTab";
 import { AuditLogTab } from "./settings/AuditLogTab";
@@ -841,11 +842,12 @@ function SkillsTab({ skillsDir }: { skillsDir: string | null }) {
     <div>
       <Section
         title="Investigation skills"
-        description="Optional playbooks users can attach to a question for focused analysis."
+        description="Markdown playbooks on disk. Enable or disable, edit content, or distill new skills from investigations."
       >
         <p className="text-xs text-gray-500 -mt-1">
           {skills.filter((s) => s.enabled).length} of {skills.length} skill
-          {skills.length !== 1 ? "s" : ""} active
+          {skills.length !== 1 ? "s" : ""} active. Expand a skill to edit{" "}
+          <span className="font-mono">SKILL.md</span>.
         </p>
       </Section>
 
@@ -870,7 +872,13 @@ function SkillsTab({ skillsDir }: { skillsDir: string | null }) {
       )}
 
       {skills.map((skill) => (
-        <SkillRow key={skill.name} skill={skill} onToggle={handleToggle} onDelete={handleDelete} />
+        <SkillRow
+          key={skill.name}
+          skill={skill}
+          onToggle={handleToggle}
+          onDelete={handleDelete}
+          onSaved={refresh}
+        />
       ))}
 
       <PathHint label="Add skills to:" path={skillsDir} />
@@ -882,10 +890,12 @@ function SkillRow({
   skill,
   onToggle,
   onDelete,
+  onSaved,
 }: {
   skill: SkillInfo;
   onToggle: (name: string, enabled: boolean) => void;
   onDelete: (name: string) => void;
+  onSaved?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -929,14 +939,13 @@ function SkillRow({
 
       {expanded && (
         <div className="px-4 pb-4 space-y-3 border-t border-border-subtle/60 bg-surface-0/30">
-          {skill.description && (
-            <p className="text-xs text-gray-400 leading-relaxed">{skill.description}</p>
-          )}
           {skill.path && (
             <p className="text-[11px] text-gray-600 leading-relaxed">
               Path: <span className="font-mono text-gray-500 break-all">{skill.path}</span>
             </p>
           )}
+
+          <SkillEditor name={skill.name} onSaved={onSaved} />
 
           {confirmDelete ? (
             <div className="flex items-center gap-2">

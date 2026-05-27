@@ -38,6 +38,8 @@ function AppContent({ user }: { user: PublicAuthUser }) {
     renameConversation,
     deleteConversation,
     stopStreaming,
+    conversationSkillScope,
+    persistSkillScope,
   } = useChat();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -113,31 +115,71 @@ function AppContent({ user }: { user: PublicAuthUser }) {
     (id: string) => {
       clearNotice();
       loadExistingConversation(id);
-      setSelectedSkills([]);
-      setAllowAdditional(false);
     },
     [loadExistingConversation, clearNotice]
   );
 
+  useEffect(() => {
+    if (conversationSkillScope) {
+      setSelectedSkills(conversationSkillScope.skills);
+      setAllowAdditional(!conversationSkillScope.strict);
+    } else if (conversationId) {
+      setSelectedSkills([]);
+      setAllowAdditional(false);
+    }
+  }, [conversationId, conversationSkillScope]);
+
   const handleDeleteConversation = useCallback(
     async (id: string) => {
       await deleteConversation(id);
-      setSelectedSkills([]);
-      setAllowAdditional(false);
     },
     [deleteConversation]
   );
 
-  const applySkillPack = useCallback((pack: SkillPack) => {
-    setSelectedSkills(pack.skills);
-    setAllowAdditional(pack.strict === false);
-  }, []);
+  const handleSelectedSkillsChange = useCallback(
+    (skills: string[]) => {
+      setSelectedSkills(skills);
+      if (!conversationId) return;
+      if (skills.length === 0) {
+        persistSkillScope(null);
+      } else {
+        persistSkillScope({ skills, strict: !allowAdditional });
+      }
+    },
+    [conversationId, allowAdditional, persistSkillScope]
+  );
 
-  const applyPlaybook = useCallback((pb: InvestigationPlaybook) => {
-    setSelectedSkills(pb.skills);
-    setAllowAdditional(!pb.strict);
-    setInputPrefill(pb.prompt);
-  }, []);
+  const handleAllowAdditionalChange = useCallback(
+    (allow: boolean) => {
+      setAllowAdditional(allow);
+      if (!conversationId || selectedSkills.length === 0) return;
+      persistSkillScope({ skills: selectedSkills, strict: !allow });
+    },
+    [conversationId, selectedSkills, persistSkillScope]
+  );
+
+  const applySkillPack = useCallback(
+    (pack: SkillPack) => {
+      setSelectedSkills(pack.skills);
+      setAllowAdditional(pack.strict === false);
+      if (conversationId) {
+        persistSkillScope({ skills: pack.skills, strict: pack.strict !== false });
+      }
+    },
+    [conversationId, persistSkillScope]
+  );
+
+  const applyPlaybook = useCallback(
+    (pb: InvestigationPlaybook) => {
+      setSelectedSkills(pb.skills);
+      setAllowAdditional(!pb.strict);
+      setInputPrefill(pb.prompt);
+      if (conversationId) {
+        persistSkillScope({ skills: pb.skills, strict: pb.strict });
+      }
+    },
+    [conversationId, persistSkillScope]
+  );
 
   const sendWithSkills = useCallback(
     (message: string) => {
@@ -164,6 +206,7 @@ function AppContent({ user }: { user: PublicAuthUser }) {
         canDistill={hasSubstance && !isStreaming}
         conversationTitle={conversationTitle}
         conversationId={conversationId}
+        activeSkillScope={conversationSkillScope}
         canExport={hasSubstance && !isStreaming}
       />
       <AppNotice
@@ -202,13 +245,13 @@ function AppContent({ user }: { user: PublicAuthUser }) {
         backgroundStreamingNotice={backgroundStreamingNotice}
       />
       <InputBar
-        onSend={sendMessage}
+        onSend={sendWithSkills}
         onStop={stopStreaming}
         isStreaming={isStreaming}
         selectedSkills={selectedSkills}
-        onSelectedSkillsChange={setSelectedSkills}
+        onSelectedSkillsChange={handleSelectedSkillsChange}
         allowAdditional={allowAdditional}
-        onAllowAdditionalChange={setAllowAdditional}
+        onAllowAdditionalChange={handleAllowAdditionalChange}
         skillPacks={skillPacks}
         onApplySkillPack={applySkillPack}
         playbooks={playbooks}

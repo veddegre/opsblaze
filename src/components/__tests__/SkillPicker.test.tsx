@@ -61,6 +61,16 @@ describe("SkillPicker", () => {
       expect(screen.getByText("Loading skills…")).toBeInTheDocument();
     });
 
+    it("shows restored skill chips while catalog is still loading", () => {
+      mockListSkills.mockReturnValue(new Promise(() => {}));
+      renderPicker({ selectedSkills: ["splunk-analyst", "investigating-okta-events"] });
+      expect(screen.getByText("Skills for this search:")).toBeInTheDocument();
+      expect(screen.getByText("splunk-analyst")).toBeInTheDocument();
+      expect(screen.getByText("investigating-okta-events")).toBeInTheDocument();
+      expect(screen.getByText("Loading skill list…")).toBeInTheDocument();
+      expect(screen.queryByText("Loading skills…")).not.toBeInTheDocument();
+    });
+
     it("shows empty state when no skills exist", async () => {
       mockListSkills.mockResolvedValue([]);
       renderPicker();
@@ -373,6 +383,15 @@ describe("SkillPicker", () => {
       const names = Array.from(enabledButtons).map((b) => b.textContent);
       expect(names.join(" ")).not.toContain("splunk-analyst");
       expect(screen.getByText("login-investigator")).toBeInTheDocument();
+    });
+
+    it("lists selected skills above the add-skills input", async () => {
+      renderPicker({ selectedSkills: ["splunk-analyst", "login-investigator"] });
+      await waitFor(() => {
+        expect(screen.getByText("Skills for this search:")).toBeInTheDocument();
+        expect(screen.getByText("splunk-analyst")).toBeInTheDocument();
+        expect(screen.getByText("login-investigator")).toBeInTheDocument();
+      });
     });
 
     it("shows 'Add more...' placeholder when skills are selected", async () => {

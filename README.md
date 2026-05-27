@@ -134,7 +134,7 @@ For network deployments, set `OPSBLAZE_OIDC_ISSUER` and related variables (see `
 - Set `OPSBLAZE_SESSION_SECRET` to at least 32 random characters
 - List admin emails in `OPSBLAZE_OIDC_ADMIN_EMAILS` and/or IdP groups in `OPSBLAZE_OIDC_ADMIN_GROUPS` for MCP/skills/settings changes
 - For IT Security–only deployments where every signed-in user should be an admin, set `OPSBLAZE_OIDC_ALL_USERS_ADMIN=true`
-- Behind a reverse proxy: set `OPSBLAZE_TRUST_PROXY=true` and `OPSBLAZE_SECURE_COOKIES=true`
+- Behind a reverse proxy: terminate TLS at the proxy, bind OpsBlaze to loopback, and set `OPSBLAZE_TRUST_PROXY=true` and `OPSBLAZE_SECURE_COOKIES=true` (see [Reverse proxy](#reverse-proxy-tls-termination) below).
 
 - The OIDC provider must support Authorization Code flow (with PKCE preferred/required).
 - OpsBlaze expects `sub` to be present. For admin rights, it also uses the `email` claim (from the ID token and/or the UserInfo endpoint).
@@ -169,7 +169,62 @@ OPSBLAZE_OIDC_SCOPES="openid profile email"
 OPSBLAZE_OIDC_ADMIN_EMAILS=admin@example.edu,ops@example.edu
 ```
 
-Tip: if users authenticate but never become admins, confirm the ID token/UserInfo contains the `email` claim.
+Tip: if users authenticate but never become admins, confirm the ID token/UserInfo contains the `email` claim. After login, open **Settings → Account** to see groups from your token and how admin access was resolved.
+
+### Reverse proxy (TLS termination)
+
+OpsBlaze listens on `HOST:PORT` (default `127.0.0.1:3000`). For production, run it on loopback and put **Caddy** or **nginx** in front for HTTPS. Set **HSTS** on the proxy — there is no `OPSBLAZE_MODE=server` switch; use `OPSBLAZE_TRUST_PROXY` and `OPSBLAZE_SECURE_COOKIES` instead.
+
+**Required `.env` when behind a proxy:**
+
+```bash
+HOST=127.0.0.1
+PORT=3000
+OPSBLAZE_PUBLIC_URL=https://opsblaze.example.edu
+OPSBLAZE_OIDC_REDIRECT_URI=https://opsblaze.example.edu/api/auth/callback
+OPSBLAZE_TRUST_PROXY=true
+OPSBLAZE_SECURE_COOKIES=true
+```
+
+**Caddy** (automatic HTTPS with Let's Encrypt):
+
+```caddyfile
+opsblaze.example.edu {
+    encode gzip
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+    reverse_proxy 127.0.0.1:3000 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+    }
+}
+```
+
+**nginx** (TLS certificates at `/etc/ssl/...`):
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name opsblaze.example.edu;
+
+    ssl_certificate     /etc/ssl/certs/opsblaze.crt;
+    ssl_certificate_key /etc/ssl/private/opsblaze.key;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;          # required for SSE chat streaming
+        proxy_read_timeout 600s;
+    }
+}
+```
+
+`OPSBLAZE_TRUST_PROXY=true` lets Express honor `X-Forwarded-*` for rate limiting and secure cookies. Without it, sessions may not persist correctly behind HTTPS.
 
 #### Setup: Microsoft Entra ID (Azure AD)
 

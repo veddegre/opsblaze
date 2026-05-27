@@ -14,12 +14,18 @@ export interface ConversationSummary {
   messageCount: number;
 }
 
+export interface ConversationSkillScope {
+  skills: string[];
+  strict: boolean;
+}
+
 export interface StoredConversation {
   id: string;
   title: string;
   messages: unknown[];
   createdAt: string;
   updatedAt: string;
+  skillScope?: ConversationSkillScope;
   exportRedactions?: string[];
 }
 
@@ -50,7 +56,12 @@ export async function createConversation(id: string, title: string): Promise<Sto
 
 export async function updateConversation(
   id: string,
-  data: { title?: string; messages?: unknown[]; exportRedactions?: string[] }
+  data: {
+    title?: string;
+    messages?: unknown[];
+    skillScope?: ConversationSkillScope | null;
+    exportRedactions?: string[];
+  }
 ): Promise<StoredConversation> {
   const res = await fetch(
     `/api/conversations/${id}`,

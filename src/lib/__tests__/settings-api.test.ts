@@ -288,6 +288,30 @@ describe("toggleSkillApi", () => {
   });
 });
 
+describe("fetchSkillContentApi", () => {
+  it("sends GET for skill content", async () => {
+    const body = { name: "splunk-analyst", content: "# Skill", enabled: true };
+    const fn = mockFetch(200, body);
+    const result = await mod.fetchSkillContentApi("splunk-analyst");
+    expect(fn).toHaveBeenCalledWith("/api/skills/splunk-analyst", expect.any(Object));
+    expect(result).toEqual(body);
+  });
+});
+
+describe("updateSkillApi", () => {
+  it("sends PUT with content", async () => {
+    const fn = mockFetch(200, { ok: true });
+    await mod.updateSkillApi("splunk-analyst", "# Updated");
+    expect(fn).toHaveBeenCalledWith(
+      "/api/skills/splunk-analyst",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ content: "# Updated" }),
+      })
+    );
+  });
+});
+
 describe("createSkillApi", () => {
   it("sends POST with name and content", async () => {
     const fn = mockFetch(200);

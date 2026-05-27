@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import type { PublicAuthUser } from "../../lib/auth";
 import { fetchAuthConfig } from "../../lib/auth";
-import { useEffect, useState } from "react";
+import { adminSourceLabel } from "../../lib/admin-source-labels";
 import { InfoBanner, RoleBadge, Section } from "./settings-ui";
 
 export function AccountTab({ user }: { user: PublicAuthUser }) {
@@ -14,6 +14,7 @@ export function AccountTab({ user }: { user: PublicAuthUser }) {
   }, []);
 
   const displayName = user.name ?? user.email ?? "Signed in user";
+  const groups = user.groups ?? [];
 
   return (
     <div>
@@ -36,6 +37,62 @@ export function AccountTab({ user }: { user: PublicAuthUser }) {
           </div>
         </div>
       </Section>
+
+      {oidcEnabled && (
+        <Section
+          title="Sign-in details"
+          description="What OpsBlaze received from your identity provider (useful when testing SSO)."
+        >
+          <dl className="rounded-lg border border-border-subtle bg-surface-2 divide-y divide-border-subtle/60 text-xs">
+            <div className="px-3 py-2.5 flex gap-3">
+              <dt className="text-gray-500 shrink-0 w-24">User id</dt>
+              <dd className="text-gray-300 font-mono break-all">{user.id}</dd>
+            </div>
+            {user.email && (
+              <div className="px-3 py-2.5 flex gap-3">
+                <dt className="text-gray-500 shrink-0 w-24">Email</dt>
+                <dd className="text-gray-300 break-all">{user.email}</dd>
+              </div>
+            )}
+            <div className="px-3 py-2.5 flex gap-3">
+              <dt className="text-gray-500 shrink-0 w-24">Admin</dt>
+              <dd className="text-gray-300">
+                {adminSourceLabel(user.adminSource, user.matchedAdminGroup)}
+              </dd>
+            </div>
+            <div className="px-3 py-2.5">
+              <dt className="text-gray-500 mb-1.5">Groups from token</dt>
+              <dd>
+                {groups.length > 0 ? (
+                  <ul className="flex flex-wrap gap-1">
+                    {groups.map((g) => (
+                      <li
+                        key={g}
+                        className="px-2 py-0.5 rounded-full bg-surface-3 border border-border-subtle text-gray-300 font-mono text-[11px]"
+                      >
+                        {g}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-gray-500 italic">
+                    No groups in the ID token or UserInfo. If you use{" "}
+                    <span className="text-gray-400">OPSBLAZE_OIDC_ADMIN_GROUPS</span>, confirm your
+                    IdP sends <span className="font-mono text-gray-400">groups</span>,{" "}
+                    <span className="font-mono text-gray-400">roles</span>, or{" "}
+                    <span className="font-mono text-gray-400">memberOf</span> claims.
+                  </p>
+                )}
+              </dd>
+            </div>
+          </dl>
+          <InfoBanner variant="tip">
+            Admin rights are evaluated at login. Sign out and sign in again after changing admin
+            emails, groups, or <span className="text-gray-300">OPSBLAZE_OIDC_ALL_USERS_ADMIN</span>{" "}
+            in <span className="font-mono text-gray-400">.env</span>.
+          </InfoBanner>
+        </Section>
+      )}
 
       <Section title="Privacy" description="How your investigation data is stored.">
         <InfoBanner variant="tip">

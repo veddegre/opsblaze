@@ -135,6 +135,25 @@ describe("searchConversations", () => {
   });
 });
 
+describe("skillScope", () => {
+  it("persists and loads skillScope on conversation", async () => {
+    const mod = await import("../conversations.js");
+    await mod.saveConversation(TEST_USER, {
+      id: "scoped",
+      title: "Scoped investigation",
+      messages: [],
+      skillScope: { skills: ["splunk-analyst", "investigating-okta-events"], strict: true },
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    });
+    const loaded = await mod.getConversation(TEST_USER, "scoped");
+    expect(loaded?.skillScope).toEqual({
+      skills: ["splunk-analyst", "investigating-okta-events"],
+      strict: true,
+    });
+  });
+});
+
 describe("cleanupConversations", () => {
   it("deletes conversations older than maxAgeDays", async () => {
     const oldDate = new Date(Date.now() - 100 * 86_400_000).toISOString();

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { SkillPicker } from "./SkillPicker";
 import { PlaybookPicker } from "./PlaybookPicker";
+import { SkillBundlePicker } from "./SkillBundlePicker";
 import { UsageBar } from "./UsageBar";
 import type { UsageData, ContextData } from "../lib/sse";
 
@@ -8,7 +9,7 @@ import type { SkillPack } from "../lib/settings-api";
 import type { InvestigationPlaybook } from "../lib/playbooks-api";
 
 interface InputBarProps {
-  onSend: (message: string, skillScope?: { skills: string[]; strict: boolean }) => void;
+  onSend: (message: string) => void;
   onStop: () => void;
   isStreaming: boolean;
   selectedSkills: string[];
@@ -66,11 +67,7 @@ export function InputBar({
   const handleSubmit = () => {
     const trimmed = value.trim();
     if (!trimmed || isStreaming) return;
-    if (selectedSkills.length > 0) {
-      onSend(trimmed, { skills: selectedSkills, strict: !allowAdditional });
-    } else {
-      onSend(trimmed);
-    }
+    onSend(trimmed);
     setValue("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -143,23 +140,28 @@ export function InputBar({
             </button>
           )}
         </div>
-        <div className="flex items-start gap-2 mt-1.5 min-h-[28px]">
-          <PlaybookPicker
-            playbooks={playbooks ?? []}
-            onApplyPlaybook={onApplyPlaybook}
+        <div className="mt-1.5 space-y-1.5 min-h-[28px]">
+          {(playbooks?.length ?? 0) > 0 || (skillPacks?.length ?? 0) > 0 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <PlaybookPicker
+                playbooks={playbooks ?? []}
+                onApplyPlaybook={onApplyPlaybook}
+                disabled={isStreaming}
+              />
+              <SkillBundlePicker
+                skillPacks={skillPacks ?? []}
+                onApplySkillPack={onApplySkillPack}
+                disabled={isStreaming}
+              />
+            </div>
+          ) : null}
+          <SkillPicker
+            selectedSkills={selectedSkills}
+            onSelectedSkillsChange={onSelectedSkillsChange}
+            allowAdditional={allowAdditional}
+            onAllowAdditionalChange={onAllowAdditionalChange}
             disabled={isStreaming}
           />
-          <div className="flex-1 min-w-0">
-        <SkillPicker
-          selectedSkills={selectedSkills}
-          onSelectedSkillsChange={onSelectedSkillsChange}
-          allowAdditional={allowAdditional}
-          onAllowAdditionalChange={onAllowAdditionalChange}
-          skillPacks={skillPacks}
-          onApplySkillPack={onApplySkillPack}
-          disabled={isStreaming}
-        />
-          </div>
         </div>
         {queryUsage || contextUsage ? (
           <UsageBar queryUsage={queryUsage ?? null} contextUsage={contextUsage ?? null} />

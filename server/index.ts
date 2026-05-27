@@ -22,6 +22,7 @@ import {
   deleteConversation,
   cleanupConversations,
   searchConversations,
+  resolveSkillScopeUpdate,
 } from "./conversations.js";
 import type { StoredConversation } from "./conversations.js";
 import {
@@ -37,6 +38,8 @@ import type { McpServerEntry } from "./mcp-config.js";
 import { probeMcpServer } from "./mcp-probe.js";
 import {
   listSkills,
+  getSkillContent,
+  updateSkill,
   toggleSkill,
   createSkill,
   deleteSkill,
@@ -406,7 +409,8 @@ app.put("/api/conversations/:id", apiLimiter, async (req, res) => {
       res.status(404).json({ error: "Conversation not found" });
       return;
     }
-    const { title, messages, exportRedactions } = req.body as Partial<StoredConversation>;
+    const { title, messages, exportRedactions, skillScope: skillScopeRaw } =
+      req.body as Partial<StoredConversation> & { skillScope?: unknown };
     if (messages !== undefined && !validateMessages(messages)) {
       res.status(400).json({
         error: `messages must be an array with at most ${MAX_MESSAGES_PER_CONVERSATION} entries`,
@@ -439,10 +443,21 @@ app.put("/api/conversations/:id", apiLimiter, async (req, res) => {
         return;
       }
     }
+    let skillScope = existing.skillScope;
+    if (skillScopeRaw !== undefined) {
+      try {
+        skillScope = resolveSkillScopeUpdate(skillScopeRaw, existing.skillScope);
+      } catch (err) {
+        res.status(400).json({ error: (err as Error).message });
+        return;
+      }
+    }
+
     const updated: StoredConversation = {
       ...existing,
       title: title ?? existing.title,
       messages: (messages as StoredConversation["messages"]) ?? existing.messages,
+      skillScope,
       exportRedactions:
         exportRedactions !== undefined
           ? normalizeExportRedactionTerms(exportRedactions)
@@ -821,6 +836,54 @@ app.get("/api/skills", apiLimiter, async (_req, res) => {
   } catch (err) {
     logger.error({ err }, "failed to list skills");
     res.status(500).json({ error: "Failed to list skills" });
+  }
+});
+
+app.get("/api/skills/:name", apiLimiter, requireAdmin, async (req, res) => {
+  try {
+    const name = req.params.name as string;
+    const { content, enabled } = await getSkillContent(name);
+    res.json({ name, content, enabled });
+  } catch (err) {
+    const safe = safeErrorMessage(err);
+    if (safe?.includes("not found") || safe?.includes("no SKILL.md")) {
+      res.status(404).json({ error: "Skill not found" });
+    } else if (safe?.includes("Invalid skill name")) {
+      res.status(400).json({ error: safe });
+    } else {
+      logger.error({ err, name: req.params.name }, "failed to read skill");
+      res.status(500).json({ error: "Failed to read skill" });
+    }
+  }
+});
+
+app.put("/api/skills/:name", apiLimiter, requireAdmin, async (req, res) => {
+  try {
+    const name = req.params.name as string;
+    const { content } = req.body as { content: string };
+    if (typeof content !== "string") {
+      res.status(400).json({ error: "content (string) is required" });
+      return;
+    }
+    if (content.length > MAX_SKILL_CONTENT_LEN) {
+      res.status(400).json({
+        error: `content exceeds ${MAX_SKILL_CONTENT_LEN} character limit`,
+      });
+      return;
+    }
+    await updateSkill(name, content);
+    void recordAudit(getRequestUserId(req), "skill.update", { name });
+    res.json({ ok: true });
+  } catch (err) {
+    const safe = safeErrorMessage(err);
+    if (safe?.includes("not found") || safe?.includes("no SKILL.md")) {
+      res.status(404).json({ error: "Skill not found" });
+    } else if (safe) {
+      res.status(400).json({ error: safe });
+    } else {
+      logger.error({ err, name: req.params.name }, "failed to update skill");
+      res.status(500).json({ error: "Failed to update skill" });
+    }
   }
 });
 

@@ -197,6 +197,72 @@ export async function deleteSkill(name: string): Promise<void> {
   logger.info({ name }, "skill deleted");
 }
 
+export async function getSkillContent(name: string): Promise<{ content: string; enabled: boolean }> {
+  if (name.includes("..") || name.includes("/") || name.includes("\\")) {
+    throw new Error(`Invalid skill name: '${name}'`);
+  }
+  const dir = await resolveSkillDirectory(name);
+  if (!dir) {
+    throw new Error(`Skill '${name}' not found`);
+  }
+
+  const enabledPath = path.join(dir, SKILL_FILE);
+  const disabledPath = path.join(dir, DISABLED_FILE);
+
+  try {
+    const content = await readFile(enabledPath, "utf-8");
+    return { content, enabled: true };
+  } catch {
+    try {
+      const content = await readFile(disabledPath, "utf-8");
+      return { content, enabled: false };
+    } catch {
+      throw new Error(`Skill '${name}' has no SKILL.md file`);
+    }
+  }
+}
+
+function validateSkillContent(content: string): void {
+  const fm = parseFrontmatter(content);
+  if (fm.description && fm.description.length > 1024) {
+    throw new Error("Skill description must not exceed 1024 characters");
+  }
+  if (!content.trim()) {
+    throw new Error("Skill content cannot be empty");
+  }
+}
+
+export async function updateSkill(name: string, content: string): Promise<void> {
+  if (name.includes("..") || name.includes("/") || name.includes("\\")) {
+    throw new Error(`Invalid skill name: '${name}'`);
+  }
+  validateSkillContent(content);
+
+  const dir = await resolveSkillDirectory(name);
+  if (!dir) {
+    throw new Error(`Skill '${name}' not found`);
+  }
+
+  const enabledPath = path.join(dir, SKILL_FILE);
+  const disabledPath = path.join(dir, DISABLED_FILE);
+
+  let target: string;
+  try {
+    await stat(enabledPath);
+    target = enabledPath;
+  } catch {
+    try {
+      await stat(disabledPath);
+      target = disabledPath;
+    } catch {
+      throw new Error(`Skill '${name}' has no SKILL.md file`);
+    }
+  }
+
+  await writeFile(target, content, "utf-8");
+  logger.info({ name }, "skill updated");
+}
+
 export async function toggleSkill(name: string, enabled: boolean): Promise<void> {
   if (name.includes("..") || name.includes("/") || name.includes("\\")) {
     throw new Error(`Invalid skill name: '${name}'`);
