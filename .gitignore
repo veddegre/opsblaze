@@ -10,7 +10,8 @@ dist/
 *.key
 .vite/
 .DS_Store
-data/
+data/*
+!data/local-auth.example.json
 fixtures/
 .cursor/debug*.log
 coverage/

@@ -1,0 +1,18 @@
+{
+  "users": [
+    {
+      "username": "analyst",
+      "passwordHash": "REPLACE_ME_run_node_bin_opsblaze_cjs_hash-password",
+      "name": "Security Analyst",
+      "email": "analyst@example.com",
+      "groups": ["investigators"]
+    },
+    {
+      "username": "admin",
+      "passwordHash": "REPLACE_ME_run_node_bin_opsblaze_cjs_hash-password",
+      "name": "OpsBlaze Admin",
+      "email": "admin@example.com",
+      "groups": ["admins", "investigators"]
+    }
+  ]
+}

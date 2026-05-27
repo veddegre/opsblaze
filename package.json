@@ -53,6 +53,7 @@
     "postcss.config.js",
     "vite.config.ts",
     ".env.example",
+    "data/local-auth.example.json",
     "LICENSE",
     "NOTICE",
     "README.md",

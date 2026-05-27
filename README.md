@@ -260,9 +260,37 @@ Use this when you want **real logins and groups** on the network without standin
 
 **1. Create the user database**
 
+OpsBlaze ships a starter file in the repo at **`data/local-auth.example.json`** (two sample users: `analyst` and `admin`). Copy it, then replace each `passwordHash` with a real hash (step 3 below):
+
 ```bash
+mkdir -p data
 cp data/local-auth.example.json data/local-auth.json
 chmod 600 data/local-auth.json
+```
+
+`data/local-auth.json` is gitignored (secrets on disk). Only the `.example.json` template is committed.
+
+Starter template (same as `data/local-auth.example.json`):
+
+```json
+{
+  "users": [
+    {
+      "username": "analyst",
+      "passwordHash": "REPLACE_ME_run_node_bin_opsblaze_cjs_hash-password",
+      "name": "Security Analyst",
+      "email": "analyst@example.com",
+      "groups": ["investigators"]
+    },
+    {
+      "username": "admin",
+      "passwordHash": "REPLACE_ME_run_node_bin_opsblaze_cjs_hash-password",
+      "name": "OpsBlaze Admin",
+      "email": "admin@example.com",
+      "groups": ["admins", "investigators"]
+    }
+  ]
+}
 ```
 
 Point OpsBlaze at it in `.env`:
