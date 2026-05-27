@@ -205,9 +205,11 @@ Use **one** column below. Variables from other columns should stay unset.
 | `OPSBLAZE_OIDC_ADMIN_GROUPS` | — | — | Comma-separated IdP group names for admin |
 | `OPSBLAZE_OIDC_ALL_USERS_ADMIN` | — | — | `true` = every SSO user is admin |
 | `OPSBLAZE_TRUST_PROXY` | — | — | `true` behind TLS reverse proxy |
-| `OPSBLAZE_SECURE_COOKIES` | — | — | `true` for HTTPS deployments |
+| `OPSBLAZE_SECURE_COOKIES` | — | — | `true` for HTTPS; use `false` for plain HTTP (LAN local auth) |
 
 **Rules:** Do not set `OPSBLAZE_OIDC_ISSUER` and `OPSBLAZE_LOCAL_AUTH_FILE` together. Non-loopback `HOST` requires OIDC, local auth, or explicit `OPSBLAZE_LOCAL_MODE` (open lab only).
+
+**HTTP / LAN:** If users open OpsBlaze as `http://<host>:3000` (no TLS), set `OPSBLAZE_SECURE_COOKIES=false`. Otherwise the session cookie is marked `Secure`, the browser drops it, and every `/api/*` call (skills, saved investigations) returns **401** after login.
 
 In **local** and **OIDC** modes, each user’s investigations live under `data/conversations/<user-id>/`. Open **Settings → Account** after login for groups and admin resolution.
 
@@ -307,6 +309,14 @@ Generate a session secret (required — cookies are signed with it):
 ```bash
 openssl rand -base64 32
 ```
+
+If the UI loads but skills and saved investigations fail with **401**, you are probably on plain HTTP. Add to `.env`:
+
+```env
+OPSBLAZE_SECURE_COOKIES=false
+```
+
+Then restart (`node bin/opsblaze.cjs restart`). Use `OPSBLAZE_SECURE_COOKIES=true` only behind HTTPS (reverse proxy or `OPSBLAZE_PUBLIC_URL=https://...`).
 
 **2. File format**
 

@@ -30,7 +30,15 @@ function LocalLoginPanel({
     setSubmitting(true);
     try {
       const user = await localLogin(username, password);
-      onLogin(user);
+      const me = await fetchAuthMe();
+      if (!me.authenticated) {
+        setError(
+          "Signed in, but the session cookie was not saved. If you access OpsBlaze over plain HTTP " +
+            "(not HTTPS), set OPSBLAZE_SECURE_COOKIES=false in .env and restart the server."
+        );
+        return;
+      }
+      onLogin(me.user ?? user);
     } catch (err) {
       setError((err as Error).message);
     } finally {

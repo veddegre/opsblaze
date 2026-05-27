@@ -19,6 +19,7 @@ export function SkillPicker({
   disabled,
 }: SkillPickerProps) {
   const [skills, setSkills] = useState<SkillInfo[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -34,9 +35,23 @@ export function SkillPicker({
     let cancelled = false;
     listSkillsApi()
       .then((result) => {
-        if (!cancelled) setSkills(result);
+        if (!cancelled) {
+          setSkills(result);
+          setLoadError(null);
+        }
       })
-      .catch(() => {})
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : "Failed to load skills";
+        if (msg.includes("401")) {
+          setLoadError(
+            "Session expired or not saved. Sign in again. For HTTP (non-TLS) deployments, set OPSBLAZE_SECURE_COOKIES=false in .env and restart."
+          );
+        } else {
+          setLoadError(msg);
+        }
+        setSkills([]);
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -160,8 +175,8 @@ export function SkillPicker({
   };
 
   const hasResults = matchingEnabled.length > 0 || matchingDisabled.length > 0;
-  const loadFailed = !loading && skills.length === 0;
-  const catalogReady = !loading && !loadFailed;
+  const loadFailed = !loading && skills.length === 0 && !loadError;
+  const catalogReady = !loading && !loadError;
 
   return (
     <div className="relative flex flex-col gap-1.5 min-h-[28px]">
@@ -232,6 +247,9 @@ export function SkillPicker({
       )}
       {loading && skills.length === 0 && selectedSkills.length > 0 && (
         <p className="text-[10px] text-gray-600 px-0.5">Loading skill list…</p>
+      )}
+      {loadError && (
+        <p className="text-[10px] text-amber-400/90 px-0.5 leading-snug">{loadError}</p>
       )}
       {loadFailed && selectedSkills.length === 0 && (
         <p className="text-[10px] text-gray-500 px-0.5">

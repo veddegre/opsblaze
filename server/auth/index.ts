@@ -6,6 +6,9 @@ import { isRequestAdmin, requireAdmin, requireAuth } from "./middleware.js";
 import { isLocalAuthEnabled } from "./local-auth.js";
 import { isOidcEnabled, loadOidcEnv } from "./oidc.js";
 import { authRouter } from "./routes.js";
+import { resolveSecureCookies, resolveTrustProxy } from "./session-cookies.js";
+
+export { resolveSecureCookies, resolveTrustProxy } from "./session-cookies.js";
 
 export { getRequestUser, getRequestUserId, LOCAL_USER_ID, sanitizeUserId } from "./types.js";
 export { getAuthMode, isAuthRequired } from "./mode.js";
@@ -27,15 +30,12 @@ function configureSession(app: Express, label: string): void {
     );
   }
 
-  const trustProxy =
-    process.env.OPSBLAZE_TRUST_PROXY === "true" || process.env.NODE_ENV === "production";
+  const trustProxy = resolveTrustProxy();
   if (trustProxy) {
     app.set("trust proxy", 1);
   }
 
-  const secureCookies =
-    process.env.OPSBLAZE_SECURE_COOKIES === "true" ||
-    (process.env.NODE_ENV === "production" && process.env.OPSBLAZE_SECURE_COOKIES !== "false");
+  const secureCookies = resolveSecureCookies();
 
   app.use(
     session({

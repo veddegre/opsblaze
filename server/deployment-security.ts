@@ -1,6 +1,7 @@
 import type { AppEnv } from "./env.js";
 import { isLocalAuthEnabled } from "./auth/local-auth.js";
 import { isOidcEnabled } from "./auth/oidc.js";
+import { resolveSecureCookies } from "./auth/session-cookies.js";
 
 function isLoopbackHost(host: string): boolean {
   const h = host.toLowerCase();
@@ -44,6 +45,16 @@ export function validateDeploymentSecurity(env: AppEnv): string[] {
       "OPSBLAZE_OIDC_REDIRECT_URI is required when OPSBLAZE_OIDC_ISSUER is set " +
         "(must match your IdP app registration exactly)."
     );
+  }
+
+  if ((oidc || localAuth) && resolveSecureCookies()) {
+    const publicUrl = env.OPSBLAZE_PUBLIC_URL?.trim().toLowerCase() ?? "";
+    if (publicUrl && !publicUrl.startsWith("https://")) {
+      errors.push(
+        "OPSBLAZE_SECURE_COOKIES is enabled but OPSBLAZE_PUBLIC_URL is not https:// — " +
+          "browsers will not store the session cookie. Use HTTPS or set OPSBLAZE_SECURE_COOKIES=false."
+      );
+    }
   }
 
   return errors;
