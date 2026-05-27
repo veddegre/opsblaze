@@ -179,10 +179,12 @@ export async function createSkill(name: string, content: string): Promise<void> 
   if (existing) {
     throw new Error(`Skill '${name}' already exists`);
   }
-  const dir = path.join(skillsDir(), name);
+  const localRoot = path.join(skillsDir(), "_local");
+  await mkdir(localRoot, { recursive: true });
+  const dir = path.join(localRoot, name);
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, SKILL_FILE), content, "utf-8");
-  logger.info({ name }, "skill created");
+  logger.info({ name, dir: path.relative(process.cwd(), dir) }, "skill created");
 }
 
 export async function deleteSkill(name: string): Promise<void> {

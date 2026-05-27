@@ -21,6 +21,7 @@ import type {
 } from "../lib/settings-api";
 import type { PublicAuthUser } from "../lib/auth";
 import { SkillEditor } from "./settings/SkillEditor";
+import { SkillCreator } from "./settings/SkillCreator";
 import { AccountTab } from "./settings/AccountTab";
 import { PreferencesTab } from "./settings/PreferencesTab";
 import { AuditLogTab } from "./settings/AuditLogTab";
@@ -803,6 +804,7 @@ function SkillsTab({ skillsDir }: { skillsDir: string | null }) {
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandSkillName, setExpandSkillName] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -842,12 +844,12 @@ function SkillsTab({ skillsDir }: { skillsDir: string | null }) {
     <div>
       <Section
         title="Investigation skills"
-        description="Markdown playbooks on disk. Enable or disable, edit content, or distill new skills from investigations."
+        description="Create, enable, or edit investigation skills. New skills are stored under _local/ on the server."
       >
         <p className="text-xs text-gray-500 -mt-1">
           {skills.filter((s) => s.enabled).length} of {skills.length} skill
           {skills.length !== 1 ? "s" : ""} active. Expand a skill to edit{" "}
-          <span className="font-mono">SKILL.md</span>.
+          <span className="font-mono">SKILL.md</span>, or create one below.
         </p>
       </Section>
 
@@ -875,29 +877,46 @@ function SkillsTab({ skillsDir }: { skillsDir: string | null }) {
         <SkillRow
           key={skill.name}
           skill={skill}
+          initialExpanded={skill.name === expandSkillName}
           onToggle={handleToggle}
           onDelete={handleDelete}
           onSaved={refresh}
         />
       ))}
 
-      <PathHint label="Add skills to:" path={skillsDir} />
+      <div className="px-4 pb-4">
+        <SkillCreator
+          existingNames={skills.map((s) => s.name)}
+          onCreated={(name) => {
+            setExpandSkillName(name);
+            void refresh();
+          }}
+        />
+      </div>
+
+      <PathHint label="Skills directory:" path={skillsDir} />
     </div>
   );
 }
 
 function SkillRow({
   skill,
+  initialExpanded,
   onToggle,
   onDelete,
   onSaved,
 }: {
   skill: SkillInfo;
+  initialExpanded?: boolean;
   onToggle: (name: string, enabled: boolean) => void;
   onDelete: (name: string) => void;
   onSaved?: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(initialExpanded ?? false);
+
+  useEffect(() => {
+    if (initialExpanded) setExpanded(true);
+  }, [initialExpanded]);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (

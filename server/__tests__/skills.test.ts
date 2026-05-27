@@ -104,6 +104,20 @@ describe("skills", () => {
     await expect(mod.createSkill("anthropic-helper", "content")).rejects.toThrow("reserved words");
   });
 
+  it("createSkill writes under _local", async () => {
+    const origCwd = process.cwd;
+    process.cwd = () => tmpDir;
+    vi.resetModules();
+    const mod = await import("../skills.js");
+    await mod.createSkill("brand-new", "---\ndescription: fresh\n---\n# Fresh");
+    const skills = await mod.listSkills();
+    process.cwd = origCwd;
+
+    const created = skills.find((s) => s.name === "brand-new");
+    expect(created?.path).toContain("_local/brand-new");
+    expect(created?.description).toBe("fresh");
+  });
+
   it("listSkills returns path field", async () => {
     await createSkillFile("test-skill", "---\ndescription: test\n---\n# Hello");
 
