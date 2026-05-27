@@ -357,7 +357,7 @@ Rules enforced at server startup:
 
 - At least one user, at most 500.
 - Usernames must be unique (case-insensitive).
-- Invalid JSON or missing fields prevent the server from starting (`node bin/opsblaze.cjs check` / logs).
+- Invalid JSON or missing fields prevent the server from starting. Run `node bin/opsblaze.cjs check` — it prints the JSON error with **line, column, and a caret** under the mistake (e.g. a missing comma between user fields).
 
 The file is re-read when its modification time changes (e.g. after you edit users), so you can add accounts without rebuilding — restart is only required for `.env` changes.
 

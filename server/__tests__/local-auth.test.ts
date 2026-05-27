@@ -62,6 +62,24 @@ describe("local authentication", () => {
     expect(user?.isAdmin).toBe(false);
     expect(user?.adminSource).toBe("none");
   });
+
+  it("reports line/column when JSON is invalid", async () => {
+    await writeFile(
+      authFile,
+      `{
+  "users": [
+    { "username": "a" "passwordHash": "scrypt:x:y" }
+  ]
+}`,
+      "utf-8"
+    );
+    vi.resetModules();
+    const mod = await import("../auth/local-auth.js");
+    const err = await mod.validateLocalAuthFile();
+    expect(err).toBeTruthy();
+    expect(err).toMatch(/line 3/i);
+    expect(err).toContain("^");
+  });
 });
 
 async function mkdtemp(prefix: string) {

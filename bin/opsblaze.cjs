@@ -12,6 +12,7 @@ const {
   tailLogLines,
   hintsFromErrLog,
 } = require("./startup-hints.cjs");
+const { formatJsonParseError } = require("./json-syntax-error.cjs");
 const SUPERVISOR_SCRIPT = path.join(__dirname, "supervisor.cjs");
 const DATA_DIR = path.join(ROOT, "data");
 const ENV_FILE = path.join(ROOT, ".env");
@@ -636,6 +637,83 @@ function logs() {
   tail.on("exit", (code) => process.exit(code ?? 0));
 }
 
+/**
+ * @param {Record<string, string>} fileEnv
+ * @param {(t: string) => void} ok
+ * @param {(t: string) => void} fail
+ * @param {(t: string) => void} warn
+ * @param {string} DIM
+ * @param {string} RESET
+ * @returns {boolean}
+ */
+function checkLocalAuthFile(fileEnv, ok, fail, warn, DIM, RESET) {
+  const rel = fileEnv.OPSBLAZE_LOCAL_AUTH_FILE?.trim();
+  if (!rel) return true;
+
+  let allOk = true;
+  const authPath = path.resolve(ROOT, rel);
+
+  if (!fs.existsSync(authPath)) {
+    fail(`local-auth file not found: ${authPath}`);
+    console.log(`    ${DIM}Copy: cp data/local-auth.example.json ${rel}${RESET}`);
+    return false;
+  }
+
+  const raw = fs.readFileSync(authPath, "utf-8");
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    fail("local-auth.json: invalid JSON");
+    for (const line of formatJsonParseError(raw, err, authPath).split("\n")) {
+      console.log(`    ${DIM}${line}${RESET}`);
+    }
+    return false;
+  }
+
+  if (!parsed?.users || !Array.isArray(parsed.users) || parsed.users.length === 0) {
+    fail('local-auth.json: "users" must be a non-empty array');
+    allOk = false;
+  }
+
+  const secret = fileEnv.OPSBLAZE_SESSION_SECRET?.trim() ?? "";
+  if (secret.length < 32) {
+    fail("OPSBLAZE_SESSION_SECRET is required (min 32 characters) when using local auth");
+    console.log(`    ${DIM}Generate: openssl rand -base64 32${RESET}`);
+    allOk = false;
+  }
+
+  const distAuth = path.join(ROOT, "dist", "server", "auth", "local-auth.js");
+  if (fs.existsSync(distAuth)) {
+    const { pathToFileURL } = require("url");
+    const script = `import { validateLocalAuthFile } from ${JSON.stringify(pathToFileURL(distAuth).href)};
+const err = await validateLocalAuthFile();
+if (err) { console.error(err); process.exit(1); }`;
+    const r = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+      cwd: ROOT,
+      env: { ...process.env, ...fileEnv },
+      encoding: "utf-8",
+    });
+    if (r.status !== 0) {
+      fail("local-auth.json: schema validation failed");
+      const detail = (r.stderr || r.stdout || "").trim();
+      if (detail) {
+        for (const line of detail.split("\n")) {
+          console.log(`    ${DIM}${line}${RESET}`);
+        }
+      }
+      allOk = false;
+    }
+  } else if (allOk) {
+    warn("Build not found — run npm run build for full local-auth schema validation");
+  }
+
+  if (allOk) {
+    ok(`local-auth.json (${parsed.users.length} user${parsed.users.length === 1 ? "" : "s"})`);
+  }
+  return allOk;
+}
+
 function check() {
   const GREEN = "\x1b[32m";
   const RED = "\x1b[31m";
@@ -691,6 +769,10 @@ function check() {
       allOk = false;
     } else {
       warn(`Network bind: ${bindHost} — reachable from other machines (lab/OIDC only)`);
+    }
+
+    if (!checkLocalAuthFile(fileEnv, ok, fail, warn, DIM, RESET)) {
+      allOk = false;
     }
   } else {
     fail(".env file not found — run 'node bin/setup.cjs'");

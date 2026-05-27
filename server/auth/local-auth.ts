@@ -1,6 +1,7 @@
 import { readFile, stat } from "fs/promises";
 import path from "path";
 import { z } from "zod";
+import { formatJsonParseError } from "../json-syntax-error.js";
 import { logger } from "../logger.js";
 import { loadAdminPolicy } from "./admin-policy.js";
 import { verifyPassword } from "./password.js";
@@ -62,8 +63,8 @@ async function loadLocalAuthUsers(force = false): Promise<Map<string, LocalAuthU
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
-  } catch {
-    throw new Error(`Invalid JSON in local auth file: ${filePath}`);
+  } catch (err) {
+    throw new Error(formatJsonParseError(raw, err, filePath));
   }
 
   const result = fileSchema.safeParse(parsed);
