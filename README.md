@@ -75,6 +75,7 @@ All commands are run from the project root:
 | `node bin/opsblaze.cjs check` | Validate environment and prerequisites |
 | `node bin/opsblaze.cjs dev` | Start in development mode with hot reload |
 | `node bin/opsblaze.cjs install-splunk-viz` | Install optional Splunk visualization packages |
+| `node bin/opsblaze.cjs hash-password [password]` | Generate a `passwordHash` for `local-auth.json` |
 | `node bin/setup.cjs` | Re-run the setup wizard |
 
 ## Visualizations
@@ -126,9 +127,172 @@ See `.env.example` for the complete list of all available options with inline de
 
 To configure manually instead of using the wizard, copy `.env.example` to `.env` and fill in the required values.
 
-### Authentication (OIDC)
+### Authentication
 
-For network deployments, set `OPSBLAZE_OIDC_ISSUER` and related variables (see `.env.example`). Users sign in through your identity provider; each user only sees their own saved investigations under `data/conversations/<user-id>/`.
+OpsBlaze supports three modes (only one login method at a time):
+
+| Mode | How it is enabled | Sign-in | Best for |
+|------|-------------------|---------|----------|
+| **Open** | No `OPSBLAZE_OIDC_ISSUER` and no `OPSBLAZE_LOCAL_AUTH_FILE` | None (single shared “Local user”) | Localhost dev only, or `OPSBLAZE_LOCAL_MODE=true` lab |
+| **Local** | `OPSBLAZE_LOCAL_AUTH_FILE` points at a JSON user database | Username + password | Lab / air-gapped / pre-OIDC network testing |
+| **OIDC** | `OPSBLAZE_OIDC_ISSUER` and related vars | Organization SSO | Production multi-user |
+
+In all authenticated modes, each user’s saved investigations live under `data/conversations/<user-id>/`. Open **Settings → Account** after login to see groups and how administrator access was granted.
+
+#### Local authentication (`local-auth.json`)
+
+Use this when you want **real logins and groups** on the network without standing up OIDC yet.
+
+**1. Create the user database**
+
+```bash
+cp data/local-auth.example.json data/local-auth.json
+chmod 600 data/local-auth.json
+```
+
+Point OpsBlaze at it in `.env`:
+
+```env
+OPSBLAZE_LOCAL_AUTH_FILE=./data/local-auth.json
+OPSBLAZE_SESSION_SECRET=<see below>
+HOST=0.0.0.0
+PORT=3000
+```
+
+Generate a session secret (required — cookies are signed with it):
+
+```bash
+openssl rand -base64 32
+```
+
+**2. File format**
+
+The file is a single JSON object with a `users` array. Each entry is one account:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `username` | Yes | Login name: letters, numbers, `.`, `_`, `-` only (max 64). Matched **case-insensitively** at login. Becomes the user id for conversation storage (sanitized). |
+| `passwordHash` | Yes | **Not** the plain password — see [Generating `passwordHash`](#generating-passwordhash) below. |
+| `name` | No | Display name in the UI (defaults to `username`). |
+| `email` | No | Shown in Settings → Account; optional. |
+| `groups` | No | String array of group names (e.g. `investigators`, `admins`). Used for **administrator** resolution — see below. Default `[]`. |
+| `disabled` | No | If `true`, login is rejected (account kept on disk). |
+
+Example (password hashes shortened for readability):
+
+```json
+{
+  "users": [
+    {
+      "username": "analyst",
+      "passwordHash": "scrypt:AbCdEfGh...:XyZ123...",
+      "name": "Security Analyst",
+      "email": "analyst@example.com",
+      "groups": ["investigators"]
+    },
+    {
+      "username": "admin",
+      "passwordHash": "scrypt:IjKlMnOp...:987654...",
+      "name": "OpsBlaze Admin",
+      "groups": ["admins", "investigators"]
+    }
+  ]
+}
+```
+
+Rules enforced at server startup:
+
+- At least one user, at most 500.
+- Usernames must be unique (case-insensitive).
+- Invalid JSON or missing fields prevent the server from starting (`node bin/opsblaze.cjs check` / logs).
+
+The file is re-read when its modification time changes (e.g. after you edit users), so you can add accounts without rebuilding — restart is only required for `.env` changes.
+
+**3. Generating `passwordHash`**
+
+Passwords are **never** stored in plain text. OpsBlaze uses **scrypt** (Node.js built-in) and stores a string in this format:
+
+```text
+scrypt:<base64-salt>:<base64-hash>
+```
+
+Generate a hash from the project root:
+
+```bash
+# Recommended: pass the password on the command line (shell history may retain it)
+node bin/opsblaze.cjs hash-password 'your-secure-password'
+
+# Same script directly:
+node bin/local-auth-hash.cjs 'your-secure-password'
+
+# Omit the argument to be prompted (password echoed as you type):
+node bin/opsblaze.cjs hash-password
+```
+
+Example output (one long line):
+
+```text
+scrypt:rK8x2pL9vN0qW3mY5zA7bQ==:hT4fG6jK8lM0nP2qR5sU7vW9xY1zA3bC5dE7fG9hJ1kL3mN5pQ7rS9tU==
+```
+
+Copy the **entire** line into `passwordHash` for that user. Each user can have a different password (run the command once per password). Re-running the command for the same password produces a **different** hash (random salt) — all of them verify correctly.
+
+**4. Groups and administrators**
+
+Group names in `local-auth.json` are labels on each user. They do not create a separate group table — you assign users to groups in the `groups` array.
+
+Administrator access (Settings, skills on disk, MCP config, playbooks, audit log, etc.) is granted if **any** of these match:
+
+| Mechanism | `.env` variable | Example |
+|-----------|-----------------|---------|
+| Group membership | `OPSBLAZE_ADMIN_GROUPS` (preferred) or `OPSBLAZE_OIDC_ADMIN_GROUPS` | `OPSBLAZE_ADMIN_GROUPS=admins` — any user with `"admins"` in `groups` is an admin |
+| Explicit username | `OPSBLAZE_LOCAL_AUTH_ADMIN_USERS` or `OPSBLAZE_ADMIN_USERS` | `OPSBLAZE_LOCAL_AUTH_ADMIN_USERS=admin` |
+
+Comparison is case-insensitive for group names and usernames.
+
+Typical layout:
+
+- Group `investigators` — analysts who run searches (not admins).
+- Group `admins` — listed in `OPSBLAZE_ADMIN_GROUPS`.
+- User `admin` with `"groups": ["admins"]` — full admin after login.
+
+Users without admin see only their own investigations and cannot change server-wide settings.
+
+**5. Complete `.env` example (local auth on LAN)**
+
+```env
+HOST=0.0.0.0
+PORT=3000
+OPSBLAZE_LOCAL_AUTH_FILE=./data/local-auth.json
+OPSBLAZE_SESSION_SECRET=paste-output-of-openssl-rand-base64-32-here
+OPSBLAZE_ADMIN_GROUPS=admins
+
+# Splunk + LLM vars from setup wizard ...
+SPLUNK_HOST=...
+```
+
+Do **not** set `OPSBLAZE_OIDC_ISSUER` when using local auth. Do **not** rely on `OPSBLAZE_LOCAL_MODE` — that is only for **unauthenticated** open access.
+
+Restart and verify:
+
+```bash
+chmod 600 .env
+node bin/opsblaze.cjs restart
+node bin/opsblaze.cjs check
+```
+
+Browsers show a username/password form. After login, **Settings → Account** lists your groups and admin source.
+
+**Security notes**
+
+- `chmod 600` on both `.env` and `data/local-auth.json` (production refuses world-readable `.env`).
+- Use TLS in production (reverse proxy) and strong passwords; local auth is for lab or trusted networks unless combined with VPN/firewall rules.
+- Login attempts are rate-limited per IP.
+- Add `data/local-auth.json` to backups; losing it locks everyone out until you restore or recreate users.
+
+#### OIDC authentication
+
+For production network deployments, set `OPSBLAZE_OIDC_ISSUER` and related variables (see `.env.example`). Users sign in through your identity provider; each user only sees their own saved investigations under `data/conversations/<user-id>/`.
 
 - Register redirect URI: `{OPSBLAZE_PUBLIC_URL}/api/auth/callback`
 - Set `OPSBLAZE_SESSION_SECRET` to at least 32 random characters
@@ -252,29 +416,7 @@ OPSBLAZE_OIDC_ADMIN_EMAILS=admin@example.edu,ops@example.edu
 
 Tip: if Entra returns tokens but your users aren’t recognized as admins, verify the `email` claim in the ID token (or via UserInfo).
 
-When OIDC is **not** configured, OpsBlaze runs in single-user local mode (`HOST=127.0.0.1` recommended).
-
-### Local authentication (username/password + groups)
-
-For network or lab deploys **without** an IdP, use a JSON user file instead of open `OPSBLAZE_LOCAL_MODE`:
-
-```bash
-cp data/local-auth.example.json data/local-auth.json
-node bin/opsblaze.cjs hash-password 'your-secure-password'
-# paste the scrypt hash into passwordHash for each user in data/local-auth.json
-```
-
-```env
-OPSBLAZE_LOCAL_AUTH_FILE=./data/local-auth.json
-OPSBLAZE_SESSION_SECRET=<32+ random characters>
-OPSBLAZE_ADMIN_GROUPS=admins
-HOST=0.0.0.0
-PORT=3000
-```
-
-Each user has a `groups` array (e.g. `investigators`, `admins`). Users in a group listed in `OPSBLAZE_ADMIN_GROUPS` receive administrator rights. You can also set `OPSBLAZE_LOCAL_AUTH_ADMIN_USERS=admin` for explicit admin usernames.
-
-Do **not** set `OPSBLAZE_OIDC_ISSUER` at the same time. Per-user investigations are stored under `data/conversations/<user-id>/`.
+When neither OIDC nor `OPSBLAZE_LOCAL_AUTH_FILE` is configured, OpsBlaze runs in **open** single-user mode (`HOST=127.0.0.1` recommended). See [Local authentication](#local-authentication-local-authjson) above for username/password + groups.
 
 ### Reach OpsBlaze from another machine (open lab mode, no login)
 
@@ -331,7 +473,7 @@ If you only deploy Open WebUI, you can ignore the Claude integration—the folde
 |---|---|
 | Pick skills for a message | Any signed-in user |
 | Distill a draft from a conversation (extract/refine) | Any signed-in user |
-| Save, enable/disable, or delete skills on disk | **Admins** (`OPSBLAZE_OIDC_ADMIN_EMAILS`, or local mode) |
+| Save, enable/disable, or delete skills on disk | **Admins** (OIDC admin emails/groups, or local auth admin groups/usernames) |
 
 Disabled skills remain on disk as `SKILL.md.disabled` and are omitted from prompts.
 
