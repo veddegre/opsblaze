@@ -83,10 +83,10 @@ export function PlaybooksEditor({ disabled, onPlaybooksChanged }: PlaybooksEdito
           skills,
           strict,
         });
-        setSuccess("Playbook updated. Close settings to see it under Playbooks: below the chat box.");
+        setSuccess("Playbook updated. Use the Playbooks menu below the chat box.");
       } else {
         await createPlaybook({ name: name.trim(), prompt: prompt.trim(), skills, strict });
-        setSuccess("Playbook saved. Close settings to see it under Playbooks: below the chat box.");
+        setSuccess("Playbook saved. Use the Playbooks menu below the chat box.");
       }
       resetForm();
       await refresh();
@@ -114,7 +114,7 @@ export function PlaybooksEditor({ disabled, onPlaybooksChanged }: PlaybooksEdito
       <InfoBanner>
         Investigation playbooks are saved with the <strong className="text-gray-300">Save playbook</strong>{" "}
         button here — not <strong className="text-gray-300">Save runtime settings</strong> above. After saving,
-        close Settings and use the <strong className="text-gray-300">Playbooks:</strong> chips under the message
+        close Settings and open the <strong className="text-gray-300">Playbooks</strong> menu under the message
         box.
       </InfoBanner>
 

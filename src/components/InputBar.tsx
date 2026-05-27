@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { SkillPicker } from "./SkillPicker";
+import { PlaybookPicker } from "./PlaybookPicker";
 import { UsageBar } from "./UsageBar";
 import type { UsageData, ContextData } from "../lib/sse";
 
@@ -142,28 +143,13 @@ export function InputBar({
             </button>
           )}
         </div>
-        {playbooks && playbooks.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-1 px-0.5 mt-1.5">
-            <span className="text-[10px] text-gray-600 shrink-0 mr-0.5">Playbooks:</span>
-            {playbooks.map((pb) => (
-              <button
-                key={pb.id}
-                type="button"
-                disabled={isStreaming}
-                title={pb.prompt}
-                onClick={() => onApplyPlaybook?.(pb)}
-                className="text-[10px] px-2 py-0.5 rounded-full border border-border-subtle text-gray-400 hover:text-accent-light hover:border-accent/40 transition-colors disabled:opacity-50"
-              >
-                {pb.name}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="text-[10px] text-gray-600 px-0.5 mt-1.5">
-            No investigation playbooks yet — admins add them under Settings → Runtime settings
-            (use <span className="text-gray-500">Save playbook</span>, not Save runtime settings).
-          </p>
-        )}
+        <div className="flex items-start gap-2 mt-1.5 min-h-[28px]">
+          <PlaybookPicker
+            playbooks={playbooks ?? []}
+            onApplyPlaybook={onApplyPlaybook}
+            disabled={isStreaming}
+          />
+          <div className="flex-1 min-w-0">
         <SkillPicker
           selectedSkills={selectedSkills}
           onSelectedSkillsChange={onSelectedSkillsChange}
@@ -173,6 +159,8 @@ export function InputBar({
           onApplySkillPack={onApplySkillPack}
           disabled={isStreaming}
         />
+          </div>
+        </div>
         {queryUsage || contextUsage ? (
           <UsageBar queryUsage={queryUsage ?? null} contextUsage={contextUsage ?? null} />
         ) : (
