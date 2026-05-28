@@ -198,6 +198,75 @@
   color: rgba(139, 92, 246, 0.85);
 }
 
+/* Agent activity (MCP connect, Splunk search, thinking) */
+.activity-indicator {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  color: rgba(156, 163, 175, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.activity-indicator--active {
+  border-color: rgba(59, 130, 246, 0.2);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.activity-indicator--done {
+  color: rgba(134, 239, 172, 0.75);
+  border-color: rgba(34, 197, 94, 0.15);
+}
+
+.activity-indicator--error {
+  color: rgba(252, 165, 165, 0.9);
+  border-color: rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.activity-indicator-spinner {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid rgba(59, 130, 246, 0.25);
+  border-top-color: rgba(96, 165, 250, 0.9);
+  animation: activity-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes activity-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.activity-indicator-done,
+.activity-indicator-error {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.activity-indicator-detail {
+  display: block;
+  width: 100%;
+  margin-top: 2px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  color: rgba(209, 213, 219, 0.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* SPL query details expander */
 .spl-details {
   border-top: 1px solid rgba(255, 255, 255, 0.06);

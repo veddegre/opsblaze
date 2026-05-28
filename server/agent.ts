@@ -17,6 +17,9 @@ import {
 import { telemetry } from "./telemetry/index.js";
 import { isOpenWebUiMode } from "./llm-config.js";
 import { runOpenWebUiAgent } from "./openwebui-agent.js";
+import type { McpSessionKey } from "./mcp-session-pool.js";
+
+export type { McpSessionKey } from "./mcp-session-pool.js";
 
 const PROJECT_ROOT = process.cwd();
 
@@ -99,7 +102,8 @@ export async function runAgent(
   log?: Logger,
   requestedSkills?: string[],
   skillsStrict = true,
-  isAdmin = false
+  isAdmin = false,
+  mcpSessionKey?: McpSessionKey
 ): Promise<void> {
   if (isOpenWebUiMode()) {
     return runOpenWebUiAgent(
@@ -110,7 +114,8 @@ export async function runAgent(
       log,
       requestedSkills,
       skillsStrict,
-      isAdmin
+      isAdmin,
+      mcpSessionKey
     );
   }
 

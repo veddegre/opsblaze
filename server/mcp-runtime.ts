@@ -33,6 +33,64 @@ export function parseQualifiedToolName(
   };
 }
 
+function listAvailableToolNames(servers: readonly McpToolServerRef[]): string[] {
+  const names: string[] = [];
+  for (const s of servers) {
+    for (const t of s.tools) {
+      names.push(qualifyToolName(s.name, t.name));
+    }
+  }
+  return names;
+}
+
+/**
+ * Resolve Open WebUI / model tool names to a connected server + tool.
+ * Models often emit bare `splunk_query` instead of `opsblaze-splunk__splunk_query`.
+ */
+export function resolveToolInvocation(
+  nameFromModel: string,
+  servers: readonly McpToolServerRef[]
+): { serverName: string; toolName: string } | { error: string } {
+  const trimmed = nameFromModel.trim();
+  if (!trimmed) {
+    return { error: "Tool name was empty — retry the question or check Open WebUI tool-calling support." };
+  }
+
+  const parsed = parseQualifiedToolName(trimmed);
+  if (parsed) {
+    const server = servers.find((s) => s.name === parsed.serverName);
+    if (!server) {
+      return { error: `MCP server not connected: ${parsed.serverName}` };
+    }
+    if (!server.tools.some((t) => t.name === parsed.toolName)) {
+      return {
+        error: `Tool not found on server '${parsed.serverName}': ${parsed.toolName}`,
+      };
+    }
+    return parsed;
+  }
+
+  const matches: Array<{ serverName: string; toolName: string }> = [];
+  for (const s of servers) {
+    if (s.tools.some((t) => t.name === trimmed)) {
+      matches.push({ serverName: s.name, toolName: trimmed });
+    }
+  }
+  if (matches.length === 1) return matches[0];
+
+  if (matches.length > 1) {
+    const options = matches.map((m) => qualifyToolName(m.serverName, m.toolName)).join(", ");
+    return { error: `Ambiguous tool name '${trimmed}' — use a qualified name: ${options}` };
+  }
+
+  const available = listAvailableToolNames(servers);
+  const hint =
+    available.length > 0
+      ? ` Available tools: ${available.join(", ")}.`
+      : " No MCP tools are connected.";
+  return { error: `Tool not found: '${trimmed}'.${hint}` };
+}
+
 export interface OpenAiToolDef {
   type: "function";
   function: {
@@ -47,6 +105,12 @@ interface ConnectedServer {
   client: Client;
   transport: Transport;
   tools: Tool[];
+}
+
+/** Minimal server shape for tool name resolution (tests and agent). */
+export interface McpToolServerRef {
+  name: string;
+  tools: Array<{ name: string }>;
 }
 
 function createTransport(config: McpServerEntry): Transport {
@@ -95,6 +159,11 @@ function toolToOpenAi(serverName: string, tool: Tool): OpenAiToolDef {
 export class McpRuntime {
   private servers: ConnectedServer[] = [];
 
+  /** Connected MCP servers (after {@link connect}). */
+  get connectedServers(): readonly ConnectedServer[] {
+    return this.servers;
+  }
+
   async connect(log: Logger): Promise<OpenAiToolDef[]> {
     const entries = await listMcpServersRaw();
     const openAiTools: OpenAiToolDef[] = [];
@@ -134,20 +203,13 @@ export class McpRuntime {
     log: Logger,
     guardrailCtx?: SplunkGuardrailContext
   ): Promise<{ text: string; isError: boolean }> {
-    const parsed = parseQualifiedToolName(qualifiedName);
-    if (!parsed) {
-      return { text: `Unknown tool: ${qualifiedName}`, isError: true };
+    const resolved = resolveToolInvocation(qualifiedName, this.servers);
+    if ("error" in resolved) {
+      return { text: resolved.error, isError: true };
     }
 
-    const server = this.servers.find((s) => s.name === parsed.serverName);
-    if (!server) {
-      return { text: `MCP server not connected: ${parsed.serverName}`, isError: true };
-    }
-
-    const tool = server.tools.find((t) => t.name === parsed.toolName);
-    if (!tool) {
-      return { text: `Tool not found: ${parsed.toolName}`, isError: true };
-    }
+    const parsed = resolved;
+    const server = this.servers.find((s) => s.name === parsed.serverName)!;
 
     log.debug({ server: parsed.serverName, tool: parsed.toolName }, "calling MCP tool");
 

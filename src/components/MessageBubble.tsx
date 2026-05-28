@@ -6,7 +6,7 @@ import { marked } from "marked";
 import { SplunkChart } from "./SplunkChart";
 import { CopyButton } from "./CopyButton";
 import { runtimeSettingLabel } from "../lib/limit-setting-labels";
-import type { Message, ChartBlock, SkillBlock, LimitBlock } from "../types";
+import type { Message, ChartBlock, SkillBlock, LimitBlock, ActivityBlock } from "../types";
 
 const sanitizeSchema = {
   ...defaultSchema,
@@ -181,6 +181,36 @@ function SplunkQueryDetails({ block }: { block: ChartBlock }) {
   );
 }
 
+function ActivityIndicator({ block }: { block: ActivityBlock }) {
+  const icon =
+    block.status === "active" ? (
+      <span className="activity-indicator-spinner" aria-hidden />
+    ) : block.status === "done" ? (
+      <span className="activity-indicator-done" aria-hidden>
+        ✓
+      </span>
+    ) : (
+      <span className="activity-indicator-error" aria-hidden>
+        ✕
+      </span>
+    );
+
+  return (
+    <div
+      className={`activity-indicator activity-indicator--${block.status}`}
+      data-activity-id={block.id}
+    >
+      {icon}
+      <span className="activity-indicator-label">{block.label}</span>
+      {block.detail && (
+        <code className="activity-indicator-detail" title={block.detail}>
+          {block.detail}
+        </code>
+      )}
+    </div>
+  );
+}
+
 interface MessageBubbleProps {
   message: Message;
 }
@@ -200,7 +230,12 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     );
   }
 
-  const hasContent = message.blocks.some((b) => b.type === "text" && b.content.trim());
+  const hasContent = message.blocks.some(
+    (b) =>
+      (b.type === "text" && b.content.trim()) ||
+      b.type === "chart" ||
+      b.type === "activity"
+  );
   const lastBlock = message.blocks[message.blocks.length - 1];
   const lastBlockIsStreamingText = lastBlock?.type === "text" && message.isStreaming;
   const showTrailingIndicator = message.isStreaming && !lastBlockIsStreamingText;
@@ -238,6 +273,10 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                 Using skill: <span className="skill-indicator-name">{block.skill}</span>
               </div>
             );
+          }
+
+          if (block.type === "activity") {
+            return <ActivityIndicator key={i} block={block} />;
           }
 
           if (block.type === "chart") {

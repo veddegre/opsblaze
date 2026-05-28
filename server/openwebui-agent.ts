@@ -4,7 +4,14 @@ import { readFile } from "fs/promises";
 import { logger as rootLogger } from "./logger.js";
 import { sendSSE } from "./sse-helpers.js";
 import { processTextBuffer, chartHasData, type FlushTextState } from "./sse-helpers.js";
-import { McpRuntime } from "./mcp-runtime.js";
+import { qualifyToolName, resolveToolInvocation } from "./mcp-runtime.js";
+import {
+  acquireMcpSession,
+  withMcpSessionLock,
+  type McpSessionKey,
+} from "./mcp-session-pool.js";
+
+export type { McpSessionKey } from "./mcp-session-pool.js";
 import { chatCompleteStream, type ChatMessage, OpenWebUiError } from "./openwebui-client.js";
 import { listSkills } from "./skills.js";
 import { getClaudeModel, getMaxTurns, getStreamTimeoutMs } from "./runtime-settings.js";
@@ -121,6 +128,41 @@ function flushAssistantText(
   return processTextBuffer(state, force, emit);
 }
 
+function processStreamTextChunk(
+  state: FlushTextState,
+  chunk: string,
+  emit: (event: string, data: unknown) => void
+): FlushTextState {
+  if (!chunk) return state;
+  let bufState = { ...state, textBuffer: state.textBuffer + chunk };
+  if (bufState.inChartTag) {
+    if (bufState.textBuffer.includes("</chart>")) {
+      bufState = flushAssistantText(bufState, false, emit);
+    }
+  } else if (bufState.textBuffer.includes("<chart")) {
+    if (bufState.textBuffer.includes("</chart>")) {
+      bufState = flushAssistantText(bufState, false, emit);
+    }
+  } else {
+    bufState = flushAssistantText(bufState, false, emit);
+  }
+  return bufState;
+}
+
+function splPreviewFromArgs(args: Record<string, unknown>): string | undefined {
+  const raw = args.query ?? args.spl;
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  return trimmed.length > 160 ? `${trimmed.slice(0, 157)}…` : trimmed;
+}
+
+function toolActivityLabel(toolName: string, args: Record<string, unknown>): string {
+  const bare = toolName.includes("__") ? toolName.split("__").pop()! : toolName;
+  if (bare === "splunk_query") return "Running Splunk search";
+  return `Running ${bare}`;
+}
+
 function parseToolArguments(raw: string): Record<string, unknown> {
   try {
     const parsed = JSON.parse(raw || "{}");
@@ -140,7 +182,8 @@ export async function runOpenWebUiAgent(
   log?: Logger,
   requestedSkills?: string[],
   skillsStrict = true,
-  isAdmin = false
+  isAdmin = false,
+  mcpSessionKey?: McpSessionKey
 ): Promise<void> {
   const agentLog = log ?? rootLogger;
   const emit = (event: string, data: unknown) => sendSSE(res, event, data);
@@ -149,10 +192,12 @@ export async function runOpenWebUiAgent(
   const maxTurns = await getMaxTurns();
   const streamTimeoutMs = await getStreamTimeoutMs();
 
+  emit("activity", { id: "skills", label: "Loading investigation skills…", status: "active" });
   const { prompt: systemPrompt, activeSkillNames } = await buildSystemPrompt(
     requestedSkills,
     skillsStrict
   );
+  emit("activity", { id: "skills", label: "Skills loaded", status: "done" });
 
   for (const skill of activeSkillNames) {
     emit("skill", { skill });
@@ -166,7 +211,7 @@ export async function runOpenWebUiAgent(
   }
   messages.push({ role: "user", content: userMessage });
 
-  const mcp = new McpRuntime();
+  let mcpRelease: (() => void) | null = null;
   let turnCount = 0;
   let bufState: FlushTextState = { textBuffer: "", inChartTag: false };
   let lastUsage: QueryUsageData | null = null;
@@ -186,31 +231,54 @@ export async function runOpenWebUiAgent(
     });
   }
 
+  let mcp: Awaited<ReturnType<typeof acquireMcpSession>>["runtime"];
+
   try {
-    const tools = await mcp.connect(agentLog);
-    agentLog.debug({ toolCount: tools.length }, "MCP tools registered for Open WebUI");
+    emit("activity", {
+      id: "mcp",
+      label: "Connecting to Splunk tools…",
+      status: "active",
+    });
+    const session = await acquireMcpSession(agentLog, mcpSessionKey);
+    mcp = session.runtime;
+    mcpRelease = session.release;
+    const tools = session.tools;
+    emit("activity", {
+      id: "mcp",
+      label: session.reused ? "Splunk tools ready (reused)" : "Splunk tools ready",
+      status: "done",
+    });
+    agentLog.debug(
+      { toolCount: tools.length, reused: session.reused, pooled: Boolean(mcpSessionKey) },
+      "MCP tools registered for Open WebUI"
+    );
 
     while (turnCount < maxTurns) {
       if (abortSignal?.aborted) break;
 
-      const stream = await chatCompleteStream({
-        model,
-        messages,
-        chatId: requestId,
-        tools: tools.length > 0 ? tools : undefined,
-        signal: abortSignal,
+      const turnActivityId = `llm-${turnCount}`;
+      emit("activity", {
+        id: turnActivityId,
+        label: "Thinking…",
+        status: "active",
       });
 
-      if (stream.content) {
-        bufState.textBuffer += stream.content;
-        if (bufState.inChartTag) {
-          if (bufState.textBuffer.includes("</chart>")) bufState = flushAssistantText(bufState, false, emit);
-        } else if (bufState.textBuffer.includes("<chart")) {
-          if (bufState.textBuffer.includes("</chart>")) bufState = flushAssistantText(bufState, false, emit);
-        } else {
-          bufState = flushAssistantText(bufState, false, emit);
+      const stream = await chatCompleteStream(
+        {
+          model,
+          messages,
+          chatId: requestId,
+          tools: tools.length > 0 ? tools : undefined,
+          signal: abortSignal,
+        },
+        {
+          onContentDelta: (delta) => {
+            bufState = processStreamTextChunk(bufState, delta, emit);
+          },
         }
-      }
+      );
+
+      emit("activity", { id: turnActivityId, label: "Thinking…", status: "done" });
 
       if (stream.usage) {
         lastUsage = {
@@ -250,8 +318,45 @@ export async function runOpenWebUiAgent(
         if (abortSignal?.aborted) break;
 
         const args = parseToolArguments(call.function.arguments);
-        const { text, isError } = await mcp.callTool(call.function.name, args, agentLog, {
-          isAdmin,
+        const toolActivityId = `tool-${call.id}`;
+        const label = toolActivityLabel(call.function.name, args);
+        const detail = splPreviewFromArgs(args);
+
+        const resolved = resolveToolInvocation(call.function.name, mcp.connectedServers);
+        if ("error" in resolved) {
+          emit("activity", {
+            id: toolActivityId,
+            label: "Tool error",
+            status: "error",
+            detail: resolved.error,
+          });
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            name: call.function.name,
+            content: resolved.error,
+          });
+          continue;
+        }
+
+        emit("activity", {
+          id: toolActivityId,
+          label,
+          status: "active",
+          detail,
+        });
+
+        const { text, isError } = await withMcpSessionLock(mcp, () =>
+          mcp.callTool(call.function.name, args, agentLog, {
+            isAdmin,
+          })
+        );
+
+        emit("activity", {
+          id: toolActivityId,
+          label: isError ? `${label} failed` : `${label} complete`,
+          status: isError ? "error" : "done",
+          detail: isError ? text.slice(0, 200) : detail,
         });
 
         if (!isError) {
@@ -261,7 +366,7 @@ export async function runOpenWebUiAgent(
         messages.push({
           role: "tool",
           tool_call_id: call.id,
-          name: call.function.name,
+          name: qualifyToolName(resolved.serverName, resolved.toolName),
           content: text,
         });
       }
@@ -286,7 +391,7 @@ export async function runOpenWebUiAgent(
       emit("error", { message });
     }
   } finally {
-    await mcp.close();
+    mcpRelease?.();
   }
 
   const durationMs = Date.now() - startTime;

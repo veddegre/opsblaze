@@ -37,7 +37,15 @@ export interface LimitBlock {
   setting: string;
 }
 
-export type MessageBlock = TextBlock | ChartBlock | SkillBlock | LimitBlock;
+export interface ActivityBlock {
+  type: "activity";
+  id: string;
+  label: string;
+  status: "active" | "done" | "error";
+  detail?: string;
+}
+
+export type MessageBlock = TextBlock | ChartBlock | SkillBlock | LimitBlock | ActivityBlock;
 
 export interface Message {
   id: string;

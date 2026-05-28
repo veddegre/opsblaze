@@ -7,7 +7,7 @@ import {
   updateConversation,
   deleteConversation as deleteConversationApi,
 } from "../lib/api";
-import type { Message, ChartBlock, SkillBlock, LimitBlock } from "../types";
+import type { Message, ChartBlock, SkillBlock, LimitBlock, ActivityBlock } from "../types";
 import type { ConversationSkillScope } from "../lib/api";
 import { inferSkillScopeFromMessages } from "../lib/conversation-skill-scope";
 
@@ -83,6 +83,26 @@ function appendChart(msgs: Message[], id: string, data: Record<string, unknown>)
   const blocks = [...msg.blocks, chartBlock];
   const idx = updated.findIndex((m) => m.id === id);
   updated[idx] = { ...msg, blocks };
+  return updated;
+}
+
+function upsertActivity(msgs: Message[], id: string, data: ActivityBlock): Message[] {
+  const updated = [...msgs];
+  const msg = updated.find((m) => m.id === id);
+  if (!msg) return msgs;
+
+  const blocks = [...msg.blocks];
+  const idx = blocks.findIndex(
+    (b): b is ActivityBlock => b.type === "activity" && b.id === data.id
+  );
+  if (idx >= 0) {
+    blocks[idx] = data;
+  } else {
+    blocks.push(data);
+  }
+
+  const msgIdx = updated.findIndex((m) => m.id === id);
+  updated[msgIdx] = { ...msg, blocks };
   return updated;
 }
 
@@ -441,6 +461,12 @@ export function useChat() {
             },
             onSkill: (skill) => {
               local = appendSkill(local, assistantId, skill);
+              if (activeConvId && isDisplayed(activeConvId)) {
+                setMessages(local);
+              }
+            },
+            onActivity: (data) => {
+              local = upsertActivity(local, assistantId, { type: "activity", ...data });
               if (activeConvId && isDisplayed(activeConvId)) {
                 setMessages(local);
               }

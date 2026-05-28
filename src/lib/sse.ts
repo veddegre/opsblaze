@@ -17,8 +17,16 @@ export interface ContextData {
   categories: Record<string, number>;
 }
 
+export interface ActivityData {
+  id: string;
+  label: string;
+  status: "active" | "done" | "error";
+  detail?: string;
+}
+
 export interface SSECallbacks {
   onText: (content: string) => void;
+  onActivity: (data: ActivityData) => void;
   onChart: (data: {
     vizType: string;
     dataSources: unknown;
@@ -100,6 +108,9 @@ export async function streamChat(
                 break;
               case "skill":
                 callbacks.onSkill(parsed.skill ?? "unknown");
+                break;
+              case "activity":
+                callbacks.onActivity(parsed as ActivityData);
                 break;
               case "usage":
                 callbacks.onUsage(parsed);

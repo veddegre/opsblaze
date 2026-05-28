@@ -26,6 +26,7 @@ function mockFetchResponse(chunks: string[]): Response {
 function makeCallbacks(overrides: Partial<SSECallbacks> = {}): SSECallbacks {
   return {
     onText: vi.fn(),
+    onActivity: vi.fn(),
     onChart: vi.fn(),
     onSkill: vi.fn(),
     onUsage: vi.fn(),

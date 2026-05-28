@@ -14,6 +14,7 @@ import { logger } from "./logger.js";
 import { validateEnv, getEnv } from "./env.js";
 import { validateDeploymentSecurity } from "./deployment-security.js";
 import { runAgent } from "./agent.js";
+import { evictMcpSession, evictAllMcpSessions } from "./mcp-session-pool.js";
 import { classifyAgentError } from "./pipeline.js";
 import {
   listConversations,
@@ -293,6 +294,11 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
     abortController.abort("stream_timeout");
   }, timeoutMs);
 
+  const mcpSessionKey =
+    typeof rawConversationId === "string" && rawConversationId.trim()
+      ? { userId, conversationId: rawConversationId.trim() }
+      : undefined;
+
   try {
     await runAgent(
       message,
@@ -302,7 +308,8 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
       reqLog,
       requestedSkills,
       skillsStrict,
-      isRequestAdmin(req)
+      isRequestAdmin(req),
+      mcpSessionKey
     );
   } catch (err) {
     if (!abortController.signal.aborted && !res.writableEnded && !res.destroyed) {
@@ -480,11 +487,14 @@ app.put("/api/conversations/:id", apiLimiter, async (req, res) => {
 
 app.delete("/api/conversations/:id", apiLimiter, async (req, res) => {
   try {
-    const deleted = await deleteConversation(getRequestUserId(req), req.params.id as string);
+    const userId = getRequestUserId(req);
+    const convId = req.params.id as string;
+    const deleted = await deleteConversation(userId, convId);
     if (!deleted) {
       res.status(404).json({ error: "Conversation not found" });
       return;
     }
+    await evictMcpSession({ userId, conversationId: convId }, logger);
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err, id: req.params.id }, "failed to delete conversation");
@@ -734,6 +744,7 @@ app.post("/api/mcp-servers", apiLimiter, requireAdmin, async (req, res) => {
     }
     if (!validateMcpName(name, res)) return;
     await addMcpServer(name, config);
+    void evictAllMcpSessions(logger);
     void recordAudit(getRequestUserId(req), "mcp.create", { name });
     res.status(201).json({ ok: true });
   } catch (err) {
@@ -755,6 +766,7 @@ app.put("/api/mcp-servers/:name", apiLimiter, requireAdmin, async (req, res) => 
     if (!validateMcpName(name, res)) return;
     const config = req.body as McpServerEntry;
     await updateMcpServer(name, config);
+    void evictAllMcpSessions(logger);
     void recordAudit(getRequestUserId(req), "mcp.update", { name });
     res.json({ ok: true });
   } catch (err) {
@@ -777,6 +789,7 @@ app.delete("/api/mcp-servers/:name", apiLimiter, requireAdmin, async (req, res) 
     if (!validateMcpName(req.params.name as string, res)) return;
     const name = req.params.name as string;
     await deleteMcpServer(name);
+    void evictAllMcpSessions(logger);
     void recordAudit(getRequestUserId(req), "mcp.delete", { name });
     res.json({ ok: true });
   } catch (err) {
@@ -1378,6 +1391,7 @@ function shutdown(signal: string) {
   for (const conn of activeConnections) {
     conn.abort.abort();
   }
+  void evictAllMcpSessions(logger);
 
   const drainTimeout = setTimeout(() => {
     logger.info("drain timeout reached, forcing exit");

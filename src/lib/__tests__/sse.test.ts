@@ -26,6 +26,7 @@ function mockFetchResponse(chunks: string[]): Response {
 function makeCallbacks(overrides: Partial<SSECallbacks> = {}): SSECallbacks {
   return {
     onText: vi.fn(),
+    onActivity: vi.fn(),
     onChart: vi.fn(),
     onSkill: vi.fn(),
     onUsage: vi.fn(),
@@ -80,6 +81,28 @@ describe("streamChat SSE parser", () => {
     await streamChat("q", cb);
     expect(charts).toHaveLength(1);
     expect(charts[0]).toEqual(chartData);
+  });
+
+  it("parses activity events", async () => {
+    const activities: Array<{ id: string; label: string; status: string }> = [];
+    const cb = makeCallbacks({
+      onActivity: (data) => activities.push(data),
+    });
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      mockFetchResponse([
+        'event: activity\ndata: {"id":"mcp","label":"Connecting…","status":"active"}\n\n',
+        'event: activity\ndata: {"id":"mcp","label":"Ready","status":"done"}\n\n',
+        'event: done\ndata: {}\n\n',
+      ])
+    );
+
+    await streamChat("q", cb);
+
+    expect(activities).toEqual([
+      { id: "mcp", label: "Connecting…", status: "active" },
+      { id: "mcp", label: "Ready", status: "done" },
+    ]);
   });
 
   it("parses skill events", async () => {

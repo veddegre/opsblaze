@@ -180,11 +180,17 @@ interface ToolCallAccumulator {
   arguments: string;
 }
 
+export interface ChatStreamHandlers {
+  /** Fired as text deltas arrive from Open WebUI (before the stream finishes). */
+  onContentDelta?: (content: string) => void;
+}
+
 /**
  * Streaming chat completion. Accumulates text and tool_calls from SSE chunks.
  */
 export async function chatCompleteStream(
-  options: ChatCompletionOptions
+  options: ChatCompletionOptions,
+  handlers?: ChatStreamHandlers
 ): Promise<StreamResult> {
   const config = getOpenWebUiConfig();
   if (!config) throw new OpenWebUiError("Open WebUI is not configured");
@@ -250,8 +256,9 @@ export async function chatCompleteStream(
         const delta = choices?.[0]?.delta as Record<string, unknown> | undefined;
         if (!delta) continue;
 
-        if (typeof delta.content === "string") {
+        if (typeof delta.content === "string" && delta.content) {
           content += delta.content;
+          handlers?.onContentDelta?.(delta.content);
         }
 
         const toolCalls = delta.tool_calls as Array<Record<string, unknown>> | undefined;
