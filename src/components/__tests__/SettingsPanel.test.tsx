@@ -44,6 +44,13 @@ vi.mock("../../lib/auth", () => ({
 
 const fetchOpenWebUiModelsMock = vi.fn().mockResolvedValue([]);
 
+vi.mock("../../lib/playbooks-api", () => ({
+  listPlaybooks: vi.fn().mockResolvedValue([]),
+  createPlaybook: vi.fn(),
+  updatePlaybook: vi.fn(),
+  deletePlaybook: vi.fn(),
+}));
+
 vi.mock("../../lib/settings-api", () => ({
   getSettings: (...args: unknown[]) => getSettingsMock(...args),
   updateSettings: (...args: unknown[]) => updateSettingsMock(...args),
@@ -163,6 +170,22 @@ describe("SettingsPanel: navigation", () => {
       expect(screen.getByText("Administration")).toBeInTheDocument();
     });
     expect(screen.getByRole("button", { name: /MCP servers/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Playbooks$/i })).toBeInTheDocument();
+  });
+
+  it("opens Playbooks section with editor", async () => {
+    render(
+      <SettingsPanel
+        isOpen={true}
+        onClose={vi.fn()}
+        user={mockUser}
+        initialSection="admin-playbooks"
+      />
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Investigation playbooks/i })).toBeInTheDocument();
+    });
+    expect(screen.getByText(/New playbook/i)).toBeInTheDocument();
   });
 
   it("shows My account by default", async () => {

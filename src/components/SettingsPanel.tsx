@@ -24,6 +24,7 @@ import { SkillEditor } from "./settings/SkillEditor";
 import { SkillCreator } from "./settings/SkillCreator";
 import { AccountTab } from "./settings/AccountTab";
 import { PreferencesTab } from "./settings/PreferencesTab";
+import { PlaybooksTab } from "./settings/PlaybooksTab";
 import { AuditLogTab } from "./settings/AuditLogTab";
 import { AdminSystemTab } from "./settings/AdminSystemTab";
 import { NavGroupLabel, NavItem, Section } from "./settings/settings-ui";
@@ -36,6 +37,7 @@ export type SettingsSection =
   | "admin-system"
   | "admin-mcp"
   | "admin-skills"
+  | "admin-playbooks"
   | "admin-audit";
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
@@ -44,6 +46,7 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   "admin-system": "System health",
   "admin-mcp": "MCP servers",
   "admin-skills": "Skills",
+  "admin-playbooks": "Playbooks",
   "admin-audit": "Audit log",
 };
 
@@ -1012,15 +1015,15 @@ function renderSection(
     case "account":
       return <AccountTab user={user} />;
     case "preferences":
-      return (
-        <PreferencesTab isAdmin={user.isAdmin} onPlaybooksChanged={onPlaybooksChanged} />
-      );
+      return <PreferencesTab isAdmin={user.isAdmin} />;
     case "admin-system":
       return <AdminSystemTab />;
     case "admin-mcp":
       return <McpServersTab configPath={paths?.mcpConfig ?? null} />;
     case "admin-skills":
       return <SkillsTab skillsDir={paths?.skillsDir ?? null} />;
+    case "admin-playbooks":
+      return <PlaybooksTab onPlaybooksChanged={onPlaybooksChanged} />;
     case "admin-audit":
       return <AuditLogTab />;
     default:
@@ -1146,6 +1149,13 @@ export function SettingsPanel({
                   indent
                 >
                   Skills
+                </NavItem>
+                <NavItem
+                  active={section === "admin-playbooks"}
+                  onClick={() => setSection("admin-playbooks")}
+                  indent
+                >
+                  Playbooks
                 </NavItem>
                 <NavItem
                   active={section === "admin-audit"}

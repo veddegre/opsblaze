@@ -206,12 +206,11 @@ export function PlaybooksEditor({ disabled, onPlaybooksChanged }: PlaybooksEdito
 
   return (
     <div className="space-y-4">
-      <InfoBanner>
-        Create or edit playbooks here with <strong className="text-gray-300">Save playbook</strong>{" "}
-        / <strong className="text-gray-300">Update playbook</strong> — not{" "}
-        <strong className="text-gray-300">Save runtime settings</strong> at the bottom of this page.
-        Investigators apply playbooks from the <strong className="text-gray-300">Playbooks</strong>{" "}
-        menu under the message box.
+      <InfoBanner variant="tip">
+        Use <strong className="text-gray-300">Save playbook</strong> or{" "}
+        <strong className="text-gray-300">Update playbook</strong> on each form — changes save
+        immediately. Investigators load playbooks from the{" "}
+        <strong className="text-gray-300">Playbooks</strong> menu under the message box.
       </InfoBanner>
 
       {loading && playbooks.length === 0 && (

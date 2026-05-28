@@ -15,16 +15,9 @@ import {
   monoInputClass,
 } from "./settings-ui";
 import { SkillBundlesEditor } from "./SkillBundlesEditor";
-import { PlaybooksEditor } from "./PlaybooksEditor";
 import type { SkillPack, SplunkGuardrails } from "../../lib/settings-api";
 
-export function PreferencesTab({
-  isAdmin,
-  onPlaybooksChanged,
-}: {
-  isAdmin: boolean;
-  onPlaybooksChanged?: () => void;
-}) {
+export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("");
@@ -454,15 +447,6 @@ export function PreferencesTab({
             disabled={!isAdmin}
           />
         </div>
-
-        {isAdmin && (
-          <div className="border-t border-border-subtle pt-4 mt-2 space-y-3">
-            <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wide">
-              Investigation playbooks
-            </h3>
-            <PlaybooksEditor onPlaybooksChanged={onPlaybooksChanged} />
-          </div>
-        )}
 
         {error && <p className="text-xs text-red-400">{error}</p>}
 

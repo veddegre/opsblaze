@@ -10,6 +10,7 @@ import { AppNotice } from "./components/AppNotice";
 import { useChat } from "./hooks/useChat";
 import type { PublicAuthUser } from "./lib/auth";
 import { getSettings, listSkillsApi, type SkillPack } from "./lib/settings-api";
+import type { SettingsSection } from "./components/SettingsPanel";
 import { listPlaybooks, type InvestigationPlaybook } from "./lib/playbooks-api";
 import { activeSkillPacks } from "./lib/skill-packs-utils";
 
@@ -44,14 +45,7 @@ function AppContent({ user }: { user: PublicAuthUser }) {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<
-    | "account"
-    | "preferences"
-    | "admin-system"
-    | "admin-mcp"
-    | "admin-skills"
-    | "admin-audit"
-  >("account");
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("account");
   const [extractorOpen, setExtractorOpen] = useState(false);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [allowAdditional, setAllowAdditional] = useState(false);
