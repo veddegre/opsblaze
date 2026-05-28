@@ -48,3 +48,6 @@ export function getThreatIntelMaxIps(): number {
 }
 
 export const THREAT_INTEL_MCP_SERVER_NAME = "opsblaze-threat-intel";
+
+/** Re-export for MCP registration when only IP zones are configured (no VT/AbuseIPDB). */
+export { hasOrganizationIpConfig } from "./threat-intel-ranges.js";

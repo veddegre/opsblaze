@@ -1,6 +1,13 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { isIPv4 } from "node:net";
+import type { ThreatIntelSettings } from "./threat-intel-settings.js";
+import {
+  resolveOrganizationIpZones,
+  type IpZonePosture,
+  type OrganizationIpZoneConfig,
+  type ResolvedOrganizationIpZone,
+} from "./threat-intel-zones.js";
 
 export interface ParsedIpv4Range {
   network: number;
@@ -9,12 +16,32 @@ export interface ParsedIpv4Range {
   source: string;
 }
 
+export interface IpClassification {
+  ip: string;
+  zone: string | null;
+  defaultPosture: IpZonePosture | null;
+  inOrganizationRange: boolean;
+  isPrivate: boolean;
+  isPublic: boolean;
+  threatIntelSkipped: boolean;
+  matchedCidr?: string;
+}
+
 const DATA_ROOT = path.resolve(
   process.env.OPSBLAZE_DATA_DIR ? path.dirname(process.env.OPSBLAZE_DATA_DIR) : "./data"
 );
 const SETTINGS_PATH = path.join(DATA_ROOT, "runtime-settings.json");
 
-let cachedRanges: { at: number; ranges: ParsedIpv4Range[] } | null = null;
+const PRIVATE_V4 = [
+  /^10\./,
+  /^127\./,
+  /^169\.254\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^0\./,
+];
+
+let cachedOrgIp: { at: number; zones: ResolvedOrganizationIpZone[] } | null = null;
 const CACHE_MS = 60_000;
 
 export function parseCidrList(raw: string | undefined): string[] {
@@ -30,6 +57,16 @@ function ipv4ToInt(ip: string): number | null {
   const parts = ip.split(".").map((p) => Number(p));
   if (parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) return null;
   return (((parts[0] << 24) >>> 0) + ((parts[1] << 16) >>> 0) + ((parts[2] << 8) >>> 0) + parts[3]) >>> 0;
+}
+
+export function isPrivateIpv4(ip: string): boolean {
+  if (!isIPv4(ip)) return false;
+  return PRIVATE_V4.some((re) => re.test(ip));
+}
+
+export function isPublicIpv4(ip: string): boolean {
+  if (!isIPv4(ip)) return false;
+  return !isPrivateIpv4(ip);
 }
 
 /** Parse IPv4 host or CIDR (e.g. `10.0.0.0/8`, `203.0.113.5`, `203.0.113.5/32`). */
@@ -76,53 +113,147 @@ export function isIpv4InInternalRanges(ip: string, ranges: ParsedIpv4Range[]): b
   return ranges.some((r) => ((ipInt & r.mask) >>> 0) === r.network);
 }
 
-function loadInternalCidrStringsFromDisk(): string[] {
+function matchIpToRange(ip: string, ranges: ParsedIpv4Range[]): ParsedIpv4Range | null {
+  const ipInt = ipv4ToInt(ip);
+  if (ipInt === null) return null;
+  for (const range of ranges) {
+    if (((ipInt & range.mask) >>> 0) === range.network) return range;
+  }
+  return null;
+}
+
+function loadThreatIntelSettingsFromDisk(): ThreatIntelSettings {
   try {
     const raw = readFileSync(SETTINGS_PATH, "utf-8");
-    const parsed = JSON.parse(raw) as { threatIntel?: { internalCidrs?: unknown } };
-    const list = parsed?.threatIntel?.internalCidrs;
-    if (!Array.isArray(list)) return [];
-    return list.filter((s): s is string => typeof s === "string" && s.trim().length > 0);
+    const parsed = JSON.parse(raw) as { threatIntel?: ThreatIntelSettings };
+    return parsed?.threatIntel ?? {};
   } catch {
-    return [];
+    return {};
   }
 }
 
-/** Merges env `THREAT_INTEL_INTERNAL_CIDRS` with runtime-settings `threatIntel.internalCidrs`. */
+function buildZoneConfigsFromSettings(settings: ThreatIntelSettings): OrganizationIpZoneConfig[] {
+  const zones: OrganizationIpZoneConfig[] = [...(settings.zones ?? [])];
+
+  const legacy = settings.internalCidrs ?? [];
+  if (legacy.length > 0 && !zones.some((z) => z.name === "internal")) {
+    zones.push({ name: "internal", defaultPosture: "neutral", cidrs: legacy });
+  }
+
+  const envCidrs = parseCidrList(process.env.THREAT_INTEL_INTERNAL_CIDRS);
+  if (envCidrs.length > 0 && !zones.some((z) => z.name === "env")) {
+    zones.push({ name: "env", defaultPosture: "neutral", cidrs: envCidrs });
+  }
+
+  return zones;
+}
+
+export function getResolvedOrganizationIpZones(): ResolvedOrganizationIpZone[] {
+  const now = Date.now();
+  if (cachedOrgIp && now - cachedOrgIp.at < CACHE_MS) {
+    return cachedOrgIp.zones;
+  }
+  const settings = loadThreatIntelSettingsFromDisk();
+  const zones = resolveOrganizationIpZones(buildZoneConfigsFromSettings(settings));
+  cachedOrgIp = { at: now, zones };
+  return zones;
+}
+
+export function hasOrganizationIpConfig(): boolean {
+  if (parseCidrList(process.env.THREAT_INTEL_INTERNAL_CIDRS).length > 0) return true;
+  const settings = loadThreatIntelSettingsFromDisk();
+  return (settings.internalCidrs?.length ?? 0) > 0 || (settings.zones?.length ?? 0) > 0;
+}
+
+export function getOrganizationZoneNames(): string[] {
+  return getResolvedOrganizationIpZones().map((z) => z.name);
+}
+
 export function loadThreatIntelInternalCidrStrings(): string[] {
-  const fromEnv = parseCidrList(process.env.THREAT_INTEL_INTERNAL_CIDRS);
-  const fromDisk = loadInternalCidrStringsFromDisk();
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const entry of [...fromEnv, ...fromDisk]) {
-    const key = entry.trim().toLowerCase();
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(entry.trim());
+  for (const zone of getResolvedOrganizationIpZones()) {
+    for (const cidr of zone.cidrs) {
+      const key = cidr.trim().toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(cidr.trim());
+    }
   }
   return out;
 }
 
 export function loadParsedThreatIntelInternalRanges(): ParsedIpv4Range[] {
   const parsed: ParsedIpv4Range[] = [];
-  for (const entry of loadThreatIntelInternalCidrStrings()) {
-    const range = parseInternalRangeEntry(entry);
-    if (range) parsed.push(range);
+  for (const zone of getResolvedOrganizationIpZones()) {
+    parsed.push(...zone.parsedRanges);
   }
   return parsed;
 }
 
 /** Cached parsed ranges (reloads from env + disk every minute). */
 export function getParsedThreatIntelInternalRanges(): ParsedIpv4Range[] {
-  const now = Date.now();
-  if (cachedRanges && now - cachedRanges.at < CACHE_MS) {
-    return cachedRanges.ranges;
-  }
-  const ranges = loadParsedThreatIntelInternalRanges();
-  cachedRanges = { at: now, ranges };
-  return ranges;
+  return loadParsedThreatIntelInternalRanges();
 }
 
 export function clearThreatIntelInternalRangesCache(): void {
-  cachedRanges = null;
+  cachedOrgIp = null;
+}
+
+export function classifyOrganizationIp(raw: string): IpClassification | null {
+  const ip = raw.trim();
+  if (!isIPv4(ip)) return null;
+
+  const isPrivate = isPrivateIpv4(ip);
+  const isPublic = !isPrivate;
+
+  for (const zone of getResolvedOrganizationIpZones()) {
+    const matched = matchIpToRange(ip, zone.parsedRanges);
+    if (matched) {
+      return {
+        ip,
+        zone: zone.name,
+        defaultPosture: zone.defaultPosture,
+        inOrganizationRange: true,
+        isPrivate,
+        isPublic,
+        threatIntelSkipped: true,
+        matchedCidr: matched.source,
+      };
+    }
+  }
+
+  return {
+    ip,
+    zone: null,
+    defaultPosture: null,
+    inOrganizationRange: false,
+    isPrivate,
+    isPublic,
+    threatIntelSkipped: isPrivate,
+  };
+}
+
+export function classifyOrganizationIps(ips: string[]): {
+  zonesConfigured: string[];
+  results: IpClassification[];
+  skippedInvalid: string[];
+} {
+  const zonesConfigured = getOrganizationZoneNames();
+  const results: IpClassification[] = [];
+  const skippedInvalid: string[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of ips) {
+    const classification = classifyOrganizationIp(raw);
+    if (!classification) {
+      skippedInvalid.push(raw);
+      continue;
+    }
+    if (seen.has(classification.ip)) continue;
+    seen.add(classification.ip);
+    results.push(classification);
+  }
+
+  return { zonesConfigured, results, skippedInvalid };
 }

@@ -9,6 +9,7 @@ import {
   resolveOpenWebUiChatApiBase,
 } from "./llm-config.js";
 import { getActiveThreatIntelProviders } from "./threat-intel-config.js";
+import { getOrganizationZoneNames, hasOrganizationIpConfig } from "./threat-intel-ranges.js";
 
 const execFile = promisify(execFileCb);
 
@@ -252,10 +253,19 @@ export async function runHealthChecks(): Promise<HealthResult> {
 
   const llmKey = openWebUiBase ? "openwebui" : "claude";
   const tiProviders = getActiveThreatIntelProviders();
+  const zoneNames = hasOrganizationIpConfig() ? getOrganizationZoneNames() : [];
   const threatIntel: HealthCheck =
     tiProviders.length > 0
-      ? { status: "ok", message: tiProviders.join(", ") }
-      : { status: "ok", message: "disabled" };
+      ? {
+          status: "ok",
+          message:
+            zoneNames.length > 0
+              ? `${tiProviders.join(", ")}; zones: ${zoneNames.join(", ")}`
+              : tiProviders.join(", "),
+        }
+      : zoneNames.length > 0
+        ? { status: "ok", message: `zones only (${zoneNames.join(", ")})` }
+        : { status: "ok", message: "disabled" };
 
   const checks: Record<string, HealthCheck> = {
     splunk,

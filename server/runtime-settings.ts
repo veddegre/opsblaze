@@ -15,6 +15,7 @@ import {
   clearThreatIntelInternalRangesCache,
   validateThreatIntelInternalCidrs,
 } from "./threat-intel-ranges.js";
+import { validateOrganizationIpZones } from "./threat-intel-zones.js";
 
 const redactionBuiltinSchema = z.object({
   email: z.boolean().optional(),
@@ -99,9 +100,15 @@ export async function updateRuntimeSettings(
       ...partial.threatIntel,
     };
     merged.threatIntel = nextThreatIntel;
-    const cidrErrors = validateThreatIntelInternalCidrs(nextThreatIntel.internalCidrs ?? []);
-    if (cidrErrors.length > 0) {
-      throw new Error(cidrErrors[0]);
+    const zoneErrors = validateOrganizationIpZones(nextThreatIntel.zones ?? []);
+    if (zoneErrors.length > 0) {
+      throw new Error(zoneErrors[0]);
+    }
+    if (nextThreatIntel.internalCidrs?.length) {
+      const cidrErrors = validateThreatIntelInternalCidrs(nextThreatIntel.internalCidrs);
+      if (cidrErrors.length > 0) {
+        throw new Error(cidrErrors[0]);
+      }
     }
   }
 

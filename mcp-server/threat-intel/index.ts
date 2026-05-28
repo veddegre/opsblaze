@@ -6,8 +6,13 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import {
   getActiveThreatIntelProviders,
+  hasOrganizationIpConfig,
   isThreatIntelProviderConfigured,
 } from "../../server/threat-intel-config.js";
+import {
+  classifyOrganizationIpsForTool,
+  formatClassifySummary,
+} from "./classify-org-ips.js";
 import { enrichIps, formatEnrichSummary } from "./enrich.js";
 import { lookupAbuseIpdb } from "./abuseipdb.js";
 import { classifyIpForThreatIntel } from "./ip-utils.js";
@@ -27,6 +32,38 @@ function toolResult(payload: unknown) {
   };
 }
 
+server.tool(
+  "classify_organization_ips",
+  "Classify IPv4 addresses against configured organization zones (campus, VPN, etc.). " +
+    "Returns zone name, default posture (trusted/neutral/sensitive), and whether threat-intel APIs should be skipped. " +
+    "No external API calls. Use during Splunk investigations before adjusting risk or calling enrich_ips.",
+  {
+    ips: z
+      .array(z.string())
+      .min(1)
+      .max(100)
+      .describe("IPv4 addresses from Splunk fields such as src, src_ip, client_ip"),
+  },
+  async ({ ips }) => {
+    const payload = classifyOrganizationIpsForTool(ips);
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(
+            {
+              summary: formatClassifySummary(payload),
+              ...payload,
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  }
+);
+
 if (isThreatIntelProviderConfigured("virustotal")) {
   server.tool(
     "virustotal_ip_lookup",
@@ -41,6 +78,8 @@ if (isThreatIntelProviderConfigured("virustotal")) {
           ok: false,
           summary: check.summary,
           error: check.reason,
+          zone: check.zone,
+          defaultPosture: check.defaultPosture,
         });
       }
       return toolResult(await lookupVirustotalIp(check.ip!));
@@ -62,6 +101,8 @@ if (isThreatIntelProviderConfigured("abuseipdb")) {
           ok: false,
           summary: check.summary,
           error: check.reason,
+          zone: check.zone,
+          defaultPosture: check.defaultPosture,
         });
       }
       return toolResult(await lookupAbuseIpdb(check.ip!));
@@ -112,15 +153,19 @@ if (activeProviders.length > 0) {
 
 async function main() {
   const providers = getActiveThreatIntelProviders();
-  if (providers.length === 0) {
+  const orgIp = hasOrganizationIpConfig();
+  if (providers.length === 0 && !orgIp) {
     log.error(
-      "No threat intelligence providers enabled. Set VIRUSTOTAL_API_KEY and/or ABUSEIPDB_API_KEY " +
-        "(and VIRUSTOTAL_ENABLED / ABUSEIPDB_ENABLED if needed), or disable THREAT_INTEL_ENABLED."
+      "Threat-intel MCP needs at least one provider API key or organization IP zones. " +
+        "Set VIRUSTOTAL_API_KEY / ABUSEIPDB_API_KEY, or configure zones in Settings → Runtime / THREAT_INTEL_INTERNAL_CIDRS."
     );
     process.exit(1);
   }
 
-  log.info(`Starting threat-intel MCP (providers: ${providers.join(", ")})`);
+  const parts: string[] = [];
+  if (orgIp) parts.push("classify_organization_ips");
+  if (providers.length) parts.push(`providers: ${providers.join(", ")}`);
+  log.info(`Starting threat-intel MCP (${parts.join("; ")})`);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

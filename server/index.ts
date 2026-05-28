@@ -719,7 +719,13 @@ app.patch("/api/settings", apiLimiter, requireAdmin, async (req, res) => {
     });
   } catch (err) {
     const msg = (err as Error).message;
-    if (msg.includes("Expected") || msg.includes("invalid") || msg.includes("Invalid internal")) {
+    if (
+      msg.includes("Expected") ||
+      msg.includes("invalid") ||
+      msg.includes("Invalid internal") ||
+      msg.includes("Zone name") ||
+      msg.includes("Duplicate zone")
+    ) {
       res.status(400).json({ error: msg });
     } else {
       logger.error({ err }, "failed to update settings");

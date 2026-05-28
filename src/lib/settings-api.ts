@@ -34,9 +34,19 @@ export interface SplunkGuardrails {
   maxTimeRangeHours?: number;
 }
 
+export type IpZonePosture = "trusted" | "neutral" | "sensitive";
+
+export interface IpZoneConfig {
+  name: string;
+  defaultPosture?: IpZonePosture;
+  cidrs: string[];
+}
+
 export interface ThreatIntelSettings {
-  /** IPv4 hosts or CIDRs that belong to your network — never sent to threat intel APIs. */
+  /** Legacy flat list — merged into zones as name `internal` when zones are empty. */
   internalCidrs?: string[];
+  /** Named network zones for classification and contextual risk (see ip-context-risk skill). */
+  zones?: IpZoneConfig[];
 }
 
 export interface AppSettings {

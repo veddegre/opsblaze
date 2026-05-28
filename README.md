@@ -241,9 +241,9 @@ Built-in MCP server `opsblaze-threat-intel` registers when at least one provider
 | `THREAT_INTEL_INTERNAL_CIDRS` | — | Comma-separated IPv4 hosts/CIDRs for your network (never queried) |
 | `ABUSEIPDB_MAX_AGE_DAYS` | `90` | AbuseIPDB `maxAgeInDays` for reports |
 
-Organization-internal ranges can also be maintained in **Settings → Runtime → Threat intelligence** (merged with the env list). RFC1918 private space is always skipped; internal ranges cover public egress, VPN, or campus space you own.
+Organization **IP zones** (name + `trusted` / `neutral` / `sensitive` posture + CIDRs) are maintained in **Settings → Runtime → Threat intelligence**, merged with `THREAT_INTEL_INTERNAL_CIDRS`. The MCP tool **`classify_organization_ips`** returns zone context for investigations (no API calls). Use the **ip-context-risk** skill for activity-based risk (e.g. payroll from campus vs admin abuse from campus). RFC1918 private space is always skipped.
 
-Enable the **ip-threat-enrichment** skill (or add it to a playbook) so the model batches lookups on request. IPs are sent to third-party services—plan for privacy and rate limits.
+Enable the **ip-context-risk** and **ip-threat-enrichment** skills (or add it to a playbook) so the model batches lookups on request. IPs are sent to third-party services—plan for privacy and rate limits.
 
 #### 7. Telemetry — optional
 

@@ -50,6 +50,16 @@ describe("listMcpServers", () => {
     expect(ti?.builtIn).toBe(true);
   });
 
+  it("includes threat-intel for organization IP zones without API keys", async () => {
+    vi.stubEnv("VIRUSTOTAL_API_KEY", "");
+    vi.stubEnv("ABUSEIPDB_API_KEY", "");
+    vi.stubEnv("THREAT_INTEL_INTERNAL_CIDRS", "203.0.113.0/24");
+    vi.resetModules();
+    mod = await import("../mcp-config.js");
+    const servers = await mod.listMcpServers();
+    expect(servers.some((s) => s.name === "opsblaze-threat-intel")).toBe(true);
+  });
+
   it("omits threat-intel when provider is explicitly disabled", async () => {
     vi.stubEnv("VIRUSTOTAL_API_KEY", "vt-test-key");
     vi.stubEnv("VIRUSTOTAL_ENABLED", "false");

@@ -19,6 +19,7 @@ If a provider was disabled by the administrator, do not call its tools; use `enr
 
 ## Workflow
 
+0. If contextual risk matters (campus vs external), run **`classify_organization_ips`** via the **ip-context-risk** skill first.
 1. Run Splunk first to identify candidate **public** IPv4 addresses (not RFC1918 or organization-internal ranges unless the user insists).
 2. Deduplicate and limit to **at most 25** IPs per `enrich_ips` call (fewer is better).
 3. Call **`enrich_ips`** once with the list. Do not repeat the same IPs in a loop.

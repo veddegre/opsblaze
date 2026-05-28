@@ -50,5 +50,7 @@ describe("ip-utils", () => {
     const single = classifyIpForThreatIntel("203.0.113.10");
     expect(single.skip).toBe(true);
     expect(single.reason).toBe("internal");
+    expect(single.zone).toBe("env");
+    expect(single.defaultPosture).toBe("neutral");
   });
 });

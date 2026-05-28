@@ -4,6 +4,7 @@ import path from "path";
 import { logger } from "./logger.js";
 import {
   getActiveThreatIntelProviders,
+  hasOrganizationIpConfig,
   THREAT_INTEL_MCP_SERVER_NAME,
 } from "./threat-intel-config.js";
 
@@ -95,7 +96,7 @@ function getBuiltInSplunkServer(): McpServerEntry {
 }
 
 function getBuiltInThreatIntelServer(): McpServerEntry | null {
-  if (getActiveThreatIntelProviders().length === 0) return null;
+  if (getActiveThreatIntelProviders().length === 0 && !hasOrganizationIpConfig()) return null;
 
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {

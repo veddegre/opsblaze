@@ -15,6 +15,11 @@ import {
   monoInputClass,
 } from "./settings-ui";
 import type { SplunkGuardrails, ThreatIntelSettings } from "../../lib/settings-api";
+import {
+  formatIpZonesText,
+  parseIpZonesText,
+  zonesFromLegacyInternalCidrs,
+} from "../../lib/ip-zones-format";
 
 export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -30,7 +35,7 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
   const [redactCustomPatterns, setRedactCustomPatterns] = useState("");
   const [splunkIndexes, setSplunkIndexes] = useState("");
   const [splunkMaxHours, setSplunkMaxHours] = useState(168);
-  const [threatIntelInternalCidrs, setThreatIntelInternalCidrs] = useState("");
+  const [threatIntelZonesText, setThreatIntelZonesText] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +66,12 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
         const g = s.runtime.splunkGuardrails;
         setSplunkIndexes(formatStringList(g?.allowedIndexes));
         setSplunkMaxHours(g?.maxTimeRangeHours ?? 168);
-        setThreatIntelInternalCidrs(formatStringList(s.runtime.threatIntel?.internalCidrs));
+        const ti = s.runtime.threatIntel;
+        const zonesText =
+          ti?.zones?.length
+            ? formatIpZonesText(ti.zones)
+            : formatIpZonesText(zonesFromLegacyInternalCidrs(ti?.internalCidrs));
+        setThreatIntelZonesText(zonesText);
       })
       .catch(() => {});
   }, []);
@@ -155,12 +165,16 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
         (prevG.maxTimeRangeHours ?? 168) !== splunkMaxHours;
       if (guardrailsChanged) partial.splunkGuardrails = nextGuardrails;
 
+      const nextZones = parseIpZonesText(threatIntelZonesText);
       const nextThreatIntel: ThreatIntelSettings = {
-        internalCidrs: parseStringList(threatIntelInternalCidrs),
+        zones: nextZones.length > 0 ? nextZones : undefined,
+        internalCidrs: undefined,
       };
-      const prevTi = settings?.runtime.threatIntel ?? { internalCidrs: [] };
-      const threatIntelChanged =
-        formatStringList(prevTi.internalCidrs) !== threatIntelInternalCidrs.trim();
+      const prevTi = settings?.runtime.threatIntel;
+      const prevZonesText = prevTi?.zones?.length
+        ? formatIpZonesText(prevTi.zones)
+        : formatIpZonesText(zonesFromLegacyInternalCidrs(prevTi?.internalCidrs));
+      const threatIntelChanged = prevZonesText.trim() !== threatIntelZonesText.trim();
       if (threatIntelChanged) partial.threatIntel = nextThreatIntel;
 
       if (Object.keys(partial).length === 0) {
@@ -389,21 +403,24 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
             Threat intelligence
           </h3>
           <p className="text-[11px] text-gray-600 -mt-1">
-            IPv4 addresses in these ranges are never sent to VirusTotal or AbuseIPDB (saves API
-            quota). RFC1918 private space is already skipped; add your public egress, VPN, or
-            campus ranges here. You can also set{" "}
-            <span className="font-mono">THREAT_INTEL_INTERNAL_CIDRS</span> in the server environment.
+            Named zones drive <span className="font-mono">classify_organization_ips</span> and skip
+            threat-intel API calls for matching addresses. Use the{" "}
+            <span className="font-mono">ip-context-risk</span> skill for activity-based risk
+            adjustments. Env fallback: <span className="font-mono">THREAT_INTEL_INTERNAL_CIDRS</span>{" "}
+            (zone <span className="font-mono">env</span>, neutral).
           </p>
-          <FieldLabel hint="One IPv4 host or CIDR per line (e.g. 203.0.113.0/24 or 198.51.100.5).">
-            Organization internal ranges
+          <FieldLabel hint="Zone header: name posture (trusted | neutral | sensitive). Following lines are CIDRs until the next header.">
+            IP zones
           </FieldLabel>
           <textarea
-            value={threatIntelInternalCidrs}
-            onChange={(e) => setThreatIntelInternalCidrs(e.target.value)}
+            value={threatIntelZonesText}
+            onChange={(e) => setThreatIntelZonesText(e.target.value)}
             disabled={!isAdmin}
-            rows={3}
-            placeholder={"203.0.113.0/24\n198.51.100.0/22"}
-            className={`${monoInputClass} resize-y min-h-[3rem]`}
+            rows={8}
+            placeholder={
+              "campus trusted\n203.0.113.0/24\n198.51.100.0/22\n\nvpn neutral\n10.8.0.0/24"
+            }
+            className={`${monoInputClass} resize-y min-h-[6rem]`}
           />
         </div>
 

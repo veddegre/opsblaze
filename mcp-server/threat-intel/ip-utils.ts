@@ -1,17 +1,8 @@
 import { isIPv4 } from "node:net";
 import {
-  getParsedThreatIntelInternalRanges,
-  isIpv4InInternalRanges,
+  classifyOrganizationIp,
+  isPublicIpv4,
 } from "../../server/threat-intel-ranges.js";
-
-const PRIVATE_V4 = [
-  /^10\./,
-  /^127\./,
-  /^169\.254\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^192\.168\./,
-  /^0\./,
-];
 
 export function normalizeIp(raw: string): string | null {
   const trimmed = raw.trim();
@@ -19,14 +10,11 @@ export function normalizeIp(raw: string): string | null {
   return trimmed;
 }
 
-export function isPublicIpv4(ip: string): boolean {
-  if (!isIPv4(ip)) return false;
-  return !PRIVATE_V4.some((re) => re.test(ip));
-}
+export { isPublicIpv4 };
 
 export function isOrganizationInternalIpv4(ip: string): boolean {
-  const ranges = getParsedThreatIntelInternalRanges();
-  return isIpv4InInternalRanges(ip, ranges);
+  const c = classifyOrganizationIp(ip);
+  return Boolean(c?.inOrganizationRange);
 }
 
 export function classifyIpsForThreatIntel(
@@ -46,22 +34,22 @@ export function classifyIpsForThreatIntel(
   const queryable: string[] = [];
 
   for (const raw of ips) {
-    const ip = normalizeIp(raw);
-    if (!ip) {
+    const classification = classifyOrganizationIp(raw);
+    if (!classification) {
       skippedInvalid.push(raw);
       continue;
     }
-    if (isOrganizationInternalIpv4(ip)) {
-      skippedInternal.push(ip);
+    if (classification.inOrganizationRange) {
+      skippedInternal.push(classification.ip);
       continue;
     }
-    if (!isPublicIpv4(ip)) {
-      skippedPrivate.push(ip);
+    if (!classification.isPublic) {
+      skippedPrivate.push(classification.ip);
       continue;
     }
-    if (seen.has(ip)) continue;
-    seen.add(ip);
-    queryable.push(ip);
+    if (seen.has(classification.ip)) continue;
+    seen.add(classification.ip);
+    queryable.push(classification.ip);
   }
 
   const truncated = queryable.length > max;
@@ -97,30 +85,34 @@ export function classifyIpForThreatIntel(raw: string): {
   reason?: ThreatIntelIpSkipReason;
   ip?: string;
   summary?: string;
+  zone?: string | null;
+  defaultPosture?: string | null;
 } {
-  const ip = normalizeIp(raw);
-  if (!ip) {
+  const classification = classifyOrganizationIp(raw);
+  if (!classification) {
     return {
       skip: true,
       reason: "invalid",
       summary: `Invalid IPv4 address: ${raw}`,
     };
   }
-  if (isOrganizationInternalIpv4(ip)) {
+  if (classification.inOrganizationRange) {
     return {
       skip: true,
       reason: "internal",
-      ip,
-      summary: `Skipped ${ip}: organization internal range (not sent to threat intelligence APIs)`,
+      ip: classification.ip,
+      zone: classification.zone,
+      defaultPosture: classification.defaultPosture,
+      summary: `Skipped ${classification.ip}: organization zone "${classification.zone}" (${classification.defaultPosture}) — not sent to threat intelligence APIs`,
     };
   }
-  if (!isPublicIpv4(ip)) {
+  if (!classification.isPublic) {
     return {
       skip: true,
       reason: "private",
-      ip,
-      summary: `Skipped ${ip}: private or reserved address`,
+      ip: classification.ip,
+      summary: `Skipped ${classification.ip}: private or reserved address`,
     };
   }
-  return { skip: false, ip };
+  return { skip: false, ip: classification.ip };
 }
