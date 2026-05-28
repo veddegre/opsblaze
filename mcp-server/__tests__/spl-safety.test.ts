@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { loadSafetyConfig, normalizeSPL, checkSPLSafety } from "../spl-safety.js";
+import {
+  loadSafetyConfig,
+  normalizeSPL,
+  checkSPLSafety,
+  isMisplacedTimeAsSpl,
+} from "../spl-safety.js";
 import type { SplunkConfig, SplunkParsedCommand } from "../types.js";
 
 const mockCallSplunkAPI = vi.fn();
@@ -88,6 +93,14 @@ describe("loadSafetyConfig", () => {
 // ---------------------------------------------------------------------------
 // normalizeSPL
 // ---------------------------------------------------------------------------
+describe("isMisplacedTimeAsSpl", () => {
+  it("flags bare time tokens", () => {
+    expect(isMisplacedTimeAsSpl("0")).toBe(true);
+    expect(isMisplacedTimeAsSpl("-7d")).toBe(true);
+    expect(isMisplacedTimeAsSpl("index=main")).toBe(false);
+  });
+});
+
 describe("normalizeSPL", () => {
   const config = loadSafetyConfig(1000);
 
@@ -342,6 +355,21 @@ describe("checkSPLSafety", () => {
     const result = await checkSPLSafety(dummySplunkConfig, "bad query ///", config);
     expect(result.safe).toBe(false);
     expect(result.message).toContain("400");
+  });
+
+  it("extracts FATAL text from Splunk parser JSON errors", async () => {
+    mockCallSplunkAPI.mockResolvedValueOnce(
+      fakeErrorResponse(
+        400,
+        JSON.stringify({
+          messages: [{ type: "FATAL", text: "Unknown search command '0'." }],
+        })
+      )
+    );
+
+    const result = await checkSPLSafety(dummySplunkConfig, "search 0 | head 1", config);
+    expect(result.safe).toBe(false);
+    expect(result.message).toContain("Unknown search command");
   });
 
   it("returns safe:false when callSplunkAPI throws a network error", async () => {

@@ -21,6 +21,7 @@ import {
   normalizeSplunkToolArgs,
   splQueryFingerprint,
   synthesisNudgeMessage,
+  validateSplunkToolArgs,
 } from "./openwebui-splunk-tools.js";
 import { listSkills } from "./skills.js";
 import { getClaudeModel, getMaxTurns, getStreamTimeoutMs } from "./runtime-settings.js";
@@ -371,6 +372,29 @@ export async function runOpenWebUiAgent(
           call.function.name === "splunk_query" ||
           call.function.name.endsWith("__splunk_query");
         const fingerprint = isSplunkQuery ? splQueryFingerprint(args) : null;
+
+        const splArgError = isSplunkQuery ? validateSplunkToolArgs(args) : null;
+        if (splArgError) {
+          emit("activity", {
+            id: toolActivityId,
+            label: "Invalid SPL",
+            status: "error",
+            detail: splArgError,
+          });
+          const modelContent = JSON.stringify({
+            summary: splArgError,
+            chart: null,
+            suppressed: true,
+          });
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            name: call.function.name,
+            content: modelContent,
+          });
+          emit("text", { content: `\n\n> **SPL error:** ${splArgError}\n\n` });
+          continue;
+        }
 
         const resolved = resolveToolInvocation(call.function.name, mcp.connectedServers);
         if ("error" in resolved) {

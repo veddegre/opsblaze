@@ -5,9 +5,18 @@ import {
   compactSplunkToolResultForModel,
   duplicateSplunkToolContent,
   buildFallbackInvestigationSummary,
+  validateSplunkToolArgs,
+  extractSplFromToolArgs,
+  isTimeOnlyMisplacedAsSpl,
 } from "../openwebui-splunk-tools.js";
 
 describe("openwebui-splunk-tools", () => {
+  it("rejects spl=0 as a time misplaced in spl field", () => {
+    expect(isTimeOnlyMisplacedAsSpl("0")).toBe(true);
+    expect(validateSplunkToolArgs({ spl: "0", earliest: "-24h" })).toMatch(/time value/i);
+    expect(extractSplFromToolArgs({ spl: "0", query: "index=main" })).toBe("index=main");
+  });
+
   it("maps query to spl and sets defaults", () => {
     const out = normalizeSplunkToolArgs({
       query: "index=_audit | head 10",

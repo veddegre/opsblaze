@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import { getSplunkConfig, runSearch } from "./splunk-client.js";
 import { transformToDataSources, summarizeResults } from "./transform.js";
-import { loadSafetyConfig, normalizeSPL, checkSPLSafety } from "./spl-safety.js";
+import { loadSafetyConfig, normalizeSPL, checkSPLSafety, isMisplacedTimeAsSpl } from "./spl-safety.js";
 import type { VizType, SplunkToolResult } from "./types.js";
 import { log } from "./logger.js";
 
@@ -97,7 +97,22 @@ server.tool(
   async (params) => {
     try {
       const config = getSplunkConfig();
-      const normalizedSpl = normalizeSPL(params.spl, safetyConfig);
+      const rawSpl = params.spl.trim();
+
+      if (!rawSpl || isMisplacedTimeAsSpl(rawSpl)) {
+        const rejected: SplunkToolResult = {
+          summary: !rawSpl
+            ? "Missing SPL. Provide a search such as index=_audit | stats count."
+            : `Invalid SPL: "${rawSpl}" is a time value, not a query. Use earliest="${rawSpl === "0" ? "0" : "-24h"}" and latest="now" for the time range, and put SPL in the spl field.`,
+          chart: null,
+          suppressed: true,
+        };
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(rejected) }],
+        };
+      }
+
+      const normalizedSpl = normalizeSPL(rawSpl, safetyConfig);
 
       if (SPL_SAFETY_ENABLED) {
         const check = await checkSPLSafety(config, normalizedSpl, safetyConfig);

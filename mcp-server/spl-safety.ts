@@ -29,6 +29,30 @@ export function loadSafetyConfig(maxRowLimit: number): SafetyConfig {
  * Normalize an SPL query: ensure it starts with a proper command prefix
  * and append a `| head` row limit.
  */
+function formatSplParserError(body: string, status: number): string {
+  try {
+    const parsed = JSON.parse(body) as {
+      messages?: Array<{ type?: string; text?: string }>;
+    };
+    const fatal = parsed.messages?.find((m) => m.type === "FATAL" && m.text);
+    if (fatal?.text) {
+      return `Splunk could not parse the query: ${fatal.text.trim()}`;
+    }
+  } catch {
+    /* not JSON */
+  }
+  return `Error parsing SPL query (${status}): ${body.slice(0, 300)}`;
+}
+
+/** Time bounds models sometimes wrongly pass as SPL (e.g. spl="0" for all-time). */
+export function isMisplacedTimeAsSpl(s: string): boolean {
+  const t = s.trim().toLowerCase();
+  if (t === "0" || t === "now") return true;
+  if (/^[-+]?\d+[smhdw]?(@[dh])?$/.test(t)) return true;
+  if (/^\d{9,11}$/.test(t)) return true;
+  return false;
+}
+
 export function normalizeSPL(spl: string, config: SafetyConfig): string {
   const trimmed = spl.trim();
   if (!trimmed) return "";
@@ -110,7 +134,7 @@ export async function checkSPLSafety(
       const body = await response.text();
       return {
         safe: false,
-        message: `Error parsing SPL query (${response.status}): ${body.slice(0, 300)}`,
+        message: formatSplParserError(body, response.status),
       };
     }
 

@@ -21,16 +21,73 @@ export function synthesisNudgeMessage(): string {
   return SYNTHESIS_NUDGE;
 }
 
+/** Strip wrapping quotes models sometimes include in SPL strings. */
+export function stripSplWrapping(s: string): string {
+  let t = s.trim();
+  while (
+    (t.startsWith("'") && t.endsWith("'") && t.length > 1) ||
+    (t.startsWith('"') && t.endsWith('"') && t.length > 1)
+  ) {
+    t = t.slice(1, -1).trim();
+  }
+  return t;
+}
+
+/** True when a value is a time bound, not SPL (models often put these in `spl`). */
+export function isTimeOnlyMisplacedAsSpl(s: string): boolean {
+  const t = s.trim().toLowerCase();
+  if (t === "0" || t === "now") return true;
+  if (/^[-+]?\d+[smhdw]?(@[dh])?$/.test(t)) return true;
+  if (/^\d{9,11}$/.test(t)) return true;
+  return false;
+}
+
+const SPL_ARG_KEYS = ["spl", "query", "SPL", "search", "spl_query"] as const;
+
+/** Pull SPL from tool args; ignores numeric-only and time-token mistakes. */
+export function extractSplFromToolArgs(args: Record<string, unknown>): string | null {
+  const candidates: string[] = [];
+  for (const key of SPL_ARG_KEYS) {
+    const v = args[key];
+    if (typeof v === "string") {
+      const s = stripSplWrapping(v);
+      if (s) candidates.push(s);
+    }
+  }
+  for (const s of candidates) {
+    if (!isTimeOnlyMisplacedAsSpl(s)) return s;
+  }
+  return candidates[0] ?? null;
+}
+
+/** User-facing validation before calling Splunk. */
+export function validateSplunkToolArgs(args: Record<string, unknown>): string | null {
+  const spl = extractSplFromToolArgs(args);
+  if (!spl) {
+    return (
+      'Missing SPL. The spl (or query) field must be a search such as index=_audit | stats count — not a number or empty value.'
+    );
+  }
+  if (isTimeOnlyMisplacedAsSpl(spl)) {
+    return (
+      `SPL must be a search pipeline, not a time value ("${spl}"). ` +
+      'Use earliest="0" and latest="now" on the tool for all-time, or earliest="-7d" for the last 7 days.'
+    );
+  }
+  return null;
+}
+
 /** Normalize model tool args to MCP splunk_query schema (models often send `query` not `spl`). */
 export function normalizeSplunkToolArgs(args: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...args };
 
-  if (!out.spl) {
-    if (typeof out.query === "string") out.spl = out.query;
-    else if (typeof out.SPL === "string") out.spl = out.SPL;
+  const spl = extractSplFromToolArgs(out);
+  if (spl) out.spl = spl;
+  else delete out.spl;
+
+  for (const key of SPL_ARG_KEYS) {
+    if (key !== "spl") delete out[key];
   }
-  delete out.query;
-  delete out.SPL;
 
   const viz = out.viz_type ?? out.vizType;
   if (typeof viz === "string") {
@@ -40,8 +97,16 @@ export function normalizeSplunkToolArgs(args: Record<string, unknown>): Record<s
   }
   delete out.vizType;
 
-  if (!out.earliest) out.earliest = "-24h";
-  if (!out.latest) out.latest = "now";
+  if (out.earliest == null || String(out.earliest).trim() === "") {
+    out.earliest = "-24h";
+  } else {
+    out.earliest = String(out.earliest);
+  }
+  if (out.latest == null || String(out.latest).trim() === "") {
+    out.latest = "now";
+  } else {
+    out.latest = String(out.latest);
+  }
 
   return out;
 }

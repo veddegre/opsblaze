@@ -11,7 +11,10 @@ import {
   validateSplunkQuery,
   type SplunkGuardrailContext,
 } from "./splunk-guardrails.js";
-import { normalizeSplunkToolArgs } from "./openwebui-splunk-tools.js";
+import {
+  normalizeSplunkToolArgs,
+  validateSplunkToolArgs,
+} from "./openwebui-splunk-tools.js";
 import type {
   HttpServerConfig,
   McpServerEntry,
@@ -217,6 +220,17 @@ export class McpRuntime {
 
     if (parsed.toolName === "splunk_query" && parsed.serverName === "opsblaze-splunk") {
       toolArgs = normalizeSplunkToolArgs(toolArgs);
+      const argError = validateSplunkToolArgs(toolArgs);
+      if (argError) {
+        return {
+          text: JSON.stringify({
+            summary: argError,
+            chart: null,
+            suppressed: true,
+          }),
+          isError: true,
+        };
+      }
       const spl = typeof toolArgs.spl === "string" ? toolArgs.spl : "";
       const earliest = typeof toolArgs.earliest === "string" ? toolArgs.earliest : "-24h";
       const latest = typeof toolArgs.latest === "string" ? toolArgs.latest : "now";
