@@ -11,6 +11,7 @@ import {
   validateSplunkQuery,
   type SplunkGuardrailContext,
 } from "./splunk-guardrails.js";
+import { normalizeSplunkToolArgs } from "./openwebui-splunk-tools.js";
 import type {
   HttpServerConfig,
   McpServerEntry,
@@ -210,13 +211,15 @@ export class McpRuntime {
 
     const parsed = resolved;
     const server = this.servers.find((s) => s.name === parsed.serverName)!;
+    let toolArgs = args;
 
     log.debug({ server: parsed.serverName, tool: parsed.toolName }, "calling MCP tool");
 
     if (parsed.toolName === "splunk_query" && parsed.serverName === "opsblaze-splunk") {
-      const spl = typeof args.spl === "string" ? args.spl : "";
-      const earliest = typeof args.earliest === "string" ? args.earliest : "-24h";
-      const latest = typeof args.latest === "string" ? args.latest : "now";
+      toolArgs = normalizeSplunkToolArgs(toolArgs);
+      const spl = typeof toolArgs.spl === "string" ? toolArgs.spl : "";
+      const earliest = typeof toolArgs.earliest === "string" ? toolArgs.earliest : "-24h";
+      const latest = typeof toolArgs.latest === "string" ? toolArgs.latest : "now";
       const guardrails = await resolveSplunkGuardrails(guardrailCtx);
       const violation = validateSplunkQuery(guardrails, spl, earliest, latest);
       if (violation) {
@@ -234,7 +237,7 @@ export class McpRuntime {
 
     const result = await server.client.callTool({
       name: parsed.toolName,
-      arguments: args,
+      arguments: toolArgs,
     });
 
     const parts: string[] = [];

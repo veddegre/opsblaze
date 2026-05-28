@@ -13,6 +13,15 @@ import {
 
 export type { McpSessionKey } from "./mcp-session-pool.js";
 import { chatCompleteStream, type ChatMessage, OpenWebUiError } from "./openwebui-client.js";
+import {
+  buildFallbackInvestigationSummary,
+  compactSplunkToolResultForModel,
+  DEFAULT_MAX_TOOL_ROUNDS,
+  duplicateSplunkToolContent,
+  normalizeSplunkToolArgs,
+  splQueryFingerprint,
+  synthesisNudgeMessage,
+} from "./openwebui-splunk-tools.js";
 import { listSkills } from "./skills.js";
 import { getClaudeModel, getMaxTurns, getStreamTimeoutMs } from "./runtime-settings.js";
 import { telemetry } from "./telemetry/index.js";
@@ -45,7 +54,10 @@ When the user asks about Splunk data, security, or operations:
 - Use relative Splunk time modifiers (e.g. -7d@d) for earliest/latest — not ISO timestamps.
 - Tool results return JSON with a text summary and optional chart dataSources; use the summary for reasoning.
 
-Do not invent data. If a query returns no results, say so and adjust your approach.`;
+Do not invent data. If a query returns no results, say so and adjust your approach.
+
+After splunk_query returns, read the summary in the tool result and write your analysis. Do not run the same SPL again.
+If results are sufficient, answer the user in prose instead of calling more tools.`;
 
 async function readSkillBody(skillPath: string): Promise<string> {
   const raw = await readFile(skillPath, "utf-8");
@@ -100,6 +112,20 @@ async function buildSystemPrompt(
   };
 }
 
+function emitSplunkSummaryText(
+  text: string,
+  emit: (event: string, data: unknown) => void
+): void {
+  try {
+    const result = JSON.parse(text) as SplunkToolResult;
+    if (result.summary?.trim()) {
+      emit("text", { content: `\n\n${result.summary.trim()}\n\n` });
+    }
+  } catch {
+    /* not Splunk JSON */
+  }
+}
+
 function emitSplunkToolResult(text: string, emit: (event: string, data: unknown) => void, log: Logger) {
   try {
     const result = JSON.parse(text) as SplunkToolResult;
@@ -150,7 +176,8 @@ function processStreamTextChunk(
 }
 
 function splPreviewFromArgs(args: Record<string, unknown>): string | undefined {
-  const raw = args.query ?? args.spl;
+  const normalized = normalizeSplunkToolArgs(args);
+  const raw = normalized.spl;
   if (typeof raw !== "string") return undefined;
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
@@ -253,6 +280,11 @@ export async function runOpenWebUiAgent(
       "MCP tools registered for Open WebUI"
     );
 
+    const executedSplQueries = new Map<string, string>();
+    let toolRoundCount = 0;
+    let forceSynthesis = false;
+    const maxToolRounds = Math.min(maxTurns, DEFAULT_MAX_TOOL_ROUNDS);
+
     while (turnCount < maxTurns) {
       if (abortSignal?.aborted) break;
 
@@ -268,7 +300,8 @@ export async function runOpenWebUiAgent(
           model,
           messages,
           chatId: requestId,
-          tools: tools.length > 0 ? tools : undefined,
+          tools:
+            !forceSynthesis && tools.length > 0 ? tools : undefined,
           signal: abortSignal,
         },
         {
@@ -307,6 +340,17 @@ export async function runOpenWebUiAgent(
         break;
       }
 
+      if (forceSynthesis) {
+        agentLog.warn(
+          { toolCallCount: toolCalls.length },
+          "model requested tools after synthesis nudge; ending with collected results"
+        );
+        const fallback = buildFallbackInvestigationSummary(executedSplQueries);
+        bufState = processStreamTextChunk(bufState, fallback, emit);
+        turnCount++;
+        break;
+      }
+
       const assistantMessage: ChatMessage = {
         role: "assistant",
         tool_calls: toolCalls,
@@ -314,13 +358,19 @@ export async function runOpenWebUiAgent(
       if (stream.content) assistantMessage.content = stream.content;
       messages.push(assistantMessage);
 
+      const resultsThisBatch = new Map<string, string>();
+
       for (const call of toolCalls) {
         if (abortSignal?.aborted) break;
 
-        const args = parseToolArguments(call.function.arguments);
+        const args = normalizeSplunkToolArgs(parseToolArguments(call.function.arguments));
         const toolActivityId = `tool-${call.id}`;
         const label = toolActivityLabel(call.function.name, args);
         const detail = splPreviewFromArgs(args);
+        const isSplunkQuery =
+          call.function.name === "splunk_query" ||
+          call.function.name.endsWith("__splunk_query");
+        const fingerprint = isSplunkQuery ? splQueryFingerprint(args) : null;
 
         const resolved = resolveToolInvocation(call.function.name, mcp.connectedServers);
         if ("error" in resolved) {
@@ -339,36 +389,76 @@ export async function runOpenWebUiAgent(
           continue;
         }
 
-        emit("activity", {
-          id: toolActivityId,
-          label,
-          status: "active",
-          detail,
-        });
+        let modelContent: string;
 
-        const { text, isError } = await withMcpSessionLock(mcp, () =>
-          mcp.callTool(call.function.name, args, agentLog, {
-            isAdmin,
-          })
-        );
+        if (fingerprint && resultsThisBatch.has(fingerprint)) {
+          modelContent = resultsThisBatch.get(fingerprint)!;
+          emit("activity", {
+            id: toolActivityId,
+            label: `${label} (duplicate skipped)`,
+            status: "done",
+            detail,
+          });
+        } else if (fingerprint && executedSplQueries.has(fingerprint)) {
+          modelContent = duplicateSplunkToolContent(executedSplQueries.get(fingerprint)!);
+          resultsThisBatch.set(fingerprint, modelContent);
+          emit("activity", {
+            id: toolActivityId,
+            label: `${label} (already ran)`,
+            status: "done",
+            detail,
+          });
+        } else {
+          emit("activity", {
+            id: toolActivityId,
+            label,
+            status: "active",
+            detail,
+          });
 
-        emit("activity", {
-          id: toolActivityId,
-          label: isError ? `${label} failed` : `${label} complete`,
-          status: isError ? "error" : "done",
-          detail: isError ? text.slice(0, 200) : detail,
-        });
+          const { text, isError } = await withMcpSessionLock(mcp, () =>
+            mcp.callTool(call.function.name, args, agentLog, {
+              isAdmin,
+            })
+          );
 
-        if (!isError) {
-          emitSplunkToolResult(text, emit, agentLog);
+          emit("activity", {
+            id: toolActivityId,
+            label: isError ? `${label} failed` : `${label} complete`,
+            status: isError ? "error" : "done",
+            detail: isError ? text.slice(0, 200) : detail,
+          });
+
+          if (!isError) {
+            emitSplunkToolResult(text, emit, agentLog);
+            emitSplunkSummaryText(text, emit);
+          }
+
+          modelContent = isSplunkQuery
+            ? compactSplunkToolResultForModel(text)
+            : text.length > 12_000
+              ? `${text.slice(0, 12_000)}…[truncated]`
+              : text;
+
+          if (fingerprint && !isError) {
+            executedSplQueries.set(fingerprint, modelContent);
+            resultsThisBatch.set(fingerprint, modelContent);
+          }
         }
 
         messages.push({
           role: "tool",
           tool_call_id: call.id,
           name: qualifyToolName(resolved.serverName, resolved.toolName),
-          content: text,
+          content: modelContent,
         });
+      }
+
+      toolRoundCount++;
+      if (toolRoundCount >= maxToolRounds) {
+        forceSynthesis = true;
+        messages.push({ role: "user", content: synthesisNudgeMessage() });
+        agentLog.info({ toolRoundCount, maxToolRounds }, "forcing synthesis after tool round limit");
       }
 
       bufState = flushAssistantText(bufState, true, emit);
