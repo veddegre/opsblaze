@@ -173,6 +173,22 @@ describe("SettingsPanel: navigation", () => {
     expect(screen.getByRole("button", { name: /^Playbooks$/i })).toBeInTheDocument();
   });
 
+  it("opens Skills section with skill bundles", async () => {
+    render(
+      <SettingsPanel
+        isOpen={true}
+        onClose={vi.fn()}
+        user={mockUser}
+        initialSection="admin-skills"
+      />
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Investigation skills/i })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("heading", { name: /Skill bundles/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Save skill bundles/i })).toBeInTheDocument();
+  });
+
   it("opens Playbooks section with editor", async () => {
     render(
       <SettingsPanel

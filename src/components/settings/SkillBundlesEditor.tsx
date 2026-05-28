@@ -51,11 +51,6 @@ export function SkillBundlesEditor({ packs, onChange, disabled }: SkillBundlesEd
 
   return (
     <div className="space-y-4">
-      <p className="text-[11px] text-gray-600 -mt-1">
-        One-click presets below the chat input. Choose skills from the list for each bundle.
-        Leave empty and save to keep built-in defaults only.
-      </p>
-
       {packs.length === 0 && (
         <p className="text-xs text-gray-500 italic">
           No custom bundles — built-in defaults are shown in the chat UI.

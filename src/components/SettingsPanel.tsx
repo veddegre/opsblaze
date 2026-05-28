@@ -25,6 +25,7 @@ import { SkillCreator } from "./settings/SkillCreator";
 import { AccountTab } from "./settings/AccountTab";
 import { PreferencesTab } from "./settings/PreferencesTab";
 import { PlaybooksTab } from "./settings/PlaybooksTab";
+import { SkillBundlesSection } from "./settings/SkillBundlesSection";
 import { AuditLogTab } from "./settings/AuditLogTab";
 import { AdminSystemTab } from "./settings/AdminSystemTab";
 import { NavGroupLabel, NavItem, Section } from "./settings/settings-ui";
@@ -804,7 +805,13 @@ function McpServersTab({ configPath }: { configPath: string | null }) {
 
 // --- Skills Tab ---
 
-function SkillsTab({ skillsDir }: { skillsDir: string | null }) {
+function SkillsTab({
+  skillsDir,
+  onBundlesChanged,
+}: {
+  skillsDir: string | null;
+  onBundlesChanged?: () => void;
+}) {
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -897,6 +904,8 @@ function SkillsTab({ skillsDir }: { skillsDir: string | null }) {
           }}
         />
       </div>
+
+      <SkillBundlesSection onBundlesChanged={onBundlesChanged} />
 
       <PathHint label="Skills directory:" path={skillsDir} />
     </div>
@@ -1021,7 +1030,9 @@ function renderSection(
     case "admin-mcp":
       return <McpServersTab configPath={paths?.mcpConfig ?? null} />;
     case "admin-skills":
-      return <SkillsTab skillsDir={paths?.skillsDir ?? null} />;
+      return (
+        <SkillsTab skillsDir={paths?.skillsDir ?? null} onBundlesChanged={onPlaybooksChanged} />
+      );
     case "admin-playbooks":
       return <PlaybooksTab onPlaybooksChanged={onPlaybooksChanged} />;
     case "admin-audit":

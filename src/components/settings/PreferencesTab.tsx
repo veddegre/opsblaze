@@ -14,8 +14,7 @@ import {
   inputClass,
   monoInputClass,
 } from "./settings-ui";
-import { SkillBundlesEditor } from "./SkillBundlesEditor";
-import type { SkillPack, SplunkGuardrails } from "../../lib/settings-api";
+import type { SplunkGuardrails } from "../../lib/settings-api";
 
 export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -29,8 +28,6 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
   const [redactMac, setRedactMac] = useState(false);
   const [redactCustomStrings, setRedactCustomStrings] = useState("");
   const [redactCustomPatterns, setRedactCustomPatterns] = useState("");
-  const [skillPacks, setSkillPacks] = useState<SkillPack[]>([]);
-  const [skillPacksTouched, setSkillPacksTouched] = useState(false);
   const [splunkIndexes, setSplunkIndexes] = useState("");
   const [splunkMaxHours, setSplunkMaxHours] = useState(168);
   const [saving, setSaving] = useState(false);
@@ -60,7 +57,6 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
         setRedactMac(Boolean(r?.builtin?.mac));
         setRedactCustomStrings(formatStringList(r?.customStrings));
         setRedactCustomPatterns(formatStringList(r?.customPatterns));
-        setSkillPacks(s.runtime.skillPacks ?? []);
         const g = s.runtime.splunkGuardrails;
         setSplunkIndexes(formatStringList(g?.allowedIndexes));
         setSplunkMaxHours(g?.maxTimeRangeHours ?? 168);
@@ -144,10 +140,6 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
         formatStringList(prevRedaction.customPatterns) !== redactCustomPatterns.trim();
       if (redactionChanged) partial.redaction = nextRedaction;
 
-      if (skillPacksTouched) {
-        partial.skillPacks = skillPacks;
-      }
-
       const nextGuardrails: SplunkGuardrails = {
         allowedIndexes: parseStringList(splunkIndexes),
         maxTimeRangeHours: splunkMaxHours,
@@ -168,8 +160,6 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
       }
       const updated = await updateSettings(partial);
       setSettings((prev) => (prev ? { ...prev, runtime: updated.runtime } : prev));
-      setSkillPacks(updated.runtime.skillPacks ?? skillPacks);
-      setSkillPacksTouched(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -427,24 +417,6 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
             min={1}
             max={8760}
             className={inputClass}
-          />
-        </div>
-
-        <div className="border-t border-border-subtle pt-4 mt-2 space-y-3">
-          <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wide">
-            Skill bundles
-          </h3>
-          <p className="text-[11px] text-gray-600 -mt-1">
-            One-click skill presets under the chat input. Saved with{" "}
-            <strong className="text-gray-300">Save runtime settings</strong> below.
-          </p>
-          <SkillBundlesEditor
-            packs={skillPacks}
-            onChange={(next) => {
-              setSkillPacks(next);
-              setSkillPacksTouched(true);
-            }}
-            disabled={!isAdmin}
           />
         </div>
 

@@ -636,7 +636,7 @@ Disabled skills remain on disk as `SKILL.md.disabled` and are omitted from promp
 
 Bundled examples include `splunk-analyst`, `investigating-splunk-login-activity`, and other generic Splunk playbooks. Organization-specific skills belong in `.claude/skills/_local/` or `.opsblaze/skills/_local/` (gitignored — see that folder’s README). Create more via **Settings → Skills** (admins) or **Distill skill** from a completed investigation.
 
-**Skill bundles** (presets below the chat input) come from built-in defaults or **Settings → Runtime settings → Skill bundles** (admins). Each bundle sets which skills are selected and whether strict mode applies.
+**Skill bundles** (presets below the chat input) come from built-in defaults or **Settings → Skills → Skill bundles** (admins). Each bundle sets which skills are selected and whether strict mode applies.
 
 **Splunk guardrails** (admins, runtime settings) restrict MCP `splunk_query` to allowed indexes and a maximum time window for everyone. Optional **admin break-glass** via `.env`: `OPSBLAZE_SPLUNK_GUARD_ADMIN_EXTRA_INDEXES` (union with the allowlist) or `OPSBLAZE_SPLUNK_GUARD_ADMIN_BYPASS_INDEXES=true` (admins skip index checks; time window still applies).
 
