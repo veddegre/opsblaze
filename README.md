@@ -225,6 +225,26 @@ In **local** and **OIDC** modes, each user’s investigations live under `data/c
 
 Global index/time allowlists are configured in **Settings → Runtime** (stored on disk, not in `.env`).
 
+#### 6a. Threat intelligence (VirusTotal / AbuseIPDB) — optional
+
+Built-in MCP server `opsblaze-threat-intel` registers when at least one provider is enabled. Tools: `enrich_ips`, and per-provider lookups when configured.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `THREAT_INTEL_ENABLED` | on | Set `false` to disable the entire built-in threat-intel MCP server |
+| `VIRUSTOTAL_API_KEY` | — | VirusTotal API v3 key |
+| `VIRUSTOTAL_ENABLED` | on if key set | Set `false` to disable VirusTotal while keeping AbuseIPDB |
+| `ABUSEIPDB_API_KEY` | — | AbuseIPDB API key |
+| `ABUSEIPDB_ENABLED` | on if key set | Set `false` to disable AbuseIPDB while keeping VirusTotal |
+| `THREAT_INTEL_MAX_IPS` | `25` | Max public IPs per `enrich_ips` call |
+| `THREAT_INTEL_CACHE_HOURS` | `24` | In-process cache TTL per IP/provider |
+| `THREAT_INTEL_INTERNAL_CIDRS` | — | Comma-separated IPv4 hosts/CIDRs for your network (never queried) |
+| `ABUSEIPDB_MAX_AGE_DAYS` | `90` | AbuseIPDB `maxAgeInDays` for reports |
+
+Organization-internal ranges can also be maintained in **Settings → Runtime → Threat intelligence** (merged with the env list). RFC1918 private space is always skipped; internal ranges cover public egress, VPN, or campus space you own.
+
+Enable the **ip-threat-enrichment** skill (or add it to a playbook) so the model batches lookups on request. IPs are sent to third-party services—plan for privacy and rate limits.
+
 #### 7. Telemetry — optional
 
 These are **not** required to run OpsBlaze. They export **usage/performance signals about the app** (investigation turns, token counts, tool calls)—not the same as **§1 Splunk**, which is the management API the agent uses to run SPL.

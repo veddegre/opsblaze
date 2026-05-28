@@ -2,6 +2,10 @@ import { readFile, writeFile, mkdir } from "fs/promises";
 import { assertAllowedMcpRemoteUrl } from "./mcp-url-security.js";
 import path from "path";
 import { logger } from "./logger.js";
+import {
+  getActiveThreatIntelProviders,
+  THREAT_INTEL_MCP_SERVER_NAME,
+} from "./threat-intel-config.js";
 
 export interface StdioServerConfig {
   type?: "stdio";
@@ -64,6 +68,12 @@ async function writeConfig(config: McpServersFile): Promise<void> {
   await writeFile(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
 }
 
+const BUILTIN_SERVER_NAMES = new Set(["opsblaze-splunk", THREAT_INTEL_MCP_SERVER_NAME]);
+
+function isBuiltInMcpServer(name: string): boolean {
+  return BUILTIN_SERVER_NAMES.has(name);
+}
+
 function getBuiltInSplunkServer(): McpServerEntry {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {
@@ -82,6 +92,56 @@ function getBuiltInSplunkServer(): McpServerEntry {
     env,
     enabled: true,
   };
+}
+
+function getBuiltInThreatIntelServer(): McpServerEntry | null {
+  if (getActiveThreatIntelProviders().length === 0) return null;
+
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (
+      (key.startsWith("THREAT_INTEL_") ||
+        key.startsWith("VIRUSTOTAL_") ||
+        key.startsWith("ABUSEIPDB_")) &&
+      value !== undefined
+    ) {
+      env[key] = value;
+    }
+  }
+  if (process.env.LOG_LEVEL) {
+    env.LOG_LEVEL = process.env.LOG_LEVEL;
+  }
+  if (process.env.OPSBLAZE_DATA_DIR) {
+    env.OPSBLAZE_DATA_DIR = process.env.OPSBLAZE_DATA_DIR;
+  }
+
+  const mcpServerPath = path.join(process.cwd(), "mcp-server", "threat-intel", "index.ts");
+  return {
+    type: "stdio",
+    command: "npx",
+    args: ["tsx", mcpServerPath],
+    env,
+    enabled: true,
+  };
+}
+
+function listBuiltInMcpServers(): McpServerInfo[] {
+  const servers: McpServerInfo[] = [
+    {
+      name: "opsblaze-splunk",
+      config: getBuiltInSplunkServer(),
+      builtIn: true,
+    },
+  ];
+  const threatIntel = getBuiltInThreatIntelServer();
+  if (threatIntel) {
+    servers.push({
+      name: THREAT_INTEL_MCP_SERVER_NAME,
+      config: threatIntel,
+      builtIn: true,
+    });
+  }
+  return servers;
 }
 
 function redactEnv(entry: McpServerEntry): McpServerEntry {
@@ -108,13 +168,10 @@ function redactSecrets(entry: McpServerEntry): McpServerEntry {
 
 export async function listMcpServers(): Promise<McpServerInfo[]> {
   const config = await readConfig();
-  const servers: McpServerInfo[] = [];
-
-  servers.push({
-    name: "opsblaze-splunk",
-    config: redactSecrets(getBuiltInSplunkServer()),
-    builtIn: true,
-  });
+  const servers: McpServerInfo[] = listBuiltInMcpServers().map((s) => ({
+    ...s,
+    config: redactSecrets(s.config),
+  }));
 
   for (const [name, entry] of Object.entries(config.servers)) {
     servers.push({ name, config: redactSecrets(entry), builtIn: false });
@@ -126,6 +183,11 @@ export async function listMcpServers(): Promise<McpServerInfo[]> {
 export async function getMcpServer(name: string): Promise<McpServerInfo | null> {
   if (name === "opsblaze-splunk") {
     return { name, config: getBuiltInSplunkServer(), builtIn: true };
+  }
+  if (name === THREAT_INTEL_MCP_SERVER_NAME) {
+    const config = getBuiltInThreatIntelServer();
+    if (!config) return null;
+    return { name, config, builtIn: true };
   }
   const config = await readConfig();
   const entry = config.servers[name];
@@ -239,7 +301,7 @@ function validateMcpServerEntry(entry: McpServerEntry): void {
 }
 
 export async function addMcpServer(name: string, entry: McpServerEntry): Promise<void> {
-  if (name === "opsblaze-splunk") {
+  if (isBuiltInMcpServer(name)) {
     throw new Error("Cannot modify built-in server");
   }
   validateMcpServerEntry(entry);
@@ -285,7 +347,7 @@ function mergeRedactedEntry(incoming: McpServerEntry, existing: McpServerEntry):
 }
 
 export async function updateMcpServer(name: string, entry: McpServerEntry): Promise<void> {
-  if (name === "opsblaze-splunk") {
+  if (isBuiltInMcpServer(name)) {
     throw new Error("Cannot modify built-in server");
   }
   validateMcpServerEntry(entry);
@@ -300,7 +362,7 @@ export async function updateMcpServer(name: string, entry: McpServerEntry): Prom
 }
 
 export async function deleteMcpServer(name: string): Promise<void> {
-  if (name === "opsblaze-splunk") {
+  if (isBuiltInMcpServer(name)) {
     throw new Error("Cannot delete built-in server");
   }
   const config = await readConfig();
@@ -313,7 +375,7 @@ export async function deleteMcpServer(name: string): Promise<void> {
 }
 
 export async function toggleMcpServer(name: string, enabled: boolean): Promise<void> {
-  if (name === "opsblaze-splunk") {
+  if (isBuiltInMcpServer(name)) {
     throw new Error("Cannot toggle built-in server");
   }
   const config = await readConfig();
@@ -331,13 +393,7 @@ export async function toggleMcpServer(name: string, enabled: boolean): Promise<v
  */
 export async function listMcpServersRaw(): Promise<McpServerInfo[]> {
   const config = await readConfig();
-  const servers: McpServerInfo[] = [];
-
-  servers.push({
-    name: "opsblaze-splunk",
-    config: getBuiltInSplunkServer(),
-    builtIn: true,
-  });
+  const servers: McpServerInfo[] = [...listBuiltInMcpServers()];
 
   for (const [name, entry] of Object.entries(config.servers)) {
     servers.push({ name, config: entry, builtIn: false });

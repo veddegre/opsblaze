@@ -14,7 +14,7 @@ import {
   inputClass,
   monoInputClass,
 } from "./settings-ui";
-import type { SplunkGuardrails } from "../../lib/settings-api";
+import type { SplunkGuardrails, ThreatIntelSettings } from "../../lib/settings-api";
 
 export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -30,6 +30,7 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
   const [redactCustomPatterns, setRedactCustomPatterns] = useState("");
   const [splunkIndexes, setSplunkIndexes] = useState("");
   const [splunkMaxHours, setSplunkMaxHours] = useState(168);
+  const [threatIntelInternalCidrs, setThreatIntelInternalCidrs] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +61,7 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
         const g = s.runtime.splunkGuardrails;
         setSplunkIndexes(formatStringList(g?.allowedIndexes));
         setSplunkMaxHours(g?.maxTimeRangeHours ?? 168);
+        setThreatIntelInternalCidrs(formatStringList(s.runtime.threatIntel?.internalCidrs));
       })
       .catch(() => {});
   }, []);
@@ -152,6 +154,14 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
         formatStringList(prevG.allowedIndexes) !== splunkIndexes.trim() ||
         (prevG.maxTimeRangeHours ?? 168) !== splunkMaxHours;
       if (guardrailsChanged) partial.splunkGuardrails = nextGuardrails;
+
+      const nextThreatIntel: ThreatIntelSettings = {
+        internalCidrs: parseStringList(threatIntelInternalCidrs),
+      };
+      const prevTi = settings?.runtime.threatIntel ?? { internalCidrs: [] };
+      const threatIntelChanged =
+        formatStringList(prevTi.internalCidrs) !== threatIntelInternalCidrs.trim();
+      if (threatIntelChanged) partial.threatIntel = nextThreatIntel;
 
       if (Object.keys(partial).length === 0) {
         setSaved(true);
@@ -371,6 +381,29 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
             rows={2}
             placeholder={"\\bINC\\d{7}\\b"}
             className={`${monoInputClass} resize-y min-h-[2.5rem]`}
+          />
+        </div>
+
+        <div className="border-t border-border-subtle pt-4 mt-2 space-y-3">
+          <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wide">
+            Threat intelligence
+          </h3>
+          <p className="text-[11px] text-gray-600 -mt-1">
+            IPv4 addresses in these ranges are never sent to VirusTotal or AbuseIPDB (saves API
+            quota). RFC1918 private space is already skipped; add your public egress, VPN, or
+            campus ranges here. You can also set{" "}
+            <span className="font-mono">THREAT_INTEL_INTERNAL_CIDRS</span> in the server environment.
+          </p>
+          <FieldLabel hint="One IPv4 host or CIDR per line (e.g. 203.0.113.0/24 or 198.51.100.5).">
+            Organization internal ranges
+          </FieldLabel>
+          <textarea
+            value={threatIntelInternalCidrs}
+            onChange={(e) => setThreatIntelInternalCidrs(e.target.value)}
+            disabled={!isAdmin}
+            rows={3}
+            placeholder={"203.0.113.0/24\n198.51.100.0/22"}
+            className={`${monoInputClass} resize-y min-h-[3rem]`}
           />
         </div>
 

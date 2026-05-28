@@ -49,6 +49,7 @@ import {
 } from "./skills.js";
 import { ensureOpsblazeSkillsLayout } from "./skills-path.js";
 import { getSplunkGuardrails, getSplunkAdminGuardEnv } from "./splunk-guardrails.js";
+import { getThreatIntelSettings } from "./threat-intel-settings.js";
 import {
   listPlaybooks,
   createPlaybook,
@@ -618,7 +619,7 @@ function buildSystemSettingsPayload() {
 
 app.get("/api/settings", apiLimiter, async (req, res) => {
   try {
-    const [model, effort, maxTurns, streamTimeoutMs, redaction, skillPacks, splunkGuardrails] =
+    const [model, effort, maxTurns, streamTimeoutMs, redaction, skillPacks, splunkGuardrails, threatIntel] =
       await Promise.all([
         getClaudeModel(),
         getClaudeEffort(),
@@ -627,6 +628,7 @@ app.get("/api/settings", apiLimiter, async (req, res) => {
         getRedactionSettings(),
         getConfiguredSkillPacks(),
         getSplunkGuardrails(),
+        getThreatIntelSettings(),
       ]);
     const openWebUi = isOpenWebUiMode();
     const redactionForClient = isRequestAdmin(req)
@@ -643,6 +645,7 @@ app.get("/api/settings", apiLimiter, async (req, res) => {
         redaction: typeof redactionForClient;
         skillPacks: Awaited<ReturnType<typeof getConfiguredSkillPacks>>;
         splunkGuardrails?: Awaited<ReturnType<typeof getSplunkGuardrails>>;
+        threatIntel?: Awaited<ReturnType<typeof getThreatIntelSettings>>;
       };
       system?: ReturnType<typeof buildSystemSettingsPayload>;
     } = {
@@ -654,7 +657,7 @@ app.get("/api/settings", apiLimiter, async (req, res) => {
         llmProvider: openWebUi ? "openwebui" : "claude",
         redaction: redactionForClient,
         skillPacks,
-        ...(isRequestAdmin(req) ? { splunkGuardrails } : {}),
+        ...(isRequestAdmin(req) ? { splunkGuardrails, threatIntel } : {}),
       },
     };
     if (isRequestAdmin(req)) {
@@ -691,7 +694,7 @@ app.patch("/api/settings", apiLimiter, requireAdmin, async (req, res) => {
     void recordAudit(getRequestUserId(req), "settings.update", {
       keys: Object.keys(req.body ?? {}),
     });
-    const [model, effort, maxTurns, streamTimeoutMs, redaction, skillPacks, splunkGuardrails] =
+    const [model, effort, maxTurns, streamTimeoutMs, redaction, skillPacks, splunkGuardrails, threatIntel] =
       await Promise.all([
         getClaudeModel(),
         getClaudeEffort(),
@@ -700,6 +703,7 @@ app.patch("/api/settings", apiLimiter, requireAdmin, async (req, res) => {
         getRedactionSettings(),
         getConfiguredSkillPacks(),
         getSplunkGuardrails(),
+        getThreatIntelSettings(),
       ]);
     res.json({
       runtime: {
@@ -710,11 +714,12 @@ app.patch("/api/settings", apiLimiter, requireAdmin, async (req, res) => {
         redaction,
         skillPacks,
         splunkGuardrails,
+        threatIntel,
       },
     });
   } catch (err) {
     const msg = (err as Error).message;
-    if (msg.includes("Expected") || msg.includes("invalid")) {
+    if (msg.includes("Expected") || msg.includes("invalid") || msg.includes("Invalid internal")) {
       res.status(400).json({ error: msg });
     } else {
       logger.error({ err }, "failed to update settings");

@@ -34,6 +34,11 @@ export interface SplunkGuardrails {
   maxTimeRangeHours?: number;
 }
 
+export interface ThreatIntelSettings {
+  /** IPv4 hosts or CIDRs that belong to your network — never sent to threat intel APIs. */
+  internalCidrs?: string[];
+}
+
 export interface AppSettings {
   runtime: {
     claudeModel: string;
@@ -44,6 +49,7 @@ export interface AppSettings {
     redaction?: RedactionSettings;
     skillPacks?: SkillPack[];
     splunkGuardrails?: SplunkGuardrails;
+    threatIntel?: ThreatIntelSettings;
   };
   system?: {
     llmProvider: "openwebui" | "claude";

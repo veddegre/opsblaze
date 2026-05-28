@@ -40,6 +40,26 @@ describe("listMcpServers", () => {
     }
   });
 
+  it("includes built-in threat-intel when a provider API key is set", async () => {
+    vi.stubEnv("VIRUSTOTAL_API_KEY", "vt-test-key");
+    vi.resetModules();
+    mod = await import("../mcp-config.js");
+    const servers = await mod.listMcpServers();
+    const ti = servers.find((s) => s.name === "opsblaze-threat-intel");
+    expect(ti).toBeDefined();
+    expect(ti?.builtIn).toBe(true);
+  });
+
+  it("omits threat-intel when provider is explicitly disabled", async () => {
+    vi.stubEnv("VIRUSTOTAL_API_KEY", "vt-test-key");
+    vi.stubEnv("VIRUSTOTAL_ENABLED", "false");
+    vi.stubEnv("ABUSEIPDB_API_KEY", "");
+    vi.resetModules();
+    mod = await import("../mcp-config.js");
+    const servers = await mod.listMcpServers();
+    expect(servers.some((s) => s.name === "opsblaze-threat-intel")).toBe(false);
+  });
+
   it("includes user-added servers", async () => {
     await mod.addMcpServer("my-server", {
       command: "node",

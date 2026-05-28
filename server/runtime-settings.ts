@@ -10,6 +10,11 @@ import {
 } from "./redaction.js";
 import { skillPackSchema, validateSkillPacks, type SkillPack } from "./skill-packs.js";
 import { splunkGuardrailsSchema } from "./splunk-guardrails.js";
+import { threatIntelSettingsSchema } from "./threat-intel-settings.js";
+import {
+  clearThreatIntelInternalRangesCache,
+  validateThreatIntelInternalCidrs,
+} from "./threat-intel-ranges.js";
 
 const redactionBuiltinSchema = z.object({
   email: z.boolean().optional(),
@@ -32,6 +37,7 @@ const runtimeSettingsSchema = z.object({
   redaction: redactionSchema.optional(),
   skillPacks: z.array(skillPackSchema).max(24).optional(),
   splunkGuardrails: splunkGuardrailsSchema.optional(),
+  threatIntel: threatIntelSettingsSchema.optional(),
 });
 
 export type { SkillPack };
@@ -87,6 +93,18 @@ export async function updateRuntimeSettings(
     merged.skillPacks = validateSkillPacks(partial.skillPacks);
   }
 
+  if (partial.threatIntel !== undefined) {
+    const nextThreatIntel = {
+      ...(current.threatIntel ?? {}),
+      ...partial.threatIntel,
+    };
+    merged.threatIntel = nextThreatIntel;
+    const cidrErrors = validateThreatIntelInternalCidrs(nextThreatIntel.internalCidrs ?? []);
+    if (cidrErrors.length > 0) {
+      throw new Error(cidrErrors[0]);
+    }
+  }
+
   // Remove keys that are explicitly set to undefined
   for (const [key, value] of Object.entries(merged)) {
     if (value === undefined) delete merged[key];
@@ -95,6 +113,7 @@ export async function updateRuntimeSettings(
   const validated = runtimeSettingsSchema.parse(merged);
   await ensureDir();
   await writeFile(SETTINGS_PATH, JSON.stringify(validated, null, 2), "utf-8");
+  clearThreatIntelInternalRangesCache();
   logger.info({ settings: validated }, "runtime settings updated");
   return validated;
 }

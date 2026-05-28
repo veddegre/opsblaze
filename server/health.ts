@@ -8,6 +8,7 @@ import {
   normalizeOpenWebUiBaseUrl,
   resolveOpenWebUiChatApiBase,
 } from "./llm-config.js";
+import { getActiveThreatIntelProviders } from "./threat-intel-config.js";
 
 const execFile = promisify(execFileCb);
 
@@ -250,7 +251,17 @@ export async function runHealthChecks(): Promise<HealthResult> {
   ]);
 
   const llmKey = openWebUiBase ? "openwebui" : "claude";
-  const checks: Record<string, HealthCheck> = { splunk, [llmKey]: llm };
+  const tiProviders = getActiveThreatIntelProviders();
+  const threatIntel: HealthCheck =
+    tiProviders.length > 0
+      ? { status: "ok", message: tiProviders.join(", ") }
+      : { status: "ok", message: "disabled" };
+
+  const checks: Record<string, HealthCheck> = {
+    splunk,
+    [llmKey]: llm,
+    threat_intel: threatIntel,
+  };
 
   const overall = Object.values(checks).every((c) => c.status === "ok")
     ? "ok"
