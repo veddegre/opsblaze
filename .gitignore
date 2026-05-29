@@ -13,6 +13,8 @@ dist/
 data/*
 !data/local-auth.example.json
 fixtures/
+# Playbook prompts belong in the app (Settings → Playbooks → data/playbooks.json), not in git
+docs/playbooks/
 .cursor/debug*.log
 coverage/
 # Deploy-only skills (org-specific); keep README in repo as documentation
