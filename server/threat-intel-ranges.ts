@@ -132,18 +132,41 @@ function loadThreatIntelSettingsFromDisk(): ThreatIntelSettings {
   }
 }
 
+/**
+ * Merge extra CIDRs into a zone by name, creating it if absent. Merging (rather than
+ * skipping when the name already exists) guarantees env/legacy internal ranges are never
+ * silently dropped — otherwise a user zone named `env`/`internal` would cause those IPs to
+ * be sent to third-party threat-intel APIs.
+ */
+function mergeCidrsIntoZone(
+  zones: OrganizationIpZoneConfig[],
+  name: string,
+  cidrs: string[]
+): void {
+  if (cidrs.length === 0) return;
+  const existing = zones.find((z) => z.name === name);
+  if (existing) {
+    const seen = new Set(existing.cidrs.map((c) => c.trim().toLowerCase()));
+    for (const cidr of cidrs) {
+      const key = cidr.trim().toLowerCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        existing.cidrs.push(cidr.trim());
+      }
+    }
+    return;
+  }
+  zones.push({ name, defaultPosture: "neutral", cidrs: [...cidrs] });
+}
+
 function buildZoneConfigsFromSettings(settings: ThreatIntelSettings): OrganizationIpZoneConfig[] {
-  const zones: OrganizationIpZoneConfig[] = [...(settings.zones ?? [])];
+  const zones: OrganizationIpZoneConfig[] = (settings.zones ?? []).map((z) => ({
+    ...z,
+    cidrs: [...z.cidrs],
+  }));
 
-  const legacy = settings.internalCidrs ?? [];
-  if (legacy.length > 0 && !zones.some((z) => z.name === "internal")) {
-    zones.push({ name: "internal", defaultPosture: "neutral", cidrs: legacy });
-  }
-
-  const envCidrs = parseCidrList(process.env.THREAT_INTEL_INTERNAL_CIDRS);
-  if (envCidrs.length > 0 && !zones.some((z) => z.name === "env")) {
-    zones.push({ name: "env", defaultPosture: "neutral", cidrs: envCidrs });
-  }
+  mergeCidrsIntoZone(zones, "internal", settings.internalCidrs ?? []);
+  mergeCidrsIntoZone(zones, "env", parseCidrList(process.env.THREAT_INTEL_INTERNAL_CIDRS));
 
   return zones;
 }
