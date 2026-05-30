@@ -42,6 +42,7 @@ const PRIVATE_V4 = [
 ];
 
 let cachedOrgIp: { at: number; zones: ResolvedOrganizationIpZone[] } | null = null;
+let cachedSettings: { at: number; settings: ThreatIntelSettings } | null = null;
 const CACHE_MS = 60_000;
 
 export function parseCidrList(raw: string | undefined): string[] {
@@ -125,13 +126,25 @@ function matchIpToRange(ip: string, ranges: ParsedIpv4Range[]): ParsedIpv4Range 
 }
 
 function loadThreatIntelSettingsFromDisk(): ThreatIntelSettings {
+  const now = Date.now();
+  if (cachedSettings && now - cachedSettings.at < CACHE_MS) {
+    return cachedSettings.settings;
+  }
+  let settings: ThreatIntelSettings = {};
   try {
     const raw = readFileSync(SETTINGS_PATH, "utf-8");
     const parsed = JSON.parse(raw) as { threatIntel?: ThreatIntelSettings };
-    return parsed?.threatIntel ?? {};
+    settings = parsed?.threatIntel ?? {};
   } catch {
-    return {};
+    settings = {};
   }
+  cachedSettings = { at: now, settings };
+  return settings;
+}
+
+/** Synchronous read of the persisted threat-intel settings (cached ~60s, env-independent). */
+export function loadThreatIntelSettingsSync(): ThreatIntelSettings {
+  return loadThreatIntelSettingsFromDisk();
 }
 
 /**
@@ -223,6 +236,7 @@ export function getParsedThreatIntelInternalRanges(): ParsedIpv4Range[] {
 
 export function clearThreatIntelInternalRangesCache(): void {
   cachedOrgIp = null;
+  cachedSettings = null;
 }
 
 export function classifyOrganizationIp(raw: string): IpClassification | null {

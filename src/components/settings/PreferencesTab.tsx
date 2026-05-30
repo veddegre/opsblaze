@@ -30,6 +30,12 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
   const [splunkIndexes, setSplunkIndexes] = useState("");
   const [splunkMaxHours, setSplunkMaxHours] = useState(168);
   const [threatIntelZonesText, setThreatIntelZonesText] = useState("");
+  const [tiEnabled, setTiEnabled] = useState(true);
+  const [tiVtEnabled, setTiVtEnabled] = useState(false);
+  const [tiAbuseEnabled, setTiAbuseEnabled] = useState(false);
+  const [tiMaxIps, setTiMaxIps] = useState(25);
+  const [tiCacheHours, setTiCacheHours] = useState(24);
+  const [tiAbuseMaxAge, setTiAbuseMaxAge] = useState(90);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +70,13 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
           ? formatIpZonesText(ti.zones)
           : formatIpZonesText(zonesFromLegacyInternalCidrs(ti?.internalCidrs));
         setThreatIntelZonesText(zonesText);
+        const tiStatus = s.system?.threatIntelStatus;
+        setTiEnabled(ti?.enabled ?? tiStatus?.masterEnabled ?? true);
+        setTiVtEnabled(ti?.virustotalEnabled ?? tiStatus?.virustotal.active ?? false);
+        setTiAbuseEnabled(ti?.abuseipdbEnabled ?? tiStatus?.abuseipdb.active ?? false);
+        setTiMaxIps(ti?.maxIps ?? tiStatus?.maxIps ?? 25);
+        setTiCacheHours(ti?.cacheHours ?? tiStatus?.cacheHours ?? 24);
+        setTiAbuseMaxAge(ti?.abuseipdbMaxAgeDays ?? tiStatus?.abuseipdbMaxAgeDays ?? 90);
       })
       .catch(() => {});
   }, []);
@@ -158,16 +171,33 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
       if (guardrailsChanged) partial.splunkGuardrails = nextGuardrails;
 
       const nextZones = parseIpZonesText(threatIntelZonesText);
-      const nextThreatIntel: ThreatIntelSettings = {
-        zones: nextZones.length > 0 ? nextZones : undefined,
-        internalCidrs: undefined,
-      };
       const prevTi = settings?.runtime.threatIntel;
+      const tiStatus = settings?.system?.threatIntelStatus;
       const prevZonesText = prevTi?.zones?.length
         ? formatIpZonesText(prevTi.zones)
         : formatIpZonesText(zonesFromLegacyInternalCidrs(prevTi?.internalCidrs));
-      const threatIntelChanged = prevZonesText.trim() !== threatIntelZonesText.trim();
-      if (threatIntelChanged) partial.threatIntel = nextThreatIntel;
+
+      // Build a minimal threatIntel patch: the server shallow-merges it into the
+      // stored object, so untouched fields (e.g. zones) are preserved.
+      const tiPartial: Partial<ThreatIntelSettings> = {};
+      if (prevZonesText.trim() !== threatIntelZonesText.trim()) {
+        tiPartial.zones = nextZones.length > 0 ? nextZones : undefined;
+        tiPartial.internalCidrs = undefined;
+      }
+      const initEnabled = prevTi?.enabled ?? tiStatus?.masterEnabled ?? true;
+      if (tiEnabled !== initEnabled) tiPartial.enabled = tiEnabled;
+      const initVt = prevTi?.virustotalEnabled ?? tiStatus?.virustotal.active ?? false;
+      if (tiVtEnabled !== initVt) tiPartial.virustotalEnabled = tiVtEnabled;
+      const initAbuse = prevTi?.abuseipdbEnabled ?? tiStatus?.abuseipdb.active ?? false;
+      if (tiAbuseEnabled !== initAbuse) tiPartial.abuseipdbEnabled = tiAbuseEnabled;
+      const initMaxIps = prevTi?.maxIps ?? tiStatus?.maxIps ?? 25;
+      if (tiMaxIps !== initMaxIps) tiPartial.maxIps = tiMaxIps;
+      const initCacheHours = prevTi?.cacheHours ?? tiStatus?.cacheHours ?? 24;
+      if (tiCacheHours !== initCacheHours) tiPartial.cacheHours = tiCacheHours;
+      const initAbuseMaxAge = prevTi?.abuseipdbMaxAgeDays ?? tiStatus?.abuseipdbMaxAgeDays ?? 90;
+      if (tiAbuseMaxAge !== initAbuseMaxAge) tiPartial.abuseipdbMaxAgeDays = tiAbuseMaxAge;
+
+      if (Object.keys(tiPartial).length > 0) partial.threatIntel = tiPartial;
 
       if (Object.keys(partial).length === 0) {
         setSaved(true);
@@ -400,6 +430,99 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
             <span className="font-mono">THREAT_INTEL_INTERNAL_CIDRS</span> (zone{" "}
             <span className="font-mono">env</span>, neutral).
           </p>
+
+          <label className="flex items-center gap-2 text-xs text-gray-300">
+            <input
+              type="checkbox"
+              checked={tiEnabled}
+              onChange={(e) => setTiEnabled(e.target.checked)}
+              disabled={!isAdmin}
+              className="rounded border-border-subtle"
+            />
+            Enable threat-intel lookups (master switch)
+          </label>
+
+          <div className="flex flex-wrap gap-4 text-xs text-gray-300">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={tiVtEnabled}
+                onChange={(e) => setTiVtEnabled(e.target.checked)}
+                disabled={!isAdmin || !settings?.system?.threatIntelStatus?.virustotal.keyPresent}
+                className="rounded border-border-subtle"
+              />
+              VirusTotal
+              {settings?.system?.threatIntelStatus &&
+                !settings.system.threatIntelStatus.virustotal.keyPresent && (
+                  <span className="text-[10px] text-gray-600">(no API key in .env)</span>
+                )}
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={tiAbuseEnabled}
+                onChange={(e) => setTiAbuseEnabled(e.target.checked)}
+                disabled={!isAdmin || !settings?.system?.threatIntelStatus?.abuseipdb.keyPresent}
+                className="rounded border-border-subtle"
+              />
+              AbuseIPDB
+              {settings?.system?.threatIntelStatus &&
+                !settings.system.threatIntelStatus.abuseipdb.keyPresent && (
+                  <span className="text-[10px] text-gray-600">(no API key in .env)</span>
+                )}
+            </label>
+          </div>
+          <p className="text-[10px] text-gray-600 -mt-1">
+            API keys stay in <span className="font-mono">.env</span>. Turning a provider on here
+            only takes effect for lookups; if it was off at startup, restart the server to register
+            the <span className="font-mono">enrich_ips</span> tool.
+          </p>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <FieldLabel hint="Per enrich call">Max IPs</FieldLabel>
+              <input
+                type="number"
+                value={tiMaxIps}
+                onChange={(e) =>
+                  setTiMaxIps(Math.max(1, Math.min(100, parseInt(e.target.value) || 25)))
+                }
+                disabled={!isAdmin}
+                min={1}
+                max={100}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <FieldLabel hint="Cache TTL (hrs)">Cache hours</FieldLabel>
+              <input
+                type="number"
+                value={tiCacheHours}
+                onChange={(e) =>
+                  setTiCacheHours(Math.max(1, Math.min(168, parseInt(e.target.value) || 24)))
+                }
+                disabled={!isAdmin}
+                min={1}
+                max={168}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <FieldLabel hint="AbuseIPDB window">Max age (days)</FieldLabel>
+              <input
+                type="number"
+                value={tiAbuseMaxAge}
+                onChange={(e) =>
+                  setTiAbuseMaxAge(Math.max(1, Math.min(365, parseInt(e.target.value) || 90)))
+                }
+                disabled={!isAdmin}
+                min={1}
+                max={365}
+                className={inputClass}
+              />
+            </div>
+          </div>
+
           <FieldLabel hint="Zone header: name posture (trusted | neutral | sensitive). Following lines are CIDRs until the next header.">
             IP zones
           </FieldLabel>

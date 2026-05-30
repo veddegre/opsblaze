@@ -47,6 +47,29 @@ export interface ThreatIntelSettings {
   internalCidrs?: string[];
   /** Named network zones for classification and contextual risk (see ip-context-risk skill). */
   zones?: IpZoneConfig[];
+  /** Master switch override (falls back to THREAT_INTEL_ENABLED). */
+  enabled?: boolean;
+  /** Per-provider overrides (API keys still come from .env). */
+  virustotalEnabled?: boolean;
+  abuseipdbEnabled?: boolean;
+  /** Tuning overrides (fall back to the matching env vars). */
+  maxIps?: number;
+  cacheHours?: number;
+  abuseipdbMaxAgeDays?: number;
+}
+
+export interface ThreatIntelProviderStatus {
+  keyPresent: boolean;
+  active: boolean;
+}
+
+export interface ThreatIntelStatus {
+  masterEnabled: boolean;
+  maxIps: number;
+  cacheHours: number;
+  abuseipdbMaxAgeDays: number;
+  virustotal: ThreatIntelProviderStatus;
+  abuseipdb: ThreatIntelProviderStatus;
 }
 
 export interface AppSettings {
@@ -75,6 +98,7 @@ export interface AppSettings {
       bypassIndexes: boolean;
       extraIndexes: string[];
     };
+    threatIntelStatus?: ThreatIntelStatus;
   };
 }
 

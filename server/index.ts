@@ -52,6 +52,14 @@ import { getSplunkGuardrails, getSplunkAdminGuardEnv } from "./splunk-guardrails
 import { getThreatIntelSettings } from "./threat-intel-settings.js";
 import { classifyOrganizationIps } from "./threat-intel-ranges.js";
 import {
+  isThreatIntelMasterEnabled,
+  isThreatIntelProviderConfigured,
+  threatIntelProviderKeyPresent,
+  getThreatIntelMaxIps,
+  getThreatIntelCacheHours,
+  getAbuseIpdbMaxAgeDays,
+} from "./threat-intel-config.js";
+import {
   listPlaybooks,
   createPlaybook,
   updatePlaybook,
@@ -648,6 +656,20 @@ function buildSystemSettingsPayload() {
     splunkGuardrailsAdmin: {
       bypassIndexes: adminSplunk.bypassIndexes,
       extraIndexes: adminSplunk.extraIndexes,
+    },
+    threatIntelStatus: {
+      masterEnabled: isThreatIntelMasterEnabled(),
+      maxIps: getThreatIntelMaxIps(),
+      cacheHours: getThreatIntelCacheHours(),
+      abuseipdbMaxAgeDays: getAbuseIpdbMaxAgeDays(),
+      virustotal: {
+        keyPresent: threatIntelProviderKeyPresent("virustotal"),
+        active: isThreatIntelProviderConfigured("virustotal"),
+      },
+      abuseipdb: {
+        keyPresent: threatIntelProviderKeyPresent("abuseipdb"),
+        active: isThreatIntelProviderConfigured("abuseipdb"),
+      },
     },
   };
 }

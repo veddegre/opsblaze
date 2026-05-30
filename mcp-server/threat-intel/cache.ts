@@ -1,11 +1,11 @@
+import { getThreatIntelCacheHours } from "../../server/threat-intel-config.js";
+
 const cache = new Map<string, { expires: number; value: string }>();
 
 const MAX_ENTRIES = 5_000;
 
 function ttlMs(): number {
-  const hours = Number(process.env.THREAT_INTEL_CACHE_HOURS ?? "24");
-  if (!Number.isFinite(hours) || hours <= 0) return 24 * 60 * 60 * 1000;
-  return Math.min(168, hours) * 60 * 60 * 1000;
+  return getThreatIntelCacheHours() * 60 * 60 * 1000;
 }
 
 export function getCached(key: string): string | undefined {

@@ -1,5 +1,6 @@
 import type { ProviderIpResult } from "./types.js";
 import { getCached, setCached } from "./cache.js";
+import { getAbuseIpdbMaxAgeDays } from "../../server/threat-intel-config.js";
 
 const AIPDB_BASE = "https://api.abuseipdb.com/api/v2";
 
@@ -21,10 +22,7 @@ export async function lookupAbuseIpdb(ip: string): Promise<ProviderIpResult> {
     return JSON.parse(cached) as ProviderIpResult;
   }
 
-  const maxAge = Math.min(
-    365,
-    Math.max(1, parseInt(process.env.ABUSEIPDB_MAX_AGE_DAYS ?? "90", 10) || 90)
-  );
+  const maxAge = getAbuseIpdbMaxAgeDays();
 
   try {
     const url = new URL(`${AIPDB_BASE}/check`);
