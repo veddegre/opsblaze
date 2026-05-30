@@ -5,8 +5,16 @@ import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { marked } from "marked";
 import { SplunkChart } from "./SplunkChart";
 import { CopyButton } from "./CopyButton";
+import { IpContextStrip } from "./IpContextStrip";
 import { runtimeSettingLabel } from "../lib/limit-setting-labels";
-import type { Message, ChartBlock, SkillBlock, LimitBlock, ActivityBlock } from "../types";
+import type {
+  Message,
+  TextBlock,
+  ChartBlock,
+  SkillBlock,
+  LimitBlock,
+  ActivityBlock,
+} from "../types";
 
 const sanitizeSchema = {
   ...defaultSchema,
@@ -310,6 +318,15 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
           return null;
         })}
+
+        {!message.isStreaming && (
+          <IpContextStrip
+            text={message.blocks
+              .filter((b): b is TextBlock => b.type === "text")
+              .map((b) => b.content)
+              .join("\n")}
+          />
+        )}
 
         {showTrailingIndicator && (
           <div className="flex items-center gap-2 text-gray-500 text-sm py-2">

@@ -50,6 +50,7 @@ import {
 import { ensureOpsblazeSkillsLayout } from "./skills-path.js";
 import { getSplunkGuardrails, getSplunkAdminGuardEnv } from "./splunk-guardrails.js";
 import { getThreatIntelSettings } from "./threat-intel-settings.js";
+import { classifyOrganizationIps } from "./threat-intel-ranges.js";
 import {
   listPlaybooks,
   createPlaybook,
@@ -595,6 +596,25 @@ app.post("/api/conversations/cleanup", apiLimiter, async (req, res) => {
 
 app.get("/api/config-paths", apiLimiter, requireAdmin, (_req, res) => {
   res.json({ mcpConfig: MCP_CONFIG_PATH, skillsDir: getSkillsDirPath() });
+});
+
+// --- IP zone classification (any authenticated user) ---
+
+app.post("/api/ip-zones/classify", apiLimiter, (req, res) => {
+  const ips = (req.body as { ips?: unknown })?.ips;
+  if (!Array.isArray(ips)) {
+    res.status(400).json({ error: "ips must be an array of strings" });
+    return;
+  }
+  const cleaned = ips.filter((x): x is string => typeof x === "string").slice(0, 100);
+  const { zonesConfigured, results, skippedInvalid } = classifyOrganizationIps(cleaned);
+  // Drop matchedCidr so the exact internal CIDR boundaries are not exposed to
+  // every analyst; zone name and posture are the useful signal.
+  res.json({
+    zonesConfigured,
+    skippedInvalid,
+    results: results.map(({ matchedCidr: _omit, ...rest }) => rest),
+  });
 });
 
 // --- Audit log (admin only) ---

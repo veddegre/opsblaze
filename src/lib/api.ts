@@ -112,6 +112,33 @@ export async function fetchAuditEvents(limit = 200): Promise<AuditEvent[]> {
   return data.events ?? [];
 }
 
+export type IpZonePosture = "trusted" | "neutral" | "sensitive";
+
+export interface IpZoneClassification {
+  ip: string;
+  zone: string | null;
+  defaultPosture: IpZonePosture | null;
+  inOrganizationRange: boolean;
+  isPrivate: boolean;
+  isPublic: boolean;
+  threatIntelSkipped: boolean;
+}
+
+export interface IpZoneClassifyResponse {
+  zonesConfigured: string[];
+  skippedInvalid: string[];
+  results: IpZoneClassification[];
+}
+
+export async function classifyIpZones(ips: string[]): Promise<IpZoneClassifyResponse> {
+  const res = await fetch(
+    "/api/ip-zones/classify",
+    fetchInit({ method: "POST", headers: headers(), body: JSON.stringify({ ips }) })
+  );
+  if (!res.ok) throw new Error(`IP classification failed: ${res.status}`);
+  return res.json();
+}
+
 export interface SearchResult extends ConversationSummary {
   snippet?: string;
 }
