@@ -5,8 +5,36 @@ import { Section } from "./settings-ui";
 const inputClass =
   "rounded border border-border-subtle bg-surface-2 px-2 py-1 text-[11px] text-gray-200 focus:outline-none focus:border-accent";
 
+// Known audit actions (kept in sync with the server AuditAction union) so the
+// dropdown stays complete even when the current result set is filtered down.
+const ACTIONS = [
+  "auth.login",
+  "auth.login.failed",
+  "auth.login.locked",
+  "auth.logout",
+  "export.preview",
+  "export.download",
+  "settings.update",
+  "mcp.create",
+  "mcp.update",
+  "mcp.delete",
+  "mcp.toggle",
+  "skill.create",
+  "skill.update",
+  "skill.delete",
+  "skill.toggle",
+  "playbook.create",
+  "playbook.update",
+  "playbook.delete",
+];
+
+function rowHighlight(action: string): string {
+  if (action === "auth.login.locked") return "bg-red-500/10";
+  if (action === "auth.login.failed") return "bg-amber-500/10";
+  return "";
+}
+
 function csvCell(value: string): string {
-  // Quote everything and escape embedded quotes so commas/newlines are safe.
   return `"${value.replace(/"/g, '""')}"`;
 }
 
@@ -34,53 +62,100 @@ export function AuditLogTab() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   const [actionFilter, setActionFilter] = useState("");
   const [userFilter, setUserFilter] = useState("");
+  const [debouncedUser, setDebouncedUser] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setEvents(await listAuditEvents(200));
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Debounce the free-text user filter so we don't refetch on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedUser(userFilter), 300);
+    return () => clearTimeout(t);
+  }, [userFilter]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    const from = fromDate ? new Date(`${fromDate}T00:00:00`).toISOString() : undefined;
+    const to = toDate ? new Date(`${toDate}T23:59:59.999`).toISOString() : undefined;
+    listAuditEvents({
+      limit: 200,
+      action: actionFilter || undefined,
+      user: debouncedUser || undefined,
+      from,
+      to,
+    })
+      .then((evs) => {
+        if (!cancelled) setEvents(evs);
+      })
+      .catch((err) => {
+        if (!cancelled) setError((err as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [actionFilter, debouncedUser, fromDate, toDate, refreshToken]);
 
-  const actions = useMemo(() => Array.from(new Set(events.map((e) => e.action))).sort(), [events]);
-
-  const filtered = useMemo(() => {
-    const user = userFilter.trim().toLowerCase();
-    // Inclusive day bounds: fromDate at 00:00, toDate at end-of-day.
-    const fromMs = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : null;
-    const toMs = toDate ? new Date(`${toDate}T23:59:59.999`).getTime() : null;
-    return events.filter((e) => {
-      if (actionFilter && e.action !== actionFilter) return false;
-      if (user && !e.userId.toLowerCase().includes(user)) return false;
-      const t = new Date(e.ts).getTime();
-      if (fromMs !== null && t < fromMs) return false;
-      if (toMs !== null && t > toMs) return false;
-      return true;
-    });
-  }, [events, actionFilter, userFilter, fromDate, toDate]);
+  const refresh = useCallback(() => setRefreshToken((n) => n + 1), []);
 
   const hasFilters = Boolean(actionFilter || userFilter.trim() || fromDate || toDate);
+  const securityCount = useMemo(
+    () =>
+      events.filter((e) => e.action === "auth.login.failed" || e.action === "auth.login.locked")
+        .length,
+    [events]
+  );
 
   return (
     <div>
       <Section
         title="Audit log"
-        description="Security-relevant actions on this server (auth, exports, admin changes)."
+        description="Security-relevant actions on this server (auth, exports, admin changes). Filtering runs server-side across rotated archives."
       >
+        <div className="flex flex-wrap items-center gap-1.5 mb-2">
+          <span className="text-[10px] uppercase tracking-wide text-gray-600 mr-1">Quick</span>
+          <button
+            type="button"
+            onClick={() => setActionFilter("auth.login.failed")}
+            className={`text-[10px] px-2 py-1 rounded border ${
+              actionFilter === "auth.login.failed"
+                ? "border-amber-500/50 text-amber-300 bg-amber-500/10"
+                : "border-border-subtle text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            Failed logins
+          </button>
+          <button
+            type="button"
+            onClick={() => setActionFilter("auth.login.locked")}
+            className={`text-[10px] px-2 py-1 rounded border ${
+              actionFilter === "auth.login.locked"
+                ? "border-red-500/50 text-red-300 bg-red-500/10"
+                : "border-border-subtle text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            Lockouts
+          </button>
+          <button
+            type="button"
+            onClick={() => setActionFilter("settings.update")}
+            className={`text-[10px] px-2 py-1 rounded border ${
+              actionFilter === "settings.update"
+                ? "border-accent/50 text-accent-light bg-accent/10"
+                : "border-border-subtle text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            Settings changes
+          </button>
+        </div>
+
         <div className="flex flex-wrap items-end gap-2 mb-3">
           <div className="flex flex-col gap-1">
             <label className="text-[10px] uppercase tracking-wide text-gray-600">Action</label>
@@ -90,7 +165,7 @@ export function AuditLogTab() {
               className={inputClass}
             >
               <option value="">All actions</option>
-              {actions.map((a) => (
+              {ACTIONS.map((a) => (
                 <option key={a} value={a}>
                   {a}
                 </option>
@@ -143,14 +218,20 @@ export function AuditLogTab() {
 
         <div className="flex items-center justify-between gap-2 mb-2">
           <p className="text-[11px] text-gray-600">
-            Showing {filtered.length} of {events.length} (stored in{" "}
-            <span className="font-mono">data/audit.jsonl</span>).
+            {events.length} event{events.length === 1 ? "" : "s"}
+            {securityCount > 0 && (
+              <span className="text-amber-400/80">
+                {" "}
+                · {securityCount} auth alert{securityCount === 1 ? "" : "s"}
+              </span>
+            )}{" "}
+            (max 200; stored in <span className="font-mono">data/audit.jsonl</span>).
           </p>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => downloadCsv(filtered)}
-              disabled={filtered.length === 0}
+              onClick={() => downloadCsv(events)}
+              disabled={events.length === 0}
               className="text-[10px] px-2 py-1 rounded border border-border-subtle text-gray-400 hover:text-gray-200 disabled:opacity-50"
             >
               Export CSV
@@ -170,12 +251,11 @@ export function AuditLogTab() {
         )}
         {error && <p className="text-xs text-red-400">{error}</p>}
         {!loading && events.length === 0 && !error && (
-          <p className="text-xs text-gray-500 py-4 text-center">No audit events yet.</p>
+          <p className="text-xs text-gray-500 py-4 text-center">
+            {hasFilters ? "No events match the filters." : "No audit events yet."}
+          </p>
         )}
-        {events.length > 0 && filtered.length === 0 && (
-          <p className="text-xs text-gray-500 py-4 text-center">No events match the filters.</p>
-        )}
-        {filtered.length > 0 && (
+        {events.length > 0 && (
           <div className="max-h-[min(60vh,480px)] overflow-y-auto rounded-lg border border-border-subtle">
             <table className="w-full text-left text-[11px]">
               <thead className="sticky top-0 bg-surface-2 text-gray-500">
@@ -187,8 +267,11 @@ export function AuditLogTab() {
                 </tr>
               </thead>
               <tbody className="text-gray-300 divide-y divide-border-subtle/60">
-                {filtered.map((ev) => (
-                  <tr key={`${ev.ts}-${ev.action}-${ev.userId}`}>
+                {events.map((ev, i) => (
+                  <tr
+                    key={`${ev.ts}-${ev.action}-${ev.userId}-${i}`}
+                    className={rowHighlight(ev.action)}
+                  >
                     <td className="px-2 py-1.5 whitespace-nowrap text-gray-500">
                       {new Date(ev.ts).toLocaleString()}
                     </td>

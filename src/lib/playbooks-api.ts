@@ -88,8 +88,26 @@ export interface AuditEvent {
   detail?: Record<string, unknown>;
 }
 
-export async function listAuditEvents(limit = 200): Promise<AuditEvent[]> {
-  const res = await fetch(`/api/audit?limit=${limit}`, fetchInit({ headers: headers() }));
+export interface AuditQuery {
+  limit?: number;
+  action?: string;
+  /** Case-insensitive substring match on user. */
+  user?: string;
+  /** ISO datetime lower bound (inclusive). */
+  from?: string;
+  /** ISO datetime upper bound (inclusive). */
+  to?: string;
+}
+
+export async function listAuditEvents(arg: number | AuditQuery = 200): Promise<AuditEvent[]> {
+  const q: AuditQuery = typeof arg === "number" ? { limit: arg } : arg;
+  const params = new URLSearchParams();
+  params.set("limit", String(q.limit ?? 200));
+  if (q.action) params.set("action", q.action);
+  if (q.user?.trim()) params.set("user", q.user.trim());
+  if (q.from) params.set("from", q.from);
+  if (q.to) params.set("to", q.to);
+  const res = await fetch(`/api/audit?${params.toString()}`, fetchInit({ headers: headers() }));
   if (!res.ok) throw new Error(`Failed to load audit log: ${res.status}`);
   const data = (await res.json()) as { events: AuditEvent[] };
   return data.events ?? [];

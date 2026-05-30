@@ -14,6 +14,7 @@ import { getAuthMode } from "./mode.js";
 import { sanitizeUserId, toPublicUser, type AuthUser } from "./types.js";
 import { recordAudit } from "../audit-log.js";
 import { rateLimitKey } from "../rate-limit-key.js";
+import { checkLoginLockout, recordLoginFailure, recordLoginSuccess } from "./login-throttle.js";
 
 export const authRouter = Router();
 
@@ -94,15 +95,44 @@ authRouter.post("/local/login", localLoginLimiter, async (req, res) => {
     return;
   }
 
+  const accountKey = username.trim().toLowerCase();
+
+  // Per-account lockout: reject (without checking the password) while locked.
+  const lock = checkLoginLockout(accountKey);
+  if (lock.locked) {
+    void recordAudit(accountKey || "unknown", "auth.login.failed", {
+      method: "local",
+      reason: "locked",
+      retryAfterSec: lock.retryAfterSec,
+    });
+    res.setHeader("Retry-After", String(lock.retryAfterSec));
+    res.status(429).json({
+      error: "Account temporarily locked due to repeated failed logins. Try again later.",
+    });
+    return;
+  }
+
   try {
     const user = await authenticateLocalUser(username, password);
     if (!user) {
-      void recordAudit(username.trim().toLowerCase() || "unknown", "auth.login.failed", {
+      const result = recordLoginFailure(accountKey);
+      void recordAudit(accountKey || "unknown", "auth.login.failed", {
         method: "local",
+        failures: result.failures,
+        ...(result.locked ? { locked: true } : {}),
       });
+      if (result.justLocked) {
+        logger.warn({ username: accountKey }, "account locked after repeated failed logins");
+        void recordAudit(accountKey || "unknown", "auth.login.locked", {
+          method: "local",
+          retryAfterSec: result.retryAfterSec,
+        });
+      }
       res.status(401).json({ error: "Invalid username or password" });
       return;
     }
+
+    recordLoginSuccess(accountKey);
 
     await regenerateSession(req);
     if (!req.session) {

@@ -12,9 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Inline IP-zone context**: completed assistant messages show zone + default posture badges (`trusted`/`neutral`/`sensitive`) for any IPv4 that falls in a configured organization zone, via `POST /api/ip-zones/classify` (matched CIDR boundaries are not exposed).
 - **Persisted threat-intel results**: `enrich_ips` output is captured from both agent backends and saved on the conversation as a structured "Threat intelligence" panel (verdicts grouped by IP with report links), restored on reload.
 - **More settings configurable at runtime** (Settings → Runtime, admin only) instead of `.env`-only: threat-intel master/per-provider toggles + max IPs / cache hours / AbuseIPDB max-age (API keys stay in `.env`), plus max history, max message length, and log level. Env values remain the defaults; runtime overrides take precedence. Security guardrails (`SPL_SAFETY_ENABLED`) and MCP-subprocess tuning (`MAX_ROW_LIMIT`) remain `.env`-only by design.
-- **Audit log filtering & export**: the Settings → Audit log tab can now filter by action, user, and date range, and export the filtered rows to CSV.
+- **Audit log filtering & export**: the Settings → Audit log tab filters by action, user, and date range, with quick filters for failed logins / lockouts / settings changes and inline highlighting of auth alerts. Filtering runs server-side (`/api/audit` accepts `action`/`user`/`from`/`to`) and scans across rotated archives, not just the latest file. Filtered rows export to CSV.
 - **Failed-login auditing**: failed local sign-ins now emit an `auth.login.failed` audit event (previously only successful logins were recorded).
+- **Per-account login lockout**: repeated failed local logins now lock the targeted account for a cooldown (configurable via `OPSBLAZE_LOGIN_MAX_FAILURES` / `OPSBLAZE_LOGIN_LOCKOUT_MS` / `OPSBLAZE_LOGIN_FAILURE_WINDOW_MS`), complementing the existing per-IP rate limit and emitting an `auth.login.locked` audit event on the lock transition.
 - **Audit log health check**: `/api/health` now includes an `audit_log` check that verifies the audit directory is writable, so silent audit loss surfaces as an error.
+- **Audit log rotation/retention**: `data/audit.jsonl` rotates to a timestamped archive once it passes a size cap (`OPSBLAZE_AUDIT_MAX_BYTES`, default ~5 MB) and keeps the newest N archives (`OPSBLAZE_AUDIT_KEEP_FILES`, default 5); the viewer transparently reads across the active file and archives.
 
 ### Changed
 

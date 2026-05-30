@@ -1238,7 +1238,18 @@ app.get("/api/audit", apiLimiter, requireAdmin, async (req, res) => {
   try {
     const limitRaw = parseInt(String(req.query.limit ?? "200"), 10);
     const limit = Number.isFinite(limitRaw) ? Math.min(500, Math.max(1, limitRaw)) : 200;
-    const events = await listAuditEvents(limit);
+    const action =
+      typeof req.query.action === "string" && req.query.action ? req.query.action : undefined;
+    const user = typeof req.query.user === "string" && req.query.user ? req.query.user : undefined;
+    const fromMs = typeof req.query.from === "string" ? Date.parse(req.query.from) : NaN;
+    const toMs = typeof req.query.to === "string" ? Date.parse(req.query.to) : NaN;
+    const events = await listAuditEvents({
+      limit,
+      action,
+      user,
+      fromMs: Number.isFinite(fromMs) ? fromMs : undefined,
+      toMs: Number.isFinite(toMs) ? toMs : undefined,
+    });
     res.json({ events });
   } catch (err) {
     logger.error({ err }, "failed to list audit events");
