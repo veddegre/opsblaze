@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Audit log viewer** (Settings → System, admin only): `GET /api/audit` lists recent authentication, export, and administrative actions with action badges, user, timestamp, and details.
+- **Inline IP-zone context**: completed assistant messages show zone + default posture badges (`trusted`/`neutral`/`sensitive`) for any IPv4 that falls in a configured organization zone, via `POST /api/ip-zones/classify` (matched CIDR boundaries are not exposed).
+- **Persisted threat-intel results**: `enrich_ips` output is captured from both agent backends and saved on the conversation as a structured "Threat intelligence" panel (verdicts grouped by IP with report links), restored on reload.
+
 ### Changed
 
 - CI split into independent jobs (secrets, audit, typecheck, lint, test, build) so one failing check no longer masks the others, plus a weekly scheduled run to surface newly-published advisories.
