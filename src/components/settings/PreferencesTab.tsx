@@ -21,6 +21,9 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
   const [effort, setEffort] = useState("");
   const [maxTurns, setMaxTurns] = useState(30);
   const [streamTimeout, setStreamTimeout] = useState(300000);
+  const [maxHistory, setMaxHistory] = useState(20);
+  const [maxMessageLen, setMaxMessageLen] = useState(10000);
+  const [logLevel, setLogLevel] = useState("info");
   const [redactApplyOnExport, setRedactApplyOnExport] = useState(false);
   const [redactEmail, setRedactEmail] = useState(true);
   const [redactIpv4, setRedactIpv4] = useState(true);
@@ -55,6 +58,9 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
         setEffort(s.runtime.claudeEffort);
         setMaxTurns(s.runtime.maxTurns);
         setStreamTimeout(s.runtime.streamTimeoutMs);
+        setMaxHistory(s.runtime.maxHistory ?? 20);
+        setMaxMessageLen(s.runtime.maxMessageLen ?? 10000);
+        setLogLevel(s.runtime.logLevel ?? "info");
         const r = s.runtime.redaction;
         setRedactApplyOnExport(Boolean(r?.applyOnExport));
         setRedactEmail(r?.builtin?.email !== false);
@@ -132,6 +138,10 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
       if (maxTurns !== settings?.runtime.maxTurns) partial.maxTurns = maxTurns;
       if (streamTimeout !== settings?.runtime.streamTimeoutMs)
         partial.streamTimeoutMs = streamTimeout;
+      if (maxHistory !== (settings?.runtime.maxHistory ?? 20)) partial.maxHistory = maxHistory;
+      if (maxMessageLen !== (settings?.runtime.maxMessageLen ?? 10000))
+        partial.maxMessageLen = maxMessageLen;
+      if (logLevel !== (settings?.runtime.logLevel ?? "info")) partial.logLevel = logLevel;
 
       const nextRedaction = {
         applyOnExport: redactApplyOnExport,
@@ -342,6 +352,55 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
           <option value={600000}>10 minutes</option>
           <option value={900000}>15 minutes</option>
           <option value={1800000}>30 minutes</option>
+        </select>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel hint="Prior exchanges sent to the LLM for context.">Max history</FieldLabel>
+            <input
+              type="number"
+              value={maxHistory}
+              onChange={(e) =>
+                setMaxHistory(Math.max(1, Math.min(100, parseInt(e.target.value) || 20)))
+              }
+              disabled={!isAdmin}
+              min={1}
+              max={100}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <FieldLabel hint="Max user message length (characters).">Max message length</FieldLabel>
+            <input
+              type="number"
+              value={maxMessageLen}
+              onChange={(e) =>
+                setMaxMessageLen(Math.max(500, Math.min(100000, parseInt(e.target.value) || 10000)))
+              }
+              disabled={!isAdmin}
+              min={500}
+              max={100000}
+              step={500}
+              className={inputClass}
+            />
+          </div>
+        </div>
+
+        <FieldLabel hint="Server log verbosity. Applies immediately; MCP subprocesses pick it up on next start.">
+          Log level
+        </FieldLabel>
+        <select
+          value={logLevel}
+          onChange={(e) => setLogLevel(e.target.value)}
+          disabled={!isAdmin}
+          className={inputClass}
+        >
+          <option value="fatal">fatal</option>
+          <option value="error">error</option>
+          <option value="warn">warn</option>
+          <option value="info">info — recommended</option>
+          <option value="debug">debug</option>
+          <option value="trace">trace</option>
         </select>
 
         <div className="border-t border-border-subtle pt-4 mt-2 space-y-3">

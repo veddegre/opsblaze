@@ -35,6 +35,9 @@ const runtimeSettingsSchema = z.object({
   claudeEffort: z.enum(["low", "medium", "high", "max"]).optional(),
   maxTurns: z.number().int().min(1).max(200).optional(),
   streamTimeoutMs: z.number().int().min(30_000).max(1_800_000).optional(),
+  maxHistory: z.number().int().min(1).max(100).optional(),
+  maxMessageLen: z.number().int().min(500).max(100_000).optional(),
+  logLevel: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).optional(),
   redaction: redactionSchema.optional(),
   skillPacks: z.array(skillPackSchema).max(24).optional(),
   splunkGuardrails: splunkGuardrailsSchema.optional(),
@@ -121,6 +124,7 @@ export async function updateRuntimeSettings(
   await ensureDir();
   await writeFile(SETTINGS_PATH, JSON.stringify(validated, null, 2), "utf-8");
   clearThreatIntelInternalRangesCache();
+  if (validated.logLevel) logger.level = validated.logLevel;
   logger.info({ settings: validated }, "runtime settings updated");
   return validated;
 }
@@ -154,6 +158,21 @@ export async function getStreamTimeoutMs(): Promise<number> {
   return (
     settings.streamTimeoutMs || parseInt(process.env.OPSBLAZE_STREAM_TIMEOUT_MS ?? "300000", 10)
   );
+}
+
+export async function getMaxHistory(): Promise<number> {
+  const settings = await loadRuntimeSettings();
+  return settings.maxHistory || parseInt(process.env.OPSBLAZE_MAX_HISTORY ?? "20", 10);
+}
+
+export async function getMaxMessageLen(): Promise<number> {
+  const settings = await loadRuntimeSettings();
+  return settings.maxMessageLen || parseInt(process.env.OPSBLAZE_MAX_MESSAGE_LEN ?? "10000", 10);
+}
+
+export async function getLogLevel(): Promise<string> {
+  const settings = await loadRuntimeSettings();
+  return settings.logLevel || process.env.LOG_LEVEL || "info";
 }
 
 export async function getRedactionSettings(): Promise<RedactionSettings> {

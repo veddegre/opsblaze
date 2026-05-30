@@ -76,6 +76,9 @@ import {
   getClaudeEffort,
   getMaxTurns,
   getStreamTimeoutMs,
+  getMaxHistory,
+  getMaxMessageLen,
+  getLogLevel,
   getRedactionSettings,
   getConfiguredSkillPacks,
 } from "./runtime-settings.js";
@@ -102,8 +105,6 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 const HOST = process.env.HOST ?? "127.0.0.1";
-const MAX_HISTORY = parseInt(process.env.OPSBLAZE_MAX_HISTORY ?? "20", 10);
-const MAX_MESSAGE_LEN = parseInt(process.env.OPSBLAZE_MAX_MESSAGE_LEN ?? "10000", 10);
 const MAX_HISTORY_ENTRY_LEN = 50_000;
 const MAX_MESSAGES_PER_CONVERSATION = 500;
 const MAX_SKILL_CONTENT_LEN = 100_000;
@@ -235,8 +236,9 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
     return;
   }
 
-  if (message.length > MAX_MESSAGE_LEN) {
-    res.status(400).json({ error: `message exceeds ${MAX_MESSAGE_LEN} character limit` });
+  const maxMessageLen = await getMaxMessageLen();
+  if (message.length > maxMessageLen) {
+    res.status(400).json({ error: `message exceeds ${maxMessageLen} character limit` });
     return;
   }
 
@@ -258,7 +260,7 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
       return;
     }
     history = buildChatHistoryFromMessages(conv.messages, message, {
-      maxEntries: MAX_HISTORY,
+      maxEntries: await getMaxHistory(),
       maxEntryLen: MAX_HISTORY_ENTRY_LEN,
     });
   }
@@ -681,6 +683,9 @@ app.get("/api/settings", apiLimiter, async (req, res) => {
       effort,
       maxTurns,
       streamTimeoutMs,
+      maxHistory,
+      maxMessageLen,
+      logLevel,
       redaction,
       skillPacks,
       splunkGuardrails,
@@ -690,6 +695,9 @@ app.get("/api/settings", apiLimiter, async (req, res) => {
       getClaudeEffort(),
       getMaxTurns(),
       getStreamTimeoutMs(),
+      getMaxHistory(),
+      getMaxMessageLen(),
+      getLogLevel(),
       getRedactionSettings(),
       getConfiguredSkillPacks(),
       getSplunkGuardrails(),
@@ -706,6 +714,9 @@ app.get("/api/settings", apiLimiter, async (req, res) => {
         claudeEffort: string;
         maxTurns: number;
         streamTimeoutMs: number;
+        maxHistory: number;
+        maxMessageLen: number;
+        logLevel: string;
         llmProvider: "openwebui" | "claude";
         redaction: typeof redactionForClient;
         skillPacks: Awaited<ReturnType<typeof getConfiguredSkillPacks>>;
@@ -719,6 +730,9 @@ app.get("/api/settings", apiLimiter, async (req, res) => {
         claudeEffort: effort,
         maxTurns,
         streamTimeoutMs,
+        maxHistory,
+        maxMessageLen,
+        logLevel,
         llmProvider: openWebUi ? "openwebui" : "claude",
         redaction: redactionForClient,
         skillPacks,
@@ -764,6 +778,9 @@ app.patch("/api/settings", apiLimiter, requireAdmin, async (req, res) => {
       effort,
       maxTurns,
       streamTimeoutMs,
+      maxHistory,
+      maxMessageLen,
+      logLevel,
       redaction,
       skillPacks,
       splunkGuardrails,
@@ -773,6 +790,9 @@ app.patch("/api/settings", apiLimiter, requireAdmin, async (req, res) => {
       getClaudeEffort(),
       getMaxTurns(),
       getStreamTimeoutMs(),
+      getMaxHistory(),
+      getMaxMessageLen(),
+      getLogLevel(),
       getRedactionSettings(),
       getConfiguredSkillPacks(),
       getSplunkGuardrails(),
@@ -784,6 +804,9 @@ app.patch("/api/settings", apiLimiter, requireAdmin, async (req, res) => {
         claudeEffort: effort,
         maxTurns,
         streamTimeoutMs,
+        maxHistory,
+        maxMessageLen,
+        logLevel,
         redaction,
         skillPacks,
         splunkGuardrails,
@@ -1130,7 +1153,7 @@ app.post("/api/skills/refine", extractLimiter, async (req, res) => {
       res.status(400).json({ error: "draft is too large" });
       return;
     }
-    if (instruction.length > MAX_MESSAGE_LEN) {
+    if (instruction.length > (await getMaxMessageLen())) {
       res.status(400).json({ error: "instruction is too large" });
       return;
     }
@@ -1414,6 +1437,12 @@ try {
 }
 
 const server = app.listen(PORT, HOST, async () => {
+  try {
+    // Honor a persisted log-level override on startup (env is the default).
+    logger.level = await getLogLevel();
+  } catch (err) {
+    logger.warn({ err }, "failed to apply runtime log level");
+  }
   try {
     await ensureOpsblazeSkillsLayout();
   } catch (err) {

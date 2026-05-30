@@ -78,6 +78,9 @@ export interface AppSettings {
     claudeEffort: string;
     maxTurns: number;
     streamTimeoutMs: number;
+    maxHistory?: number;
+    maxMessageLen?: number;
+    logLevel?: string;
     llmProvider?: "openwebui" | "claude";
     redaction?: RedactionSettings;
     skillPacks?: SkillPack[];
