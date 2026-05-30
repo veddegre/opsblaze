@@ -5,6 +5,7 @@ import { sanitizeUserId, LOCAL_USER_ID } from "./auth/types.js";
 
 export type AuditAction =
   | "auth.login"
+  | "auth.login.failed"
   | "auth.logout"
   | "export.download"
   | "export.preview"

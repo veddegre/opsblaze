@@ -12,10 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Inline IP-zone context**: completed assistant messages show zone + default posture badges (`trusted`/`neutral`/`sensitive`) for any IPv4 that falls in a configured organization zone, via `POST /api/ip-zones/classify` (matched CIDR boundaries are not exposed).
 - **Persisted threat-intel results**: `enrich_ips` output is captured from both agent backends and saved on the conversation as a structured "Threat intelligence" panel (verdicts grouped by IP with report links), restored on reload.
 - **More settings configurable at runtime** (Settings → Runtime, admin only) instead of `.env`-only: threat-intel master/per-provider toggles + max IPs / cache hours / AbuseIPDB max-age (API keys stay in `.env`), plus max history, max message length, and log level. Env values remain the defaults; runtime overrides take precedence. Security guardrails (`SPL_SAFETY_ENABLED`) and MCP-subprocess tuning (`MAX_ROW_LIMIT`) remain `.env`-only by design.
+- **Audit log filtering & export**: the Settings → Audit log tab can now filter by action, user, and date range, and export the filtered rows to CSV.
+- **Failed-login auditing**: failed local sign-ins now emit an `auth.login.failed` audit event (previously only successful logins were recorded).
+- **Audit log health check**: `/api/health` now includes an `audit_log` check that verifies the audit directory is writable, so silent audit loss surfaces as an error.
 
 ### Changed
 
 - CI split into independent jobs (secrets, audit, typecheck, lint, test, build) so one failing check no longer masks the others, plus a weekly scheduled run to surface newly-published advisories.
+
+### Fixed
+
+- Removed a duplicate audit-log viewer (and duplicate `GET /api/audit` route) that had been added under Settings → System; the dedicated Audit log tab is now the single source.
 
 ## [0.2.0] - 2026-05-30
 

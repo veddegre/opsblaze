@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { EventEmitter } from "events";
 import type { IncomingMessage, ClientRequest, RequestOptions } from "http";
-import { checkSplunk, checkClaude, checkOpenWebUi } from "../health.js";
+import { checkSplunk, checkClaude, checkOpenWebUi, checkAuditLog } from "../health.js";
 import type { Requester } from "../health.js";
 
 function makeReq(): ClientRequest {
@@ -275,6 +275,38 @@ describe("checkClaude", () => {
       : never;
     const result = await checkClaude({ apiKey: undefined, _execFile: mockExec });
     expect(result).toEqual({ status: "error", message: "CLI not found" });
+  });
+});
+
+describe("checkAuditLog", () => {
+  it("returns ok when the log directory is writable", async () => {
+    const result = await checkAuditLog({
+      path: "/tmp/opsblaze-test/audit.jsonl",
+      _mkdir: (async () => undefined) as unknown as typeof import("fs/promises").mkdir,
+      _access: (async () => undefined) as unknown as typeof import("fs/promises").access,
+    });
+    expect(result).toEqual({ status: "ok", message: "writable" });
+  });
+
+  it("returns error when the directory cannot be created", async () => {
+    const result = await checkAuditLog({
+      path: "/nope/audit.jsonl",
+      _mkdir: (async () => {
+        throw new Error("EACCES");
+      }) as unknown as typeof import("fs/promises").mkdir,
+    });
+    expect(result).toEqual({ status: "error", message: "log directory not writable" });
+  });
+
+  it("returns error when the directory is not writable", async () => {
+    const result = await checkAuditLog({
+      path: "/ro/audit.jsonl",
+      _mkdir: (async () => undefined) as unknown as typeof import("fs/promises").mkdir,
+      _access: (async () => {
+        throw new Error("EACCES");
+      }) as unknown as typeof import("fs/promises").access,
+    });
+    expect(result).toEqual({ status: "error", message: "log directory not writable" });
   });
 });
 

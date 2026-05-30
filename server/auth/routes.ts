@@ -97,6 +97,9 @@ authRouter.post("/local/login", localLoginLimiter, async (req, res) => {
   try {
     const user = await authenticateLocalUser(username, password);
     if (!user) {
+      void recordAudit(username.trim().toLowerCase() || "unknown", "auth.login.failed", {
+        method: "local",
+      });
       res.status(401).json({ error: "Invalid username or password" });
       return;
     }

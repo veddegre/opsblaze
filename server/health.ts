@@ -2,6 +2,9 @@ import https from "https";
 import http from "http";
 import { execFile as execFileCb } from "child_process";
 import { promisify } from "util";
+import { access, mkdir } from "fs/promises";
+import { constants as fsConstants } from "fs";
+import { dirname } from "path";
 import type { IncomingMessage, ClientRequest, RequestOptions } from "http";
 import {
   getOpenWebUiConfig,
@@ -10,6 +13,7 @@ import {
 } from "./llm-config.js";
 import { getActiveThreatIntelProviders } from "./threat-intel-config.js";
 import { getOrganizationZoneNames, hasOrganizationIpConfig } from "./threat-intel-ranges.js";
+import { AUDIT_LOG_PATH } from "./audit-log.js";
 
 const execFile = promisify(execFileCb);
 
@@ -227,11 +231,36 @@ export async function checkClaude(opts: {
   }
 }
 
+/**
+ * Confirms the audit log can actually be written. The audit trail is a
+ * security control, so a read-only/unwritable data directory is an `error`
+ * condition (silent audit loss) rather than something to discover later.
+ */
+export async function checkAuditLog(
+  opts: {
+    path?: string;
+    _mkdir?: typeof mkdir;
+    _access?: typeof access;
+  } = {}
+): Promise<HealthCheck> {
+  const target = opts.path ?? AUDIT_LOG_PATH;
+  const dir = dirname(target);
+  const doMkdir = opts._mkdir ?? mkdir;
+  const doAccess = opts._access ?? access;
+  try {
+    await doMkdir(dir, { recursive: true });
+    await doAccess(dir, fsConstants.W_OK);
+    return { status: "ok", message: "writable" };
+  } catch {
+    return { status: "error", message: "log directory not writable" };
+  }
+}
+
 export async function runHealthChecks(): Promise<HealthResult> {
   const openWebUiBase = process.env.OPENWEBUI_BASE_URL?.trim();
   const openWebUiKey = process.env.OPENWEBUI_API_KEY?.trim();
 
-  const [splunk, llm] = await Promise.all([
+  const [splunk, llm, auditLog] = await Promise.all([
     checkSplunk({
       host: process.env.SPLUNK_HOST,
       port: parseInt(process.env.SPLUNK_PORT ?? "8089", 10),
@@ -249,6 +278,7 @@ export async function runHealthChecks(): Promise<HealthResult> {
       : checkClaude({
           apiKey: process.env.ANTHROPIC_API_KEY,
         }),
+    checkAuditLog(),
   ]);
 
   const llmKey = openWebUiBase ? "openwebui" : "claude";
@@ -271,6 +301,7 @@ export async function runHealthChecks(): Promise<HealthResult> {
     splunk,
     [llmKey]: llm,
     threat_intel: threatIntel,
+    audit_log: auditLog,
   };
 
   const overall = Object.values(checks).every((c) => c.status === "ok")
