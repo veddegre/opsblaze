@@ -254,7 +254,7 @@ Enable the **ip-context-risk** and **ip-threat-enrichment** skills (or add them 
 
 #### 7. Telemetry — optional
 
-These are **not** required to run OpsBlaze. They export **usage/performance signals about the app** (investigation turns, token counts, tool calls)—not the same as the §1 Splunk connection, which is the management API the agent uses to run SPL.
+These are **not** required to run OpsBlaze. They export **usage/performance signals about the app** (investigation turns, token counts, tool calls)—not the same as the Splunk connection in section 1, which is the management API the agent uses to run SPL.
 
 | Backend | How to enable | What it sends |
 |---------|---------------|---------------|
@@ -281,7 +281,7 @@ OpenTelemetry packages are **optional** npm dependencies. If enabling OTEL fails
 
 ## Authentication
 
-The [§4 table](#4-authentication--pick-open-local-or-oidc) above is the variable reference. This section is how to configure each mode in practice.
+The [Authentication variable table](#4-authentication--pick-open-local-or-oidc) above is the variable reference. This section is how to configure each mode in practice.
 
 ### Local Authentication
 
