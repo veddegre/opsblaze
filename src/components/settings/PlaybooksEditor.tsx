@@ -7,6 +7,7 @@ import {
   type InvestigationPlaybook,
 } from "../../lib/playbooks-api";
 import { listSkillsApi, type SkillInfo } from "../../lib/settings-api";
+import { groupPlaybooksByCategory } from "../../lib/playbook-category";
 import { SkillMultiSelect } from "./SkillMultiSelect";
 import { FieldLabel, InfoBanner, inputClass, monoInputClass } from "./settings-ui";
 
@@ -20,6 +21,7 @@ interface PlaybookFormState {
   prompt: string;
   skills: string[];
   strict: boolean;
+  category: string;
 }
 
 const emptyForm = (): PlaybookFormState => ({
@@ -27,6 +29,7 @@ const emptyForm = (): PlaybookFormState => ({
   prompt: "",
   skills: [],
   strict: true,
+  category: "",
 });
 
 function PlaybookFormFields({
@@ -52,6 +55,18 @@ function PlaybookFormFields({
         placeholder="Failed auth events (24h)"
         className={inputClass}
       />
+      <FieldLabel htmlFor={`${idPrefix}-category`}>Category (optional)</FieldLabel>
+      <input
+        id={`${idPrefix}-category`}
+        value={form.category}
+        onChange={(e) => onChange({ category: e.target.value })}
+        placeholder="Okta, Duo, Workday…"
+        list="playbook-category-suggestions"
+        className={inputClass}
+      />
+      <p className="text-[11px] text-gray-500">
+        Groups this playbook in the picker. Leave blank to auto-group by name prefix.
+      </p>
       <FieldLabel htmlFor={`${idPrefix}-prompt`}>Investigation prompt</FieldLabel>
       <textarea
         id={`${idPrefix}-prompt`}
@@ -129,6 +144,7 @@ export function PlaybooksEditor({ disabled, onPlaybooksChanged }: PlaybooksEdito
       prompt: pb.prompt,
       skills: pb.skills,
       strict: pb.strict,
+      category: pb.category ?? "",
     });
     setSuccess(null);
     setError(null);
@@ -154,6 +170,7 @@ export function PlaybooksEditor({ disabled, onPlaybooksChanged }: PlaybooksEdito
         prompt: editForm.prompt.trim(),
         skills: editForm.skills,
         strict: editForm.strict,
+        category: editForm.category.trim() || undefined,
       });
       setSuccess("Playbook updated.");
       cancelEdit();
@@ -177,6 +194,7 @@ export function PlaybooksEditor({ disabled, onPlaybooksChanged }: PlaybooksEdito
         prompt: newForm.prompt.trim(),
         skills: newForm.skills,
         strict: newForm.strict,
+        category: newForm.category.trim() || undefined,
       });
       setSuccess("Playbook created. Use the Playbooks menu below the chat box.");
       setNewForm(emptyForm());
@@ -205,6 +223,12 @@ export function PlaybooksEditor({ disabled, onPlaybooksChanged }: PlaybooksEdito
   );
   const canSaveNew = Boolean(newForm.name.trim() && newForm.prompt.trim() && !saving && !editingId);
 
+  const groupedPlaybooks = groupPlaybooksByCategory(playbooks);
+  const showGroupHeaders = groupedPlaybooks.length > 1;
+  const categorySuggestions = [
+    ...new Set(playbooks.map((pb) => pb.category?.trim()).filter((c): c is string => Boolean(c))),
+  ].sort((a, b) => a.localeCompare(b));
+
   return (
     <div className="space-y-4">
       <InfoBanner variant="tip">
@@ -222,14 +246,33 @@ export function PlaybooksEditor({ disabled, onPlaybooksChanged }: PlaybooksEdito
         <p className="text-xs text-gray-500 italic">No playbooks yet — create one below.</p>
       )}
 
+      {categorySuggestions.length > 0 && (
+        <datalist id="playbook-category-suggestions">
+          {categorySuggestions.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
+      )}
+
       {playbooks.length > 0 && (
-        <ul className="space-y-2">
-          {playbooks.map((pb) => {
-            const isEditing = editingId === pb.id;
-            return (
-              <li
-                key={pb.id}
-                ref={isEditing ? editSectionRef : undefined}
+        <div className="space-y-4">
+          {groupedPlaybooks.map((group) => (
+            <div key={group.category} className="space-y-2">
+              {showGroupHeaders && (
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  {group.category}
+                  <span className="ml-1 font-normal normal-case tracking-normal text-gray-600">
+                    ({group.items.length})
+                  </span>
+                </p>
+              )}
+              <ul className="space-y-2">
+                {group.items.map((pb) => {
+                  const isEditing = editingId === pb.id;
+                  return (
+                    <li
+                      key={pb.id}
+                      ref={isEditing ? editSectionRef : undefined}
                 className={`rounded-lg border ${
                   isEditing ? "border-accent/40 bg-accent/5" : "border-border-subtle"
                 }`}
@@ -298,10 +341,13 @@ export function PlaybooksEditor({ disabled, onPlaybooksChanged }: PlaybooksEdito
                     )}
                   </div>
                 )}
-              </li>
-            );
-          })}
-        </ul>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
       )}
 
       {!disabled && !editingId && (

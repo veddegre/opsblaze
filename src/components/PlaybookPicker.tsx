@@ -1,6 +1,7 @@
 import React, { useState, useLayoutEffect, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { InvestigationPlaybook } from "../lib/playbooks-api";
+import { groupPlaybooksByCategory } from "../lib/playbook-category";
 import { pickerBackdropClass, pickerPanelClass } from "../lib/overlay-layout";
 
 interface PlaybookPickerProps {
@@ -32,6 +33,12 @@ export function PlaybookPicker({
       pb.prompt.toLowerCase().includes(q) ||
       pb.skills.some((s) => s.toLowerCase().includes(q))
   );
+
+  // Group for display; `ordered` is the flattened group order that keyboard
+  // navigation and the active-index highlight track against.
+  const groups = groupPlaybooksByCategory(filtered);
+  const showHeaders = groups.length > 1;
+  const ordered = groups.flatMap((g) => g.items);
 
   const updatePanelPos = useCallback(() => {
     if (!triggerRef.current) return;
@@ -107,7 +114,7 @@ export function PlaybookPicker({
         setIsOpen(true);
         return;
       }
-      setActiveIndex((prev) => (prev < filtered.length - 1 ? prev + 1 : prev));
+      setActiveIndex((prev) => (prev < ordered.length - 1 ? prev + 1 : prev));
       return;
     }
     if (e.key === "ArrowUp") {
@@ -115,9 +122,9 @@ export function PlaybookPicker({
       setActiveIndex((prev) => (prev > 0 ? prev - 1 : 0));
       return;
     }
-    if (e.key === "Enter" && isOpen && activeIndex >= 0 && activeIndex < filtered.length) {
+    if (e.key === "Enter" && isOpen && activeIndex >= 0 && activeIndex < ordered.length) {
       e.preventDefault();
-      apply(filtered[activeIndex]);
+      apply(ordered[activeIndex]);
     }
   };
 
@@ -229,35 +236,56 @@ export function PlaybookPicker({
               </div>
 
               <div ref={listRef} className="overflow-y-auto overscroll-contain flex-1 py-1">
-                {filtered.length > 0 ? (
-                  filtered.map((pb, idx) => (
-                    <button
-                      key={pb.id}
-                      type="button"
-                      role="option"
-                      data-playbook-item
-                      aria-selected={idx === activeIndex}
-                      onClick={() => apply(pb)}
-                      className={`w-full text-left px-3 py-2 transition-colors cursor-pointer ${
-                        idx === activeIndex ? "bg-accent/15" : "hover:bg-surface-3"
-                      }`}
-                    >
-                      <p
-                        className={`text-sm font-medium ${
-                          idx === activeIndex ? "text-accent-light" : "text-gray-200"
-                        }`}
-                      >
-                        {pb.name}
-                      </p>
-                      <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{pb.prompt}</p>
-                      {pb.skills.length > 0 && (
-                        <p className="text-[10px] text-gray-600 mt-1 truncate">
-                          Skills: {pb.skills.join(", ")}
-                          {pb.strict ? " · strict" : ""}
-                        </p>
-                      )}
-                    </button>
-                  ))
+                {ordered.length > 0 ? (
+                  (() => {
+                    let runningIndex = -1;
+                    return groups.map((group) => (
+                      <div key={group.category}>
+                        {showHeaders && (
+                          <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500 sticky top-0 bg-surface-2/95 backdrop-blur-xl z-10">
+                            {group.category}
+                            <span className="ml-1 font-normal normal-case tracking-normal text-gray-600">
+                              ({group.items.length})
+                            </span>
+                          </div>
+                        )}
+                        {group.items.map((pb) => {
+                          runningIndex += 1;
+                          const idx = runningIndex;
+                          return (
+                            <button
+                              key={pb.id}
+                              type="button"
+                              role="option"
+                              data-playbook-item
+                              aria-selected={idx === activeIndex}
+                              onClick={() => apply(pb)}
+                              className={`w-full text-left px-3 py-2 transition-colors cursor-pointer ${
+                                idx === activeIndex ? "bg-accent/15" : "hover:bg-surface-3"
+                              }`}
+                            >
+                              <p
+                                className={`text-sm font-medium ${
+                                  idx === activeIndex ? "text-accent-light" : "text-gray-200"
+                                }`}
+                              >
+                                {pb.name}
+                              </p>
+                              <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">
+                                {pb.prompt}
+                              </p>
+                              {pb.skills.length > 0 && (
+                                <p className="text-[10px] text-gray-600 mt-1 truncate">
+                                  Skills: {pb.skills.join(", ")}
+                                  {pb.strict ? " · strict" : ""}
+                                </p>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ));
+                  })()
                 ) : (
                   <p className="text-sm text-gray-500 px-3 py-4 text-center">
                     No matching playbooks

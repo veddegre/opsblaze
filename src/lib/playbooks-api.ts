@@ -12,6 +12,7 @@ export interface InvestigationPlaybook {
   prompt: string;
   skills: string[];
   strict: boolean;
+  category?: string;
   updatedAt: string;
 }
 
@@ -27,6 +28,7 @@ export async function createPlaybook(input: {
   prompt: string;
   skills?: string[];
   strict?: boolean;
+  category?: string;
   id?: string;
 }): Promise<InvestigationPlaybook> {
   const res = await fetch(
@@ -49,6 +51,7 @@ export async function updatePlaybook(
     prompt: string;
     skills?: string[];
     strict?: boolean;
+    category?: string;
   }
 ): Promise<InvestigationPlaybook> {
   const res = await fetch(

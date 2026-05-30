@@ -10,6 +10,8 @@ export const playbookSchema = z.object({
   prompt: z.string().min(1).max(10_000),
   skills: z.array(z.string().min(1).max(64)).max(12).optional(),
   strict: z.boolean().optional(),
+  /** Optional grouping label (e.g. "Duo", "Okta"). Absent = grouped under a derived/"Uncategorized" bucket. */
+  category: z.string().min(1).max(64).optional(),
 });
 
 export type InvestigationPlaybook = {
@@ -18,6 +20,7 @@ export type InvestigationPlaybook = {
   prompt: string;
   skills: string[];
   strict: boolean;
+  category?: string;
   updatedAt: string;
 };
 
@@ -66,12 +69,14 @@ export async function createPlaybook(
   if (playbooks.some((p) => p.id === id)) {
     throw new Error(`Playbook id '${id}' already exists`);
   }
+  const category = parsed.category?.trim();
   const entry: InvestigationPlaybook = {
     id,
     name: parsed.name.trim(),
     prompt: parsed.prompt.trim(),
     skills: parsed.skills ?? [],
     strict: parsed.strict !== false,
+    ...(category ? { category } : {}),
     updatedAt: new Date().toISOString(),
   };
   playbooks.push(entry);
@@ -89,12 +94,14 @@ export async function updatePlaybook(
   const index = playbooks.findIndex((p) => p.id === id);
   if (index === -1) return null;
 
+  const category = parsed.category?.trim();
   const entry: InvestigationPlaybook = {
     id,
     name: parsed.name.trim(),
     prompt: parsed.prompt.trim(),
     skills: parsed.skills ?? playbooks[index].skills,
     strict: parsed.strict !== false,
+    ...(category ? { category } : {}),
     updatedAt: new Date().toISOString(),
   };
   playbooks[index] = entry;

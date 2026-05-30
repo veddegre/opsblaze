@@ -614,7 +614,7 @@ Bundled examples include `splunk-analyst`, `investigating-splunk-login-activity`
 
 **Splunk guardrails** (admins, runtime settings) restrict MCP `splunk_query` to allowed indexes and a maximum time window for everyone. Optional **admin break-glass** via `.env`: `OPSBLAZE_SPLUNK_GUARD_ADMIN_EXTRA_INDEXES` (union with the allowlist) or `OPSBLAZE_SPLUNK_GUARD_ADMIN_BYPASS_INDEXES=true` (admins skip index checks; time window still applies).
 
-**Investigation playbooks** (admins) are saved prompts with optional skills, managed under **Settings → Playbooks** and applied from the **Playbooks** menu below the chat input.
+**Investigation playbooks** (admins) are saved prompts with optional skills, managed under **Settings → Playbooks** and applied from the **Playbooks** menu below the chat input. Each playbook can have an optional **category** (e.g. `Okta`, `Duo`, `Workday`) that groups it under headers in both the picker and the editor so the list stays scannable as it grows. Leave the category blank to auto-group by the playbook's name prefix, falling back to "Uncategorized".
 
 **Audit log** (admins, Settings → Audit log) records auth, exports, and configuration changes in `data/audit.jsonl`.
 
