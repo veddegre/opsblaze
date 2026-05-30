@@ -98,20 +98,6 @@ export async function fetchHealth(): Promise<HealthResponse> {
   return res.json();
 }
 
-export interface AuditEvent {
-  ts: string;
-  userId: string;
-  action: string;
-  detail?: Record<string, unknown>;
-}
-
-export async function fetchAuditEvents(limit = 200): Promise<AuditEvent[]> {
-  const res = await fetch(`/api/audit?limit=${limit}`, fetchInit({ headers: headers() }));
-  if (!res.ok) throw new Error(`Failed to load audit log: ${res.status}`);
-  const data = (await res.json()) as { events?: AuditEvent[] };
-  return data.events ?? [];
-}
-
 export type IpZonePosture = "trusted" | "neutral" | "sensitive";
 
 export interface IpZoneClassification {
