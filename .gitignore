@@ -17,6 +17,9 @@ fixtures/
 docs/playbooks/
 .cursor/debug*.log
 coverage/
+# Local git backups / scratch helpers — never commit (may contain pre-rewrite history)
+*.bundle
+_git-filter-repo.py
 # Deploy-only skills (org-specific); keep README in repo as documentation
 .claude/skills/_local/**
 !.claude/skills/_local/README.md
