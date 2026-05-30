@@ -273,74 +273,76 @@ export function PlaybooksEditor({ disabled, onPlaybooksChanged }: PlaybooksEdito
                     <li
                       key={pb.id}
                       ref={isEditing ? editSectionRef : undefined}
-                className={`rounded-lg border ${
-                  isEditing ? "border-accent/40 bg-accent/5" : "border-border-subtle"
-                }`}
-              >
-                {isEditing && !disabled ? (
-                  <div className="px-3 py-3 space-y-3">
-                    <p className="text-xs font-medium text-accent-light">Editing playbook</p>
-                    <PlaybookFormFields
-                      idPrefix={`edit-${pb.id}`}
-                      form={editForm}
-                      onChange={(patch) => setEditForm((prev) => ({ ...prev, ...patch }))}
-                      availableSkills={availableSkills}
-                      skillsLoading={skillsLoading}
-                    />
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void handleUpdate()}
-                        disabled={!canSaveEdit}
-                        className="text-sm px-4 py-2 rounded-lg bg-accent text-white font-medium hover:opacity-90 disabled:opacity-50"
-                      >
-                        {saving ? "Saving…" : "Update playbook"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelEdit}
-                        disabled={saving}
-                        className="text-xs text-gray-400 hover:text-gray-200"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-start justify-between gap-2 px-3 py-2">
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-gray-200">{pb.name}</p>
-                      <p className="text-[11px] text-gray-500 line-clamp-2">{pb.prompt}</p>
-                      {pb.skills.length > 0 ? (
-                        <p className="text-[10px] text-gray-600 mt-1 font-mono">
-                          Skills: {pb.skills.join(", ")}
-                          {pb.strict ? " · strict" : ""}
-                        </p>
+                      className={`rounded-lg border ${
+                        isEditing ? "border-accent/40 bg-accent/5" : "border-border-subtle"
+                      }`}
+                    >
+                      {isEditing && !disabled ? (
+                        <div className="px-3 py-3 space-y-3">
+                          <p className="text-xs font-medium text-accent-light">Editing playbook</p>
+                          <PlaybookFormFields
+                            idPrefix={`edit-${pb.id}`}
+                            form={editForm}
+                            onChange={(patch) => setEditForm((prev) => ({ ...prev, ...patch }))}
+                            availableSkills={availableSkills}
+                            skillsLoading={skillsLoading}
+                          />
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleUpdate()}
+                              disabled={!canSaveEdit}
+                              className="text-sm px-4 py-2 rounded-lg bg-accent text-white font-medium hover:opacity-90 disabled:opacity-50"
+                            >
+                              {saving ? "Saving…" : "Update playbook"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEdit}
+                              disabled={saving}
+                              className="text-xs text-gray-400 hover:text-gray-200"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
                       ) : (
-                        <p className="text-[10px] text-amber-500/80 mt-1">No skills attached</p>
+                        <div className="flex items-start justify-between gap-2 px-3 py-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-gray-200">{pb.name}</p>
+                            <p className="text-[11px] text-gray-500 line-clamp-2">{pb.prompt}</p>
+                            {pb.skills.length > 0 ? (
+                              <p className="text-[10px] text-gray-600 mt-1 font-mono">
+                                Skills: {pb.skills.join(", ")}
+                                {pb.strict ? " · strict" : ""}
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-amber-500/80 mt-1">
+                                No skills attached
+                              </p>
+                            )}
+                          </div>
+                          {!disabled && (
+                            <div className="flex flex-col gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => startEdit(pb)}
+                                disabled={Boolean(editingId && editingId !== pb.id)}
+                                className="text-[10px] text-accent hover:text-accent-light disabled:opacity-40"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleDelete(pb.id)}
+                                className="text-[10px] text-red-400 hover:text-red-300"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       )}
-                    </div>
-                    {!disabled && (
-                      <div className="flex flex-col gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => startEdit(pb)}
-                          disabled={Boolean(editingId && editingId !== pb.id)}
-                          className="text-[10px] text-accent hover:text-accent-light disabled:opacity-40"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleDelete(pb.id)}
-                          className="text-[10px] text-red-400 hover:text-red-300"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
                     </li>
                   );
                 })}

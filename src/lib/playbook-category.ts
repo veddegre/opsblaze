@@ -26,7 +26,10 @@ interface CategorizablePlaybook {
 export function getPlaybookCategory(pb: CategorizablePlaybook): string {
   const explicit = pb.category?.trim();
   if (explicit) return explicit;
-  const match = pb.name.trim().toLowerCase().match(/^([a-z0-9]+)[\s:_-]/);
+  const match = pb.name
+    .trim()
+    .toLowerCase()
+    .match(/^([a-z0-9]+)[\s:_-]/);
   if (match) {
     const label = PREFIX_LABELS[match[1]];
     if (label) return label;

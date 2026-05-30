@@ -1,7 +1,7 @@
 import React, { useState, useLayoutEffect, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { InvestigationPlaybook } from "../lib/playbooks-api";
-import { groupPlaybooksByCategory } from "../lib/playbook-category";
+import { getPlaybookCategory, groupPlaybooksByCategory } from "../lib/playbook-category";
 import { pickerBackdropClass, pickerPanelClass } from "../lib/overlay-layout";
 
 interface PlaybookPickerProps {
@@ -19,6 +19,7 @@ export function PlaybookPicker({
 }: PlaybookPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [panelPos, setPanelPos] = useState<{ bottom: number; left: number } | null>(null);
 
@@ -26,13 +27,20 @@ export function PlaybookPicker({
   const panelSearchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // All categories across every playbook (drives the quick-filter chips).
+  const allCategories = groupPlaybooksByCategory(playbooks).map((g) => g.category);
+
   const q = searchQuery.toLowerCase().trim();
-  const filtered = playbooks.filter(
-    (pb) =>
+  const filtered = playbooks.filter((pb) => {
+    if (categoryFilter && getPlaybookCategory(pb) !== categoryFilter) return false;
+    if (!q) return true;
+    return (
       pb.name.toLowerCase().includes(q) ||
       pb.prompt.toLowerCase().includes(q) ||
-      pb.skills.some((s) => s.toLowerCase().includes(q))
-  );
+      pb.skills.some((s) => s.toLowerCase().includes(q)) ||
+      getPlaybookCategory(pb).toLowerCase().includes(q)
+    );
+  });
 
   // Group for display; `ordered` is the flattened group order that keyboard
   // navigation and the active-index highlight track against.
@@ -53,6 +61,7 @@ export function PlaybookPicker({
     if (disabled || overlaysSuspended) {
       setIsOpen(false);
       setSearchQuery("");
+      setCategoryFilter(null);
       setActiveIndex(0);
     }
   }, [disabled, overlaysSuspended]);
@@ -79,7 +88,7 @@ export function PlaybookPicker({
 
   useEffect(() => {
     setActiveIndex(filtered.length > 0 ? 0 : -1);
-  }, [searchQuery, filtered.length]);
+  }, [searchQuery, categoryFilter, filtered.length]);
 
   useEffect(() => {
     if (activeIndex < 0 || !listRef.current) return;
@@ -90,6 +99,7 @@ export function PlaybookPicker({
   const close = useCallback(() => {
     setIsOpen(false);
     setSearchQuery("");
+    setCategoryFilter(null);
     setActiveIndex(-1);
   }, []);
 
@@ -228,9 +238,46 @@ export function PlaybookPicker({
                     </button>
                   )}
                 </div>
+                {allCategories.length > 1 && (
+                  <div className="flex items-center gap-1 mt-2 overflow-x-auto overscroll-x-contain pb-0.5 -mx-0.5 px-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCategoryFilter(null);
+                        panelSearchRef.current?.focus();
+                      }}
+                      className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                        categoryFilter === null
+                          ? "border-accent/50 bg-accent/15 text-accent-light"
+                          : "border-border-subtle text-gray-400 hover:text-gray-200 hover:border-border-strong"
+                      }`}
+                    >
+                      All
+                    </button>
+                    {allCategories.map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => {
+                          setCategoryFilter((prev) => (prev === cat ? null : cat));
+                          panelSearchRef.current?.focus();
+                        }}
+                        className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                          categoryFilter === cat
+                            ? "border-accent/50 bg-accent/15 text-accent-light"
+                            : "border-border-subtle text-gray-400 hover:text-gray-200 hover:border-border-strong"
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <p className="text-[10px] text-gray-500 mt-1.5 px-0.5">
-                  {searchQuery
-                    ? `${filtered.length} of ${playbooks.length}`
+                  {searchQuery || categoryFilter
+                    ? `${filtered.length} of ${playbooks.length}${
+                        categoryFilter ? ` · ${categoryFilter}` : ""
+                      }`
                     : `${playbooks.length} saved investigation${playbooks.length !== 1 ? "s" : ""}`}
                 </p>
               </div>
