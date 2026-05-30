@@ -7,7 +7,7 @@ import { logger } from "./logger.js";
 export const playbookSchema = z.object({
   id: z.string().min(1).max(64).optional(),
   name: z.string().min(1).max(128),
-  prompt: z.string().min(1).max(10_000),
+  prompt: z.string().min(1).max(20_000),
   skills: z.array(z.string().min(1).max(64)).max(12).optional(),
   strict: z.boolean().optional(),
   /** Optional grouping label (e.g. "Duo", "Okta"). Absent = grouped under a derived/"Uncategorized" bucket. */
