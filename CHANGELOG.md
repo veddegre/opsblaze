@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- CI split into independent jobs (secrets, audit, typecheck, lint, test, build) so one failing check no longer masks the others, plus a weekly scheduled run to surface newly-published advisories.
+
 ## [0.2.0] - 2026-05-30
 
 ### Added
@@ -33,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Organization-internal and RFC1918/reserved IPs are never sent to third-party threat-intel APIs. Env-provided and legacy internal CIDRs are merged into zones collision-proof, so a user zone named `env`/`internal` cannot silently expose those ranges.
 - Bounded threat-intel cache (capped entry count with eviction) prevents unbounded memory growth on long-running servers.
+- Resolved all `npm audit` high/critical advisories: bumped OpenTelemetry deps to `0.218.0` (clears `@opentelemetry/exporter-prometheus`) and pinned `protobufjs` `^7.6.1` and `fast-uri` `^3.1.2` via overrides.
 - Startup refuses non-loopback `HOST` without OIDC unless `OPSBLAZE_LOCAL_MODE=true` is set explicitly.
 - OIDC callback uses fixed `OPSBLAZE_OIDC_REDIRECT_URI` (required when OIDC is enabled); session ID is regenerated on login.
 - MCP HTTP/SSE URLs block private/reserved addresses (SSRF mitigation); `docker` stdio requires `OPSBLAZE_ALLOW_DOCKER_MCP=true`.
