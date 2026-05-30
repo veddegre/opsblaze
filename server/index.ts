@@ -597,6 +597,19 @@ app.get("/api/config-paths", apiLimiter, requireAdmin, (_req, res) => {
   res.json({ mcpConfig: MCP_CONFIG_PATH, skillsDir: getSkillsDirPath() });
 });
 
+// --- Audit log (admin only) ---
+
+app.get("/api/audit", apiLimiter, requireAdmin, async (req, res) => {
+  try {
+    const raw = parseInt(String(req.query.limit ?? "200"), 10);
+    const limit = Number.isFinite(raw) ? Math.min(Math.max(raw, 1), 1000) : 200;
+    const events = await listAuditEvents(limit);
+    res.json({ events });
+  } catch {
+    res.status(500).json({ error: "Failed to read audit log" });
+  }
+});
+
 // --- Runtime settings routes ---
 
 function buildSystemSettingsPayload() {
