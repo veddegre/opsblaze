@@ -50,30 +50,28 @@ describe("InputBar skill scope passing", () => {
     expect(props.onSend).toHaveBeenCalledWith("Hello world");
   });
 
-  it("calls onSend with strict=false when skills selected and allowAdditional=true", async () => {
+  it("forwards only the message when skills are selected (App injects skill scope)", async () => {
     const { props } = await renderInputBar({
       selectedSkills: ["splunk-analyst", "login-investigator"],
       allowAdditional: true,
     });
     typeAndSend("Show me logins");
 
-    expect(props.onSend).toHaveBeenCalledWith("Show me logins", {
-      skills: ["splunk-analyst", "login-investigator"],
-      strict: false,
-    });
+    // InputBar does not build the skill payload; App.sendWithSkills adds it
+    // from selectedSkills/allowAdditional state before calling sendMessage.
+    expect(props.onSend).toHaveBeenCalledTimes(1);
+    expect(props.onSend).toHaveBeenCalledWith("Show me logins");
   });
 
-  it("calls onSend with strict=true when skills selected and allowAdditional=false", async () => {
+  it("forwards only the message regardless of allowAdditional", async () => {
     const { props } = await renderInputBar({
       selectedSkills: ["splunk-analyst"],
       allowAdditional: false,
     });
     typeAndSend("Analyze this");
 
-    expect(props.onSend).toHaveBeenCalledWith("Analyze this", {
-      skills: ["splunk-analyst"],
-      strict: true,
-    });
+    expect(props.onSend).toHaveBeenCalledTimes(1);
+    expect(props.onSend).toHaveBeenCalledWith("Analyze this");
   });
 
   it("does not call onSelectedSkillsChange during submit", async () => {
@@ -121,10 +119,8 @@ describe("InputBar skill scope passing", () => {
     const sendBtn = screen.getByLabelText("Send message");
     fireEvent.click(sendBtn);
 
-    expect(props.onSend).toHaveBeenCalledWith("Via button", {
-      skills: ["splunk-analyst"],
-      strict: true,
-    });
+    expect(props.onSend).toHaveBeenCalledTimes(1);
+    expect(props.onSend).toHaveBeenCalledWith("Via button");
   });
 
   it("does not send on Shift+Enter (allows newline)", async () => {

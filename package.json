@@ -147,14 +147,16 @@
   },
   "overrides": {
     "lodash": "4.18.1",
-    "path-to-regexp": "8.4.2"
+    "path-to-regexp": "8.4.2",
+    "fast-uri": "^3.1.2",
+    "protobufjs": "^7.6.1"
   },
   "optionalDependencies": {
     "@opentelemetry/api": "~1.9.1",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.214.0",
-    "@opentelemetry/resources": "^2.6.1",
-    "@opentelemetry/sdk-node": "^0.214.0",
-    "@opentelemetry/sdk-trace-node": "^2.6.1",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
+    "@opentelemetry/resources": "^2.7.1",
+    "@opentelemetry/sdk-node": "^0.218.0",
+    "@opentelemetry/sdk-trace-node": "^2.7.1",
     "@opentelemetry/semantic-conventions": "^1.40.0"
   }
 }

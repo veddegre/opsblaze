@@ -4,7 +4,6 @@
     "module": "Node16",
     "moduleResolution": "Node16",
     "outDir": "dist/mcp-server",
-    "rootDir": "mcp-server",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
