@@ -15,15 +15,12 @@ vi.mock("../../../lib/playbooks-api", () => ({
 }));
 
 vi.mock("../../../lib/settings-api", () => ({
-  listSkillsApi: vi.fn().mockResolvedValue([
-    { name: "splunk-analyst", description: "", enabled: true, path: "" },
-  ]),
+  listSkillsApi: vi
+    .fn()
+    .mockResolvedValue([{ name: "splunk-analyst", description: "", enabled: true, path: "" }]),
 }));
 
-import {
-  listPlaybooks,
-  updatePlaybook,
-} from "../../../lib/playbooks-api";
+import { listPlaybooks, updatePlaybook } from "../../../lib/playbooks-api";
 
 const sample = [
   {

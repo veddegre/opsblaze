@@ -35,7 +35,9 @@ export async function createPlaybook(input: {
   );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error((data as { error?: string }).error ?? `Failed to create playbook: ${res.status}`);
+    throw new Error(
+      (data as { error?: string }).error ?? `Failed to create playbook: ${res.status}`
+    );
   }
   return res.json();
 }
@@ -49,23 +51,33 @@ export async function updatePlaybook(
     strict?: boolean;
   }
 ): Promise<InvestigationPlaybook> {
-  const res = await fetch(`/api/playbooks/${encodeURIComponent(id)}`, fetchInit({
-    method: "PATCH",
-    headers: headers(),
-    body: JSON.stringify(input),
-  }));
+  const res = await fetch(
+    `/api/playbooks/${encodeURIComponent(id)}`,
+    fetchInit({
+      method: "PATCH",
+      headers: headers(),
+      body: JSON.stringify(input),
+    })
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error((data as { error?: string }).error ?? `Failed to update playbook: ${res.status}`);
+    throw new Error(
+      (data as { error?: string }).error ?? `Failed to update playbook: ${res.status}`
+    );
   }
   return res.json();
 }
 
 export async function deletePlaybook(id: string): Promise<void> {
-  const res = await fetch(`/api/playbooks/${encodeURIComponent(id)}`, fetchInit({ method: "DELETE" }));
+  const res = await fetch(
+    `/api/playbooks/${encodeURIComponent(id)}`,
+    fetchInit({ method: "DELETE" })
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error((data as { error?: string }).error ?? `Failed to delete playbook: ${res.status}`);
+    throw new Error(
+      (data as { error?: string }).error ?? `Failed to delete playbook: ${res.status}`
+    );
   }
 }
 

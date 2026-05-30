@@ -289,7 +289,10 @@ export interface SkillContentResponse {
 }
 
 export async function fetchSkillContentApi(name: string): Promise<SkillContentResponse> {
-  const res = await fetch(`/api/skills/${encodeURIComponent(name)}`, fetchInit({ headers: headers() }));
+  const res = await fetch(
+    `/api/skills/${encodeURIComponent(name)}`,
+    fetchInit({ headers: headers() })
+  );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error((data as { error?: string }).error ?? `Failed to load skill: ${res.status}`);

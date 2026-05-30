@@ -7,13 +7,7 @@ import {
 } from "../../lib/settings-api";
 import type { AppSettings } from "../../lib/settings-api";
 import { formatStringList, parseStringList } from "../../lib/redaction-utils";
-import {
-  FieldLabel,
-  InfoBanner,
-  Section,
-  inputClass,
-  monoInputClass,
-} from "./settings-ui";
+import { FieldLabel, InfoBanner, Section, inputClass, monoInputClass } from "./settings-ui";
 import type { SplunkGuardrails, ThreatIntelSettings } from "../../lib/settings-api";
 import {
   formatIpZonesText,
@@ -45,8 +39,7 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
   const [modelsError, setModelsError] = useState<string | null>(null);
 
   const useOpenWebUi =
-    settings?.runtime.llmProvider === "openwebui" ||
-    settings?.system?.llmProvider === "openwebui";
+    settings?.runtime.llmProvider === "openwebui" || settings?.system?.llmProvider === "openwebui";
 
   useEffect(() => {
     getSettings()
@@ -67,10 +60,9 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
         setSplunkIndexes(formatStringList(g?.allowedIndexes));
         setSplunkMaxHours(g?.maxTimeRangeHours ?? 168);
         const ti = s.runtime.threatIntel;
-        const zonesText =
-          ti?.zones?.length
-            ? formatIpZonesText(ti.zones)
-            : formatIpZonesText(zonesFromLegacyInternalCidrs(ti?.internalCidrs));
+        const zonesText = ti?.zones?.length
+          ? formatIpZonesText(ti.zones)
+          : formatIpZonesText(zonesFromLegacyInternalCidrs(ti?.internalCidrs));
         setThreatIntelZonesText(zonesText);
       })
       .catch(() => {});
@@ -197,8 +189,8 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
     <>
       {modelsError && (
         <InfoBanner>
-          Could not load models from Open WebUI ({modelsError}). Check server connectivity and
-          API key, or type a model ID manually below.
+          Could not load models from Open WebUI ({modelsError}). Check server connectivity and API
+          key, or type a model ID manually below.
         </InfoBanner>
       )}
       {modelsLoading ? (
@@ -299,9 +291,7 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
         <input
           type="number"
           value={maxTurns}
-          onChange={(e) =>
-            setMaxTurns(Math.max(1, Math.min(200, parseInt(e.target.value) || 1)))
-          }
+          onChange={(e) => setMaxTurns(Math.max(1, Math.min(200, parseInt(e.target.value) || 1)))}
           disabled={!isAdmin}
           min={1}
           max={200}
@@ -329,8 +319,8 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
             Export redaction
           </h3>
           <p className="text-[11px] text-gray-600 -mt-1">
-            Replace sensitive values with [REDACTED] in downloaded HTML reports. Investigators can add
-            per-investigation terms from the export menu.
+            Replace sensitive values with [REDACTED] in downloaded HTML reports. Investigators can
+            add per-investigation terms from the export menu.
           </p>
           <label className="flex items-center gap-2 text-xs text-gray-300">
             <input
@@ -406,8 +396,9 @@ export function PreferencesTab({ isAdmin }: { isAdmin: boolean }) {
             Named zones drive <span className="font-mono">classify_organization_ips</span> and skip
             threat-intel API calls for matching addresses. Use the{" "}
             <span className="font-mono">ip-context-risk</span> skill for activity-based risk
-            adjustments. Env fallback: <span className="font-mono">THREAT_INTEL_INTERNAL_CIDRS</span>{" "}
-            (zone <span className="font-mono">env</span>, neutral).
+            adjustments. Env fallback:{" "}
+            <span className="font-mono">THREAT_INTEL_INTERNAL_CIDRS</span> (zone{" "}
+            <span className="font-mono">env</span>, neutral).
           </p>
           <FieldLabel hint="Zone header: name posture (trusted | neutral | sensitive). Following lines are CIDRs until the next header.">
             IP zones

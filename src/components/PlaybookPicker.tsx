@@ -259,7 +259,9 @@ export function PlaybookPicker({
                     </button>
                   ))
                 ) : (
-                  <p className="text-sm text-gray-500 px-3 py-4 text-center">No matching playbooks</p>
+                  <p className="text-sm text-gray-500 px-3 py-4 text-center">
+                    No matching playbooks
+                  </p>
                 )}
               </div>
             </div>

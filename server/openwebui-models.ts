@@ -61,7 +61,9 @@ export function parseOpenWebUiModelsResponse(data: unknown): OpenWebUiModelOptio
   return out;
 }
 
-export async function listOpenWebUiModelOptions(signal?: AbortSignal): Promise<OpenWebUiModelOption[]> {
+export async function listOpenWebUiModelOptions(
+  signal?: AbortSignal
+): Promise<OpenWebUiModelOption[]> {
   const data = await fetchOpenWebUiModels(signal);
   return parseOpenWebUiModelsResponse(data);
 }

@@ -244,9 +244,7 @@ export function defaultRedactionSettings(): RedactionSettings {
   };
 }
 
-export function normalizeRedactionSettings(
-  partial?: RedactionSettings | null
-): RedactionSettings {
+export function normalizeRedactionSettings(partial?: RedactionSettings | null): RedactionSettings {
   const base = defaultRedactionSettings();
   if (!partial) return base;
   return {

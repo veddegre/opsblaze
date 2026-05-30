@@ -114,7 +114,11 @@ export function estimateTimeRangeHours(earliest: string, latest: string): number
   }
 
   const eEpoch = /^\d{9,11}$/.test(e) ? parseInt(e, 10) : null;
-  const lEpoch = /^\d{9,11}$/.test(l) ? parseInt(l, 10) : l === "now" ? Math.floor(Date.now() / 1000) : null;
+  const lEpoch = /^\d{9,11}$/.test(l)
+    ? parseInt(l, 10)
+    : l === "now"
+      ? Math.floor(Date.now() / 1000)
+      : null;
   if (eEpoch !== null && lEpoch !== null && lEpoch >= eEpoch) {
     return (lEpoch - eEpoch) / 3600;
   }

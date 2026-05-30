@@ -31,9 +31,7 @@ const SKILLS = [
 describe("SkillMultiSelect", () => {
   it("adds a skill from the dropdown", async () => {
     const onChange = vi.fn();
-    render(
-      <SkillMultiSelect value={[]} onChange={onChange} availableSkills={SKILLS} />
-    );
+    render(<SkillMultiSelect value={[]} onChange={onChange} availableSkills={SKILLS} />);
 
     fireEvent.focus(screen.getByPlaceholderText("Search skills to add…"));
     await waitFor(() => {
@@ -45,9 +43,7 @@ describe("SkillMultiSelect", () => {
   });
 
   it("filters options by search query", async () => {
-    render(
-      <SkillMultiSelect value={[]} onChange={vi.fn()} availableSkills={SKILLS} />
-    );
+    render(<SkillMultiSelect value={[]} onChange={vi.fn()} availableSkills={SKILLS} />);
 
     const input = screen.getByPlaceholderText("Search skills to add…");
     fireEvent.change(input, { target: { value: "login" } });
@@ -61,11 +57,7 @@ describe("SkillMultiSelect", () => {
   it("shows selected skills as removable pills", () => {
     const onChange = vi.fn();
     render(
-      <SkillMultiSelect
-        value={["splunk-analyst"]}
-        onChange={onChange}
-        availableSkills={SKILLS}
-      />
+      <SkillMultiSelect value={["splunk-analyst"]} onChange={onChange} availableSkills={SKILLS} />
     );
 
     fireEvent.click(screen.getByLabelText("Remove splunk-analyst"));

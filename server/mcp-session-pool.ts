@@ -193,10 +193,7 @@ export async function evictAllMcpSessions(log?: Logger): Promise<void> {
  * Serialize tool calls on a shared session so concurrent chat requests for the
  * same conversation do not interleave MCP stdio traffic.
  */
-export async function withMcpSessionLock<T>(
-  runtime: McpRuntime,
-  fn: () => Promise<T>
-): Promise<T> {
+export async function withMcpSessionLock<T>(runtime: McpRuntime, fn: () => Promise<T>): Promise<T> {
   const entry = [...pool.values()].find((e) => e.runtime === runtime);
   if (!entry) {
     return fn();

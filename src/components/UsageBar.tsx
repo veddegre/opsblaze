@@ -66,7 +66,9 @@ export function UsageBar({ queryUsage, contextUsage }: UsageBarProps) {
             <span className="text-gray-400">{Math.round(contextUsage.percentage)}%</span>
           </div>
           {contextUsage.percentage >= 90 && (
-            <span className="text-amber-400/90 truncate">Context nearly full — start a new investigation</span>
+            <span className="text-amber-400/90 truncate">
+              Context nearly full — start a new investigation
+            </span>
           )}
         </div>
       )}

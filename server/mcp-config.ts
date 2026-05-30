@@ -250,9 +250,7 @@ function validateMcpServerEntry(entry: McpServerEntry): void {
     }
     const base = stdio.command.split("/").pop() ?? stdio.command;
     if (base === "docker" && process.env.OPSBLAZE_ALLOW_DOCKER_MCP !== "true") {
-      throw new Error(
-        "docker is not allowed unless OPSBLAZE_ALLOW_DOCKER_MCP=true is set in .env"
-      );
+      throw new Error("docker is not allowed unless OPSBLAZE_ALLOW_DOCKER_MCP=true is set in .env");
     }
     if (!ALLOWED_STDIO_COMMANDS.has(base)) {
       throw new Error(
@@ -291,7 +289,10 @@ function validateMcpServerEntry(entry: McpServerEntry): void {
       assertAllowedMcpRemoteUrl(remote.url);
     } catch (e) {
       if ((e as Error).message.includes("protocol")) throw e;
-      if ((e as Error).message.includes("not allowed") || (e as Error).message.includes("private")) {
+      if (
+        (e as Error).message.includes("not allowed") ||
+        (e as Error).message.includes("private")
+      ) {
         throw e;
       }
       throw new Error("url must be a valid URL");

@@ -56,7 +56,9 @@ function ipv4ToInt(ip: string): number | null {
   if (!isIPv4(ip)) return null;
   const parts = ip.split(".").map((p) => Number(p));
   if (parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) return null;
-  return (((parts[0] << 24) >>> 0) + ((parts[1] << 16) >>> 0) + ((parts[2] << 8) >>> 0) + parts[3]) >>> 0;
+  return (
+    (((parts[0] << 24) >>> 0) + ((parts[1] << 16) >>> 0) + ((parts[2] << 8) >>> 0) + parts[3]) >>> 0
+  );
 }
 
 export function isPrivateIpv4(ip: string): boolean {
@@ -110,14 +112,14 @@ export function validateThreatIntelInternalCidrs(entries: string[]): string[] {
 export function isIpv4InInternalRanges(ip: string, ranges: ParsedIpv4Range[]): boolean {
   const ipInt = ipv4ToInt(ip);
   if (ipInt === null) return false;
-  return ranges.some((r) => ((ipInt & r.mask) >>> 0) === r.network);
+  return ranges.some((r) => (ipInt & r.mask) >>> 0 === r.network);
 }
 
 function matchIpToRange(ip: string, ranges: ParsedIpv4Range[]): ParsedIpv4Range | null {
   const ipInt = ipv4ToInt(ip);
   if (ipInt === null) return null;
   for (const range of ranges) {
-    if (((ipInt & range.mask) >>> 0) === range.network) return range;
+    if ((ipInt & range.mask) >>> 0 === range.network) return range;
   }
   return null;
 }

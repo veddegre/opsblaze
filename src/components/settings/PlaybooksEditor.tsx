@@ -62,7 +62,8 @@ function PlaybookFormFields({
         className={`${monoInputClass} resize-y min-h-[4rem]`}
       />
       <p className="text-[11px] text-gray-500">
-        Skills (optional) — includes deploy-only skills from <span className="font-mono">_local/</span>
+        Skills (optional) — includes deploy-only skills from{" "}
+        <span className="font-mono">_local/</span>
       </p>
       <SkillMultiSelect
         value={form.skills}

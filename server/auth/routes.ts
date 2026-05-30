@@ -109,7 +109,12 @@ authRouter.post("/local/login", localLoginLimiter, async (req, res) => {
     req.session.user = user;
 
     logger.info(
-      { userId: user.id, username: username.trim().toLowerCase(), isAdmin: user.isAdmin, groups: user.groups },
+      {
+        userId: user.id,
+        username: username.trim().toLowerCase(),
+        isAdmin: user.isAdmin,
+        groups: user.groups,
+      },
       "local user signed in"
     );
     void recordAudit(user.id, "auth.login", {

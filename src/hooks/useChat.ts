@@ -266,8 +266,7 @@ export function useChat() {
     loadConversation(stored)
       .then((conv) => {
         const msgs = conv.messages as Message[];
-        const scope =
-          conv.skillScope ?? inferSkillScopeFromMessages(msgs) ?? null;
+        const scope = conv.skillScope ?? inferSkillScopeFromMessages(msgs) ?? null;
         skillScopeRef.current = scope ?? undefined;
         setConversationSkillScope(scope);
         setConversationId(conv.id);
@@ -286,11 +285,8 @@ export function useChat() {
     // Flush whatever is on screen, but do NOT abort background streams
     const convId = convIdRef.current;
     if (convId && messagesRef.current.length > 0) {
-      saveToDisk(
-        messagesRef.current,
-        convId,
-        skillScopeRef.current,
-        (msg) => onSaveErrorRef.current(msg)
+      saveToDisk(messagesRef.current, convId, skillScopeRef.current, (msg) =>
+        onSaveErrorRef.current(msg)
       );
     }
 
@@ -309,11 +305,8 @@ export function useChat() {
     // Flush current view, but do NOT abort background streams
     const convId = convIdRef.current;
     if (convId && messagesRef.current.length > 0) {
-      saveToDisk(
-        messagesRef.current,
-        convId,
-        skillScopeRef.current,
-        (msg) => onSaveErrorRef.current(msg)
+      saveToDisk(messagesRef.current, convId, skillScopeRef.current, (msg) =>
+        onSaveErrorRef.current(msg)
       );
     }
 
@@ -324,8 +317,7 @@ export function useChat() {
     try {
       const conv = await loadConversation(id);
       const msgs = conv.messages as Message[];
-      const scope =
-        conv.skillScope ?? inferSkillScopeFromMessages(msgs) ?? null;
+      const scope = conv.skillScope ?? inferSkillScopeFromMessages(msgs) ?? null;
       skillScopeRef.current = scope ?? undefined;
       setConversationSkillScope(scope);
       setConversationId(conv.id);
@@ -349,20 +341,17 @@ export function useChat() {
     }
   }, []);
 
-  const persistSkillScope = useCallback(
-    (scope: ConversationSkillScope | null) => {
-      skillScopeRef.current = scope ?? undefined;
-      setConversationSkillScope(scope);
-      const convId = convIdRef.current;
-      if (!convId) return;
-      updateConversation(convId, {
-        skillScope: scope ?? null,
-      }).catch((err) => {
-        if (import.meta.env.DEV) console.warn("[OpsBlaze] failed to save skill scope:", err);
-      });
-    },
-    []
-  );
+  const persistSkillScope = useCallback((scope: ConversationSkillScope | null) => {
+    skillScopeRef.current = scope ?? undefined;
+    setConversationSkillScope(scope);
+    const convId = convIdRef.current;
+    if (!convId) return;
+    updateConversation(convId, {
+      skillScope: scope ?? null,
+    }).catch((err) => {
+      if (import.meta.env.DEV) console.warn("[OpsBlaze] failed to save skill scope:", err);
+    });
+  }, []);
 
   const sendMessage = useCallback(
     async (content: string, skillScope?: { skills: string[]; strict: boolean }) => {
@@ -556,27 +545,30 @@ export function useChat() {
     }
   }, []);
 
-  const deleteConversation = useCallback(async (id: string) => {
-    // Abort any running stream for this conversation
-    if (abortControllers.current.has(id)) {
-      abortControllers.current.get(id)!.abort();
-      abortControllers.current.delete(id);
-      syncDisplayedStreamingState();
-    }
-    await deleteConversationApi(id);
+  const deleteConversation = useCallback(
+    async (id: string) => {
+      // Abort any running stream for this conversation
+      if (abortControllers.current.has(id)) {
+        abortControllers.current.get(id)!.abort();
+        abortControllers.current.delete(id);
+        syncDisplayedStreamingState();
+      }
+      await deleteConversationApi(id);
 
-    if (convIdRef.current === id) {
-      setMessages([]);
-      setIsStreaming(false);
-      setConversationId(null);
-      setConversationTitle(null);
-      setConversationSkillScope(null);
-      skillScopeRef.current = undefined;
-      setQueryUsage(null);
-      setContextUsage(null);
-      localStorage.removeItem(ACTIVE_CONV_KEY);
-    }
-  }, [syncDisplayedStreamingState]);
+      if (convIdRef.current === id) {
+        setMessages([]);
+        setIsStreaming(false);
+        setConversationId(null);
+        setConversationTitle(null);
+        setConversationSkillScope(null);
+        skillScopeRef.current = undefined;
+        setQueryUsage(null);
+        setContextUsage(null);
+        localStorage.removeItem(ACTIVE_CONV_KEY);
+      }
+    },
+    [syncDisplayedStreamingState]
+  );
 
   const clearNotice = useCallback(() => setNotice(null), []);
 

@@ -28,8 +28,7 @@ export function isThreatIntelMasterEnabled(): boolean {
 /** Per-provider switch. Defaults to true when an API key is present. */
 export function isThreatIntelProviderConfigured(provider: ThreatIntelProvider): boolean {
   if (!isThreatIntelMasterEnabled()) return false;
-  const flagName =
-    provider === "virustotal" ? "VIRUSTOTAL_ENABLED" : "ABUSEIPDB_ENABLED";
+  const flagName = provider === "virustotal" ? "VIRUSTOTAL_ENABLED" : "ABUSEIPDB_ENABLED";
   if (!envFlag(flagName, providerKeyConfigured(provider))) return false;
   return providerKeyConfigured(provider);
 }

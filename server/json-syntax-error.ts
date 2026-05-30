@@ -25,11 +25,7 @@ function snippetForLine(source: string, line: number, column: number): string | 
 /**
  * Human-readable JSON syntax error with line/column and a source snippet.
  */
-export function formatJsonParseError(
-  source: string,
-  err: unknown,
-  filePath?: string
-): string {
+export function formatJsonParseError(source: string, err: unknown, filePath?: string): string {
   const head = filePath ? `Invalid JSON in ${filePath}` : "Invalid JSON";
   if (!(err instanceof SyntaxError)) {
     const detail = err instanceof Error ? err.message : String(err);

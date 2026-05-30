@@ -64,9 +64,7 @@ export function extractSplFromToolArgs(args: Record<string, unknown>): string | 
 export function validateSplunkToolArgs(args: Record<string, unknown>): string | null {
   const spl = extractSplFromToolArgs(args);
   if (!spl) {
-    return (
-      'Missing SPL. The spl (or query) field must be a search such as index=_audit | stats count — not a number or empty value.'
-    );
+    return "Missing SPL. The spl (or query) field must be a search such as index=_audit | stats count — not a number or empty value.";
   }
   if (isTimeOnlyMisplacedAsSpl(spl)) {
     return (
@@ -150,8 +148,7 @@ export function duplicateSplunkToolContent(priorCompactJson: string): string {
   try {
     const prior = JSON.parse(priorCompactJson) as SplunkToolResultShape;
     return JSON.stringify({
-      summary:
-        `Duplicate query (not re-run). Prior result: ${prior.summary}`.slice(0, 4000),
+      summary: `Duplicate query (not re-run). Prior result: ${prior.summary}`.slice(0, 4000),
       suppressed: prior.suppressed,
       hasChartForUi: false,
       queryMeta: prior.queryMeta,

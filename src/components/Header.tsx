@@ -493,11 +493,7 @@ export function Header({
           <span className="hidden sm:inline">New investigation</span>
           <span className="sm:hidden">New</span>
         </button>
-        <UserMenu
-          user={user}
-          onOpenAccount={onOpenAccount}
-          onOpenPreferences={onOpenPreferences}
-        />
+        <UserMenu user={user} onOpenAccount={onOpenAccount} onOpenPreferences={onOpenPreferences} />
       </div>
     </header>
   );

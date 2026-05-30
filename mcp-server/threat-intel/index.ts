@@ -9,10 +9,7 @@ import {
   hasOrganizationIpConfig,
   isThreatIntelProviderConfigured,
 } from "../../server/threat-intel-config.js";
-import {
-  classifyOrganizationIpsForTool,
-  formatClassifySummary,
-} from "./classify-org-ips.js";
+import { classifyOrganizationIpsForTool, formatClassifySummary } from "./classify-org-ips.js";
 import { enrichIps, formatEnrichSummary } from "./enrich.js";
 import { lookupAbuseIpdb } from "./abuseipdb.js";
 import { classifyIpForThreatIntel } from "./ip-utils.js";

@@ -74,7 +74,10 @@ export function sanitizeToolsForOpenWebUi(
   }));
 }
 
-function buildRequestBody(options: ChatCompletionOptions, stream: boolean): Record<string, unknown> {
+function buildRequestBody(
+  options: ChatCompletionOptions,
+  stream: boolean
+): Record<string, unknown> {
   const chatId = options.chatId?.trim() || `opsblaze-${crypto.randomUUID()}`;
   const body: Record<string, unknown> = {
     model: options.model,

@@ -2,7 +2,12 @@ import * as oidc from "openid-client";
 import type { Configuration } from "openid-client";
 import { logger } from "../logger.js";
 import { loadAdminPolicy } from "./admin-policy.js";
-import { extractGroupsFromClaims, parseCsvEnvSet, resolveAdminDetails, type AdminResolution } from "./roles.js";
+import {
+  extractGroupsFromClaims,
+  parseCsvEnvSet,
+  resolveAdminDetails,
+  type AdminResolution,
+} from "./roles.js";
 
 export interface OidcEnvConfig {
   issuer: string;
@@ -36,8 +41,7 @@ export function loadOidcEnv(): OidcEnvConfig | null {
   const redirectUri =
     process.env.OPSBLAZE_OIDC_REDIRECT_URI?.trim() || `${publicUrl}/api/auth/callback`;
 
-  const scopes =
-    process.env.OPSBLAZE_OIDC_SCOPES?.trim() || "openid profile email";
+  const scopes = process.env.OPSBLAZE_OIDC_SCOPES?.trim() || "openid profile email";
 
   const adminEmails = parseCsvEnvSet(process.env.OPSBLAZE_OIDC_ADMIN_EMAILS);
   const adminGroups = parseCsvEnvSet(process.env.OPSBLAZE_OIDC_ADMIN_GROUPS);
@@ -63,11 +67,7 @@ export async function getOidcConfiguration(): Promise<Configuration> {
     throw new Error("OIDC is not configured");
   }
 
-  cachedConfig = await oidc.discovery(
-    new URL(env.issuer),
-    env.clientId,
-    env.clientSecret
-  );
+  cachedConfig = await oidc.discovery(new URL(env.issuer), env.clientId, env.clientSecret);
 
   logger.info({ issuer: env.issuer, redirectUri: env.redirectUri }, "OIDC discovery complete");
   return cachedConfig;
@@ -163,11 +163,10 @@ export async function exchangeCallback(
   // so we optionally fetch UserInfo when email/name is missing.
   if (accessToken) {
     try {
-      const info = (await oidc.fetchUserInfo(
-        config,
-        accessToken,
-        oidc.skipSubjectCheck
-      )) as Record<string, unknown> & { sub?: unknown };
+      const info = (await oidc.fetchUserInfo(config, accessToken, oidc.skipSubjectCheck)) as Record<
+        string,
+        unknown
+      > & { sub?: unknown };
 
       const sub = subFromClaims ?? pickString(info, ["sub"]);
       const email = emailFromClaims ?? buildEmail(info);

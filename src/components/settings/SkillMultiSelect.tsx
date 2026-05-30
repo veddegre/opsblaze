@@ -23,18 +23,14 @@ export function SkillMultiSelect({
   const [activeIndex, setActiveIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const enabledByName = new Map(
-    availableSkills.filter((s) => s.enabled).map((s) => [s.name, s])
-  );
+  const enabledByName = new Map(availableSkills.filter((s) => s.enabled).map((s) => [s.name, s]));
   const selectedSet = new Set(value);
 
   const options = availableSkills.filter((s) => {
     if (!s.enabled || selectedSet.has(s.name)) return false;
     if (!query.trim()) return true;
     const q = query.toLowerCase();
-    return (
-      s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
-    );
+    return s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q);
   });
 
   useEffect(() => {

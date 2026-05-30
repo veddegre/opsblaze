@@ -5,11 +5,7 @@ import { logger as rootLogger } from "./logger.js";
 import { sendSSE } from "./sse-helpers.js";
 import { processTextBuffer, chartHasData, type FlushTextState } from "./sse-helpers.js";
 import { qualifyToolName, resolveToolInvocation } from "./mcp-runtime.js";
-import {
-  acquireMcpSession,
-  withMcpSessionLock,
-  type McpSessionKey,
-} from "./mcp-session-pool.js";
+import { acquireMcpSession, withMcpSessionLock, type McpSessionKey } from "./mcp-session-pool.js";
 
 export type { McpSessionKey } from "./mcp-session-pool.js";
 import { chatCompleteStream, type ChatMessage, OpenWebUiError } from "./openwebui-client.js";
@@ -113,10 +109,7 @@ async function buildSystemPrompt(
   };
 }
 
-function emitSplunkSummaryText(
-  text: string,
-  emit: (event: string, data: unknown) => void
-): void {
+function emitSplunkSummaryText(text: string, emit: (event: string, data: unknown) => void): void {
   try {
     const result = JSON.parse(text) as SplunkToolResult;
     if (result.summary?.trim()) {
@@ -127,7 +120,11 @@ function emitSplunkSummaryText(
   }
 }
 
-function emitSplunkToolResult(text: string, emit: (event: string, data: unknown) => void, log: Logger) {
+function emitSplunkToolResult(
+  text: string,
+  emit: (event: string, data: unknown) => void,
+  log: Logger
+) {
   try {
     const result = JSON.parse(text) as SplunkToolResult;
     if (result.chart && !result.suppressed && chartHasData(result.chart.dataSources)) {
@@ -301,8 +298,7 @@ export async function runOpenWebUiAgent(
           model,
           messages,
           chatId: requestId,
-          tools:
-            !forceSynthesis && tools.length > 0 ? tools : undefined,
+          tools: !forceSynthesis && tools.length > 0 ? tools : undefined,
           signal: abortSignal,
         },
         {
@@ -369,8 +365,7 @@ export async function runOpenWebUiAgent(
         const label = toolActivityLabel(call.function.name, args);
         const detail = splPreviewFromArgs(args);
         const isSplunkQuery =
-          call.function.name === "splunk_query" ||
-          call.function.name.endsWith("__splunk_query");
+          call.function.name === "splunk_query" || call.function.name.endsWith("__splunk_query");
         const fingerprint = isSplunkQuery ? splQueryFingerprint(args) : null;
 
         const splArgError = isSplunkQuery ? validateSplunkToolArgs(args) : null;
@@ -482,7 +477,10 @@ export async function runOpenWebUiAgent(
       if (toolRoundCount >= maxToolRounds) {
         forceSynthesis = true;
         messages.push({ role: "user", content: synthesisNudgeMessage() });
-        agentLog.info({ toolRoundCount, maxToolRounds }, "forcing synthesis after tool round limit");
+        agentLog.info(
+          { toolRoundCount, maxToolRounds },
+          "forcing synthesis after tool round limit"
+        );
       }
 
       bufState = flushAssistantText(bufState, true, emit);

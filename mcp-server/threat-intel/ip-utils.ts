@@ -1,8 +1,5 @@
 import { isIPv4 } from "node:net";
-import {
-  classifyOrganizationIp,
-  isPublicIpv4,
-} from "../../server/threat-intel-ranges.js";
+import { classifyOrganizationIp, isPublicIpv4 } from "../../server/threat-intel-ranges.js";
 
 export function normalizeIp(raw: string): string | null {
   const trimmed = raw.trim();
@@ -63,7 +60,10 @@ export function classifyIpsForThreatIntel(
 }
 
 /** @deprecated Use classifyIpsForThreatIntel */
-export function dedupePublicIps(ips: string[], max: number): {
+export function dedupePublicIps(
+  ips: string[],
+  max: number
+): {
   publicIps: string[];
   skippedPrivate: string[];
   skippedInvalid: string[];

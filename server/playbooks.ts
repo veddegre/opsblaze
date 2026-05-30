@@ -62,8 +62,7 @@ export async function createPlaybook(
 ): Promise<InvestigationPlaybook> {
   const parsed = playbookSchema.parse(input);
   const playbooks = await readPlaybooks();
-  const id =
-    parsed.id?.replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 64) || randomUUID().slice(0, 8);
+  const id = parsed.id?.replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 64) || randomUUID().slice(0, 8);
   if (playbooks.some((p) => p.id === id)) {
     throw new Error(`Playbook id '${id}' already exists`);
   }

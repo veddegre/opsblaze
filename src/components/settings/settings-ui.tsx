@@ -22,7 +22,13 @@ export function Section({
   );
 }
 
-export function InfoBanner({ children, variant = "neutral" }: { children: React.ReactNode; variant?: "neutral" | "tip" }) {
+export function InfoBanner({
+  children,
+  variant = "neutral",
+}: {
+  children: React.ReactNode;
+  variant?: "neutral" | "tip";
+}) {
   const styles =
     variant === "tip"
       ? "bg-accent/10 border-accent/25 text-gray-300"
@@ -32,7 +38,15 @@ export function InfoBanner({ children, variant = "neutral" }: { children: React.
   );
 }
 
-export function FieldLabel({ htmlFor, children, hint }: { htmlFor?: string; children: React.ReactNode; hint?: string }) {
+export function FieldLabel({
+  htmlFor,
+  children,
+  hint,
+}: {
+  htmlFor?: string;
+  children: React.ReactNode;
+  hint?: string;
+}) {
   return (
     <div>
       <label htmlFor={htmlFor} className="block text-xs font-medium text-gray-400 mb-1">

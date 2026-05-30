@@ -22,7 +22,8 @@ const HINTS: Record<string, string> = {
   "not configured": "Run node bin/setup.cjs, or set SPLUNK_HOST in .env",
   unreachable: "Check host URL and network connectivity",
   "auth failed": "Check Splunk credentials in .env or re-run node bin/setup.cjs",
-  "CLI not found": "Configure Open WebUI in .env, or install Claude CLI: npm i -g @anthropic-ai/claude-code",
+  "CLI not found":
+    "Configure Open WebUI in .env, or install Claude CLI: npm i -g @anthropic-ai/claude-code",
   "invalid API key": "Check OPENWEBUI_API_KEY or ANTHROPIC_API_KEY in .env",
   "API key missing": "Set OPENWEBUI_API_KEY (Open WebUI → Settings → Account)",
 };

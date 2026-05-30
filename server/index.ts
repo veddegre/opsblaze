@@ -423,8 +423,12 @@ app.put("/api/conversations/:id", apiLimiter, async (req, res) => {
       res.status(404).json({ error: "Conversation not found" });
       return;
     }
-    const { title, messages, exportRedactions, skillScope: skillScopeRaw } =
-      req.body as Partial<StoredConversation> & { skillScope?: unknown };
+    const {
+      title,
+      messages,
+      exportRedactions,
+      skillScope: skillScopeRaw,
+    } = req.body as Partial<StoredConversation> & { skillScope?: unknown };
     if (messages !== undefined && !validateMessages(messages)) {
       res.status(400).json({
         error: `messages must be an array with at most ${MAX_MESSAGES_PER_CONVERSATION} entries`,
@@ -437,7 +441,9 @@ app.put("/api/conversations/:id", apiLimiter, async (req, res) => {
         return;
       }
       if (exportRedactions.length > MAX_EXPORT_REDACTION_TERMS) {
-        res.status(400).json({ error: `At most ${MAX_EXPORT_REDACTION_TERMS} export redaction terms` });
+        res
+          .status(400)
+          .json({ error: `At most ${MAX_EXPORT_REDACTION_TERMS} export redaction terms` });
         return;
       }
       let totalLen = 0;
@@ -604,11 +610,7 @@ function buildSystemSettingsPayload() {
     splunkAuthMethod: process.env.SPLUNK_TOKEN ? "Token" : "Basic",
     serverPort: PORT,
     bindAddress: HOST,
-    claudeAuthMethod: openWebUi
-      ? "Open WebUI"
-      : process.env.ANTHROPIC_API_KEY
-        ? "API Key"
-        : "CLI",
+    claudeAuthMethod: openWebUi ? "Open WebUI" : process.env.ANTHROPIC_API_KEY ? "API Key" : "CLI",
     serverMode: process.env.NODE_ENV === "production" ? "Prod" : "Dev",
     splunkGuardrailsAdmin: {
       bypassIndexes: adminSplunk.bypassIndexes,
@@ -619,17 +621,25 @@ function buildSystemSettingsPayload() {
 
 app.get("/api/settings", apiLimiter, async (req, res) => {
   try {
-    const [model, effort, maxTurns, streamTimeoutMs, redaction, skillPacks, splunkGuardrails, threatIntel] =
-      await Promise.all([
-        getClaudeModel(),
-        getClaudeEffort(),
-        getMaxTurns(),
-        getStreamTimeoutMs(),
-        getRedactionSettings(),
-        getConfiguredSkillPacks(),
-        getSplunkGuardrails(),
-        getThreatIntelSettings(),
-      ]);
+    const [
+      model,
+      effort,
+      maxTurns,
+      streamTimeoutMs,
+      redaction,
+      skillPacks,
+      splunkGuardrails,
+      threatIntel,
+    ] = await Promise.all([
+      getClaudeModel(),
+      getClaudeEffort(),
+      getMaxTurns(),
+      getStreamTimeoutMs(),
+      getRedactionSettings(),
+      getConfiguredSkillPacks(),
+      getSplunkGuardrails(),
+      getThreatIntelSettings(),
+    ]);
     const openWebUi = isOpenWebUiMode();
     const redactionForClient = isRequestAdmin(req)
       ? redaction
@@ -694,17 +704,25 @@ app.patch("/api/settings", apiLimiter, requireAdmin, async (req, res) => {
     void recordAudit(getRequestUserId(req), "settings.update", {
       keys: Object.keys(req.body ?? {}),
     });
-    const [model, effort, maxTurns, streamTimeoutMs, redaction, skillPacks, splunkGuardrails, threatIntel] =
-      await Promise.all([
-        getClaudeModel(),
-        getClaudeEffort(),
-        getMaxTurns(),
-        getStreamTimeoutMs(),
-        getRedactionSettings(),
-        getConfiguredSkillPacks(),
-        getSplunkGuardrails(),
-        getThreatIntelSettings(),
-      ]);
+    const [
+      model,
+      effort,
+      maxTurns,
+      streamTimeoutMs,
+      redaction,
+      skillPacks,
+      splunkGuardrails,
+      threatIntel,
+    ] = await Promise.all([
+      getClaudeModel(),
+      getClaudeEffort(),
+      getMaxTurns(),
+      getStreamTimeoutMs(),
+      getRedactionSettings(),
+      getConfiguredSkillPacks(),
+      getSplunkGuardrails(),
+      getThreatIntelSettings(),
+    ]);
     res.json({
       runtime: {
         claudeModel: model,
@@ -1198,8 +1216,7 @@ function validateStartup(): boolean {
     const stat = fs.statSync(envPath);
     const mode = stat.mode & 0o777;
     if (mode & 0o077) {
-      const msg =
-        ".env file is readable by other users — run: chmod 600 .env";
+      const msg = ".env file is readable by other users — run: chmod 600 .env";
       if (process.env.NODE_ENV === "production") {
         logger.error({ path: envPath, mode: `0${mode.toString(8)}` }, msg);
         ok = false;
@@ -1223,7 +1240,10 @@ function validateStartup(): boolean {
           "OPENWEBUI_MODEL is not set — set it to a model ID from Open WebUI (Settings or GET /api/models)"
         );
       }
-      logger.info({ baseUrl: openWebUiUrl, model: model || "(configure OPENWEBUI_MODEL)" }, "LLM: Open WebUI");
+      logger.info(
+        { baseUrl: openWebUiUrl, model: model || "(configure OPENWEBUI_MODEL)" },
+        "LLM: Open WebUI"
+      );
     }
   } else if (process.env.ANTHROPIC_API_KEY) {
     logger.info("Claude auth: API key");

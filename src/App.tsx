@@ -15,11 +15,7 @@ import { listPlaybooks, type InvestigationPlaybook } from "./lib/playbooks-api";
 import { activeSkillPacks } from "./lib/skill-packs-utils";
 
 export function App() {
-  return (
-    <AuthGate>
-      {(user) => <AppContent user={user} />}
-    </AuthGate>
-  );
+  return <AuthGate>{(user) => <AppContent user={user} />}</AuthGate>;
 }
 
 function AppContent({ user }: { user: PublicAuthUser }) {
@@ -72,13 +68,10 @@ function AppContent({ user }: { user: PublicAuthUser }) {
     if (!settingsOpen) refreshRuntimeConfig();
   }, [settingsOpen, refreshRuntimeConfig]);
 
-  const openSettings = useCallback(
-    (section: typeof settingsSection = "account") => {
-      setSettingsSection(section);
-      setSettingsOpen(true);
-    },
-    []
-  );
+  const openSettings = useCallback((section: typeof settingsSection = "account") => {
+    setSettingsSection(section);
+    setSettingsOpen(true);
+  }, []);
 
   const toggleSettings = useCallback(() => {
     setSettingsOpen((open) => {

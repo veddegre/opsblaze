@@ -8,7 +8,7 @@ import {
 
 describe("splunk guardrails", () => {
   it("parses index= from SPL", () => {
-    expect(parseIndexesFromSpl('index=okta | stats count')).toEqual(["okta"]);
+    expect(parseIndexesFromSpl("index=okta | stats count")).toEqual(["okta"]);
     expect(parseIndexesFromSpl('index="main" OR index=security')).toEqual(["main", "security"]);
   });
 

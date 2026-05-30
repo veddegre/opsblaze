@@ -93,7 +93,7 @@ describe("streamChat SSE parser", () => {
       mockFetchResponse([
         'event: activity\ndata: {"id":"mcp","label":"Connecting…","status":"active"}\n\n',
         'event: activity\ndata: {"id":"mcp","label":"Ready","status":"done"}\n\n',
-        'event: done\ndata: {}\n\n',
+        "event: done\ndata: {}\n\n",
       ])
     );
 
@@ -248,10 +248,7 @@ describe("streamChat SSE parser", () => {
     });
 
     const cb = makeCallbacks();
-    await streamChat("q", cb, undefined, [
-      "splunk-analyst",
-      "splunk-login-activity-investigation",
-    ]);
+    await streamChat("q", cb, undefined, ["splunk-analyst", "splunk-login-activity-investigation"]);
 
     expect(capturedBody.skills).toEqual(["splunk-analyst", "splunk-login-activity-investigation"]);
     expect(capturedBody.message).toBe("q");

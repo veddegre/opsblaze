@@ -231,10 +231,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   }
 
   const hasContent = message.blocks.some(
-    (b) =>
-      (b.type === "text" && b.content.trim()) ||
-      b.type === "chart" ||
-      b.type === "activity"
+    (b) => (b.type === "text" && b.content.trim()) || b.type === "chart" || b.type === "activity"
   );
   const lastBlock = message.blocks[message.blocks.length - 1];
   const lastBlockIsStreamingText = lastBlock?.type === "text" && message.isStreaming;

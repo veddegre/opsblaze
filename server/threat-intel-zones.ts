@@ -14,7 +14,10 @@ export const organizationIpZoneSchema = z.object({
     .string()
     .min(1)
     .max(32)
-    .regex(/^[a-z][a-z0-9-]*$/, "Zone name must start with a letter and use lowercase letters, digits, and hyphens"),
+    .regex(
+      /^[a-z][a-z0-9-]*$/,
+      "Zone name must start with a letter and use lowercase letters, digits, and hyphens"
+    ),
   defaultPosture: ipZonePostureSchema.optional(),
   cidrs: z.array(z.string().max(64)).min(1).max(50),
 });
@@ -42,7 +45,9 @@ export function validateOrganizationIpZones(zones: OrganizationIpZoneConfig[]): 
       continue;
     }
     names.add(parsed.data.name);
-    errors.push(...validateThreatIntelInternalCidrs(parsed.data.cidrs).map((e) => `${parsed.data.name}: ${e}`));
+    errors.push(
+      ...validateThreatIntelInternalCidrs(parsed.data.cidrs).map((e) => `${parsed.data.name}: ${e}`)
+    );
   }
   return errors;
 }

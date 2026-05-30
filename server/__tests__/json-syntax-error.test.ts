@@ -3,7 +3,7 @@ import { formatJsonParseError, lineColAtOffset } from "../json-syntax-error.js";
 
 describe("lineColAtOffset", () => {
   it("counts line and column for multiline source", () => {
-    const src = "{\n  \"a\": 1\n}";
+    const src = '{\n  "a": 1\n}';
     expect(lineColAtOffset(src, 0)).toEqual({ line: 1, column: 1 });
     expect(lineColAtOffset(src, 5)).toEqual({ line: 2, column: 4 });
   });

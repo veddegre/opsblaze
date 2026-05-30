@@ -78,7 +78,9 @@ function safePath(userId: string, id: string): string {
   return resolved;
 }
 
-export async function listConversations(userId: string = LOCAL_USER_ID): Promise<ConversationSummary[]> {
+export async function listConversations(
+  userId: string = LOCAL_USER_ID
+): Promise<ConversationSummary[]> {
   await ensureUserDir(userId);
   const dir = userDataDir(userId);
   let files: string[];
@@ -163,10 +165,7 @@ function extractSnippet(text: string, query: string): string | undefined {
   return snippet;
 }
 
-export async function searchConversations(
-  userId: string,
-  query: string
-): Promise<SearchResult[]> {
+export async function searchConversations(userId: string, query: string): Promise<SearchResult[]> {
   await ensureUserDir(userId);
   const dir = userDataDir(userId);
   let files: string[];
@@ -224,10 +223,7 @@ export async function searchConversations(
   return results;
 }
 
-export async function cleanupConversations(
-  userId: string,
-  maxAgeDays: number
-): Promise<number> {
+export async function cleanupConversations(userId: string, maxAgeDays: number): Promise<number> {
   const cutoff = Date.now() - maxAgeDays * 86_400_000;
   const summaries = await listConversations(userId);
   let deleted = 0;

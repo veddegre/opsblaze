@@ -29,7 +29,9 @@ describe("sanitizeMessagesForExport", () => {
     { role: "user", blocks: [{ type: "text", content: "Analyze failed logins" }] },
     {
       role: "assistant",
-      blocks: [{ type: "text", content: "\n\n> **Error:** Open WebUI: Server Connection Error\n\n" }],
+      blocks: [
+        { type: "text", content: "\n\n> **Error:** Open WebUI: Server Connection Error\n\n" },
+      ],
     },
     { role: "user", blocks: [{ type: "text", content: "Can you try again" }] },
     { role: "user", blocks: [{ type: "text", content: "Can you try again" }] },

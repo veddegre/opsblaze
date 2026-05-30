@@ -203,7 +203,9 @@ export async function deleteSkill(name: string): Promise<void> {
   logger.info({ name }, "skill deleted");
 }
 
-export async function getSkillContent(name: string): Promise<{ content: string; enabled: boolean }> {
+export async function getSkillContent(
+  name: string
+): Promise<{ content: string; enabled: boolean }> {
   if (name.includes("..") || name.includes("/") || name.includes("\\")) {
     throw new Error(`Invalid skill name: '${name}'`);
   }

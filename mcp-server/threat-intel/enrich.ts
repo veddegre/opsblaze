@@ -15,10 +15,7 @@ function resolveProviders(requested?: ThreatIntelProvider[]): ThreatIntelProvide
   return requested.filter((p) => active.includes(p));
 }
 
-async function lookupIp(
-  ip: string,
-  providers: ThreatIntelProvider[]
-): Promise<ProviderIpResult[]> {
+async function lookupIp(ip: string, providers: ThreatIntelProvider[]): Promise<ProviderIpResult[]> {
   const out: ProviderIpResult[] = [];
   for (const provider of providers) {
     if (provider === "virustotal" && isThreatIntelProviderConfigured("virustotal")) {

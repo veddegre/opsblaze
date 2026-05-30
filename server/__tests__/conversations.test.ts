@@ -98,7 +98,7 @@ describe("searchConversations", () => {
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
     });
-    const results = await mod.searchConversations(TEST_USER,"Failed Login");
+    const results = await mod.searchConversations(TEST_USER, "Failed Login");
     expect(results).toHaveLength(1);
     expect(results[0].id).toBe("s1");
     expect(results[0].snippet).toBe("Failed Login Investigation");
@@ -117,7 +117,7 @@ describe("searchConversations", () => {
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
     });
-    const results = await mod.searchConversations(TEST_USER,"critical outage");
+    const results = await mod.searchConversations(TEST_USER, "critical outage");
     expect(results).toHaveLength(1);
     expect(results[0].snippet).toContain("critical outage");
   });
@@ -130,7 +130,7 @@ describe("searchConversations", () => {
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
     });
-    const results = await mod.searchConversations(TEST_USER,"zzz_no_match_zzz");
+    const results = await mod.searchConversations(TEST_USER, "zzz_no_match_zzz");
     expect(results).toEqual([]);
   });
 });

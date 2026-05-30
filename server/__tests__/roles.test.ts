@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  extractGroupsFromClaims,
-  parseCsvEnvSet,
-  resolveIsAdmin,
-} from "../auth/roles.js";
+import { extractGroupsFromClaims, parseCsvEnvSet, resolveIsAdmin } from "../auth/roles.js";
 
 describe("parseCsvEnvSet", () => {
   it("normalizes to lowercase", () => {

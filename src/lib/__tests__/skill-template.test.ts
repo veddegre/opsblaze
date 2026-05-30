@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  buildDefaultSkillContent,
-  normalizeSkillName,
-  validateSkillName,
-} from "../skill-template";
+import { buildDefaultSkillContent, normalizeSkillName, validateSkillName } from "../skill-template";
 
 describe("skill-template", () => {
   it("buildDefaultSkillContent includes front matter", () => {

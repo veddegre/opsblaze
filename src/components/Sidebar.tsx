@@ -1,9 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import {
-  listConversations,
-  searchConversations,
-  type ConversationSummary,
-} from "../lib/api";
+import { listConversations, searchConversations, type ConversationSummary } from "../lib/api";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -47,9 +43,7 @@ export function Sidebar({
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(
-    null
-  );
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -157,9 +151,7 @@ export function Sidebar({
     if (!trimmed) return;
     try {
       await onRename(id, trimmed);
-      setConversations((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, title: trimmed } : c))
-      );
+      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title: trimmed } : c)));
     } catch {
       /* error surfaced via App notice */
     }
@@ -269,8 +261,8 @@ export function Sidebar({
         {pendingDelete && (
           <div className="mx-3 mt-2 px-3 py-2.5 rounded-lg border border-red-500/30 bg-red-500/10">
             <p className="text-xs text-gray-200 mb-2">
-              Delete <span className="font-medium text-red-300">{pendingDelete.title}</span>?
-              This cannot be undone.
+              Delete <span className="font-medium text-red-300">{pendingDelete.title}</span>? This
+              cannot be undone.
             </p>
             <div className="flex gap-2">
               <button
@@ -311,8 +303,7 @@ export function Sidebar({
           )}
 
           {conversations.map((conv) => {
-            const isRunning =
-              streamingSet.has(conv.id) && conv.id !== activeConversationId;
+            const isRunning = streamingSet.has(conv.id) && conv.id !== activeConversationId;
             return (
               <div
                 key={conv.id}

@@ -129,10 +129,7 @@ export async function getClaudeModel(): Promise<string> {
   const settings = await loadRuntimeSettings();
   if (process.env.OPENWEBUI_BASE_URL?.trim()) {
     return (
-      process.env.OPENWEBUI_MODEL?.trim() ||
-      settings.claudeModel ||
-      process.env.CLAUDE_MODEL ||
-      ""
+      process.env.OPENWEBUI_MODEL?.trim() || settings.claudeModel || process.env.CLAUDE_MODEL || ""
     );
   }
   return settings.claudeModel || process.env.CLAUDE_MODEL || "claude-opus-4-6";

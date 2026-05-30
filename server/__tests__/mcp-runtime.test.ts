@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  qualifyToolName,
-  parseQualifiedToolName,
-  resolveToolInvocation,
-} from "../mcp-runtime.js";
+import { qualifyToolName, parseQualifiedToolName, resolveToolInvocation } from "../mcp-runtime.js";
 import type { McpToolServerRef } from "../mcp-runtime.js";
 
 describe("MCP tool naming", () => {

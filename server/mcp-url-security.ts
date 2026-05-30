@@ -3,11 +3,7 @@
  * Blocks private/reserved IPs and well-known internal hostnames.
  */
 
-const BLOCKED_HOSTNAMES = new Set([
-  "localhost",
-  "metadata.google.internal",
-  "metadata.goog",
-]);
+const BLOCKED_HOSTNAMES = new Set(["localhost", "metadata.google.internal", "metadata.goog"]);
 
 function normalizeHostname(hostname: string): string {
   const h = hostname.toLowerCase();

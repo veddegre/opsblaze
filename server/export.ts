@@ -160,11 +160,7 @@ export interface ExportOptions {
   clean?: boolean;
 }
 
-function renderBlocks(
-  blocks: MessageBlock[],
-  charts: ChartDef[],
-  mode: ExportMode
-): string {
+function renderBlocks(blocks: MessageBlock[], charts: ChartDef[], mode: ExportMode): string {
   const parts: string[] = [];
   for (const block of blocks) {
     switch (block.type) {
@@ -574,10 +570,7 @@ const CSS = `
   }
 `;
 
-export function renderExportHtml(
-  conv: StoredConversation,
-  options: ExportOptions = {}
-): string {
+export function renderExportHtml(conv: StoredConversation, options: ExportOptions = {}): string {
   const mode: ExportMode = options.mode === "findings" ? "findings" : "full";
   const clean = options.clean !== false;
   chartCounter = 0;

@@ -1130,10 +1130,7 @@ export function SettingsPanel({
             <NavItem active={section === "account"} onClick={() => setSection("account")}>
               My account
             </NavItem>
-            <NavItem
-              active={section === "preferences"}
-              onClick={() => setSection("preferences")}
-            >
+            <NavItem active={section === "preferences"} onClick={() => setSection("preferences")}>
               Runtime settings
             </NavItem>
 

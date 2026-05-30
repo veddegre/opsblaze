@@ -7,7 +7,12 @@ import { z } from "zod";
 
 import { getSplunkConfig, runSearch } from "./splunk-client.js";
 import { transformToDataSources, summarizeResults } from "./transform.js";
-import { loadSafetyConfig, normalizeSPL, checkSPLSafety, isMisplacedTimeAsSpl } from "./spl-safety.js";
+import {
+  loadSafetyConfig,
+  normalizeSPL,
+  checkSPLSafety,
+  isMisplacedTimeAsSpl,
+} from "./spl-safety.js";
 import type { VizType, SplunkToolResult } from "./types.js";
 import { log } from "./logger.js";
 

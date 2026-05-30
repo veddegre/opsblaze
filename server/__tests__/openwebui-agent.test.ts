@@ -6,7 +6,14 @@ import type { ChatMessage } from "../openwebui-client.js";
  */
 function appendStreamTurn(
   messages: ChatMessage[],
-  stream: { content: string; toolCalls: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }> }
+  stream: {
+    content: string;
+    toolCalls: Array<{
+      id: string;
+      type: "function";
+      function: { name: string; arguments: string };
+    }>;
+  }
 ): ChatMessage[] {
   const next = [...messages];
   if (stream.toolCalls.length === 0) {

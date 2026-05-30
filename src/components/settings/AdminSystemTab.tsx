@@ -10,8 +10,12 @@ export function AdminSystemTab() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
 
   useEffect(() => {
-    getSettings().then(setSettings).catch(() => {});
-    fetchHealth().then(setHealth).catch(() => {});
+    getSettings()
+      .then(setSettings)
+      .catch(() => {});
+    fetchHealth()
+      .then(setHealth)
+      .catch(() => {});
   }, []);
 
   const splunkCheck = health?.checks?.splunk;
@@ -67,8 +71,8 @@ export function AdminSystemTab() {
         description="Infrastructure settings are edited on the server, not in the browser."
       >
         <InfoBanner variant="tip">
-          To change Splunk host, credentials, or LLM backend, update the <span className="font-mono">.env</span>{" "}
-          file on the server host, then run{" "}
+          To change Splunk host, credentials, or LLM backend, update the{" "}
+          <span className="font-mono">.env</span> file on the server host, then run{" "}
           <span className="font-mono">node bin/opsblaze.cjs restart</span>.
         </InfoBanner>
         {useOpenWebUi ? (
@@ -81,7 +85,8 @@ export function AdminSystemTab() {
           <InfoBanner>
             To use Open WebUI instead of Claude, set{" "}
             <span className="font-mono">OPENWEBUI_BASE_URL</span> and{" "}
-            <span className="font-mono">OPENWEBUI_API_KEY</span> in <span className="font-mono">.env</span>.
+            <span className="font-mono">OPENWEBUI_API_KEY</span> in{" "}
+            <span className="font-mono">.env</span>.
           </InfoBanner>
         )}
       </Section>

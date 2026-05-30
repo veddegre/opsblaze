@@ -13,9 +13,7 @@ describe("assertAllowedMcpRemoteUrl", () => {
   });
 
   it("blocks RFC1918 IPv4", () => {
-    expect(() => assertAllowedMcpRemoteUrl("http://192.168.1.1/mcp")).toThrow(
-      /private|reserved/i
-    );
+    expect(() => assertAllowedMcpRemoteUrl("http://192.168.1.1/mcp")).toThrow(/private|reserved/i);
     expect(() => assertAllowedMcpRemoteUrl("http://10.0.0.5/mcp")).toThrow(/private|reserved/i);
   });
 

@@ -38,7 +38,10 @@ export function ExportPreviewModal({
     else if (redact === "no") params.set("redact", "0");
     if (!clean) params.set("clean", "0");
 
-    fetch(`/api/conversations/${conversationId}/export?${params}`, fetchInit({ headers: headers() }))
+    fetch(
+      `/api/conversations/${conversationId}/export?${params}`,
+      fetchInit({ headers: headers() })
+    )
       .then(async (res) => {
         if (!res.ok) throw new Error(`Preview failed (${res.status})`);
         return res.json() as Promise<{ html: string; title: string }>;
@@ -98,9 +101,7 @@ export function ExportPreviewModal({
           </div>
         </div>
         <div className="flex-1 min-h-0 overflow-hidden">
-          {loading && (
-            <p className="p-6 text-sm text-gray-500 text-center">Generating preview…</p>
-          )}
+          {loading && <p className="p-6 text-sm text-gray-500 text-center">Generating preview…</p>}
           {error && <p className="p-6 text-sm text-red-400 text-center">{error}</p>}
           {!loading && !error && html && (
             <iframe

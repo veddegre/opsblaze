@@ -11,10 +11,7 @@ import {
   validateSplunkQuery,
   type SplunkGuardrailContext,
 } from "./splunk-guardrails.js";
-import {
-  normalizeSplunkToolArgs,
-  validateSplunkToolArgs,
-} from "./openwebui-splunk-tools.js";
+import { normalizeSplunkToolArgs, validateSplunkToolArgs } from "./openwebui-splunk-tools.js";
 import type {
   HttpServerConfig,
   McpServerEntry,
@@ -57,7 +54,9 @@ export function resolveToolInvocation(
 ): { serverName: string; toolName: string } | { error: string } {
   const trimmed = nameFromModel.trim();
   if (!trimmed) {
-    return { error: "Tool name was empty — retry the question or check Open WebUI tool-calling support." };
+    return {
+      error: "Tool name was empty — retry the question or check Open WebUI tool-calling support.",
+    };
   }
 
   const parsed = parseQualifiedToolName(trimmed);

@@ -290,142 +290,144 @@ export function SkillPicker({
           </div>
 
           {isDropdownOpen &&
-        !overlaysSuspended &&
-        panelPos &&
-        createPortal(
-          <>
-            <div className={pickerBackdropClass} onClick={closeDropdown} aria-hidden="true" />
+            !overlaysSuspended &&
+            panelPos &&
+            createPortal(
+              <>
+                <div className={pickerBackdropClass} onClick={closeDropdown} aria-hidden="true" />
 
-            <div
-              className={`${pickerPanelClass} w-96 max-w-[calc(100vw-2rem)] flex flex-col bg-surface-2/95 backdrop-blur-xl rounded-lg border border-border-subtle shadow-2xl`}
-              style={{
-                bottom: panelPos.bottom,
-                left: panelPos.left,
-                maxHeight: "60vh",
-              }}
-            >
-              <div className="px-3 pt-3 pb-2 border-b border-border-subtle/50 shrink-0">
-                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-surface-3/60 border border-border-subtle/40">
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-gray-500 shrink-0"
-                  >
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                  <input
-                    ref={panelSearchRef}
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Filter skills..."
-                    className="w-full bg-transparent text-sm text-gray-200 placeholder-gray-500 outline-none"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => {
-                        setSearchQuery("");
-                        panelSearchRef.current?.focus();
-                      }}
-                      className="text-gray-500 hover:text-gray-300 transition-colors shrink-0"
-                    >
+                <div
+                  className={`${pickerPanelClass} w-96 max-w-[calc(100vw-2rem)] flex flex-col bg-surface-2/95 backdrop-blur-xl rounded-lg border border-border-subtle shadow-2xl`}
+                  style={{
+                    bottom: panelPos.bottom,
+                    left: panelPos.left,
+                    maxHeight: "60vh",
+                  }}
+                >
+                  <div className="px-3 pt-3 pb-2 border-b border-border-subtle/50 shrink-0">
+                    <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-surface-3/60 border border-border-subtle/40">
                       <svg
-                        width="12"
-                        height="12"
+                        width="14"
+                        height="14"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
-                        strokeWidth="2.5"
+                        strokeWidth="2"
                         strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-gray-500 shrink-0"
                       >
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
                       </svg>
-                    </button>
-                  )}
-                </div>
-                <p className="text-[10px] text-gray-500 mt-1.5 px-0.5">
-                  {searchQuery
-                    ? `${matchingEnabled.length + matchingDisabled.length} of ${totalAvailable} skills`
-                    : `${totalAvailable} skill${totalAvailable !== 1 ? "s" : ""}`}
-                </p>
-                {selectedSkills.length > 0 && (
-                  <div className="mt-2 px-0.5">
-                    <p className="text-[10px] text-gray-500 mb-1">Selected for this search</p>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedSkills.map((name) => (
-                        <span
-                          key={name}
-                          className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent-light font-mono border border-accent/20"
+                      <input
+                        ref={panelSearchRef}
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Filter skills..."
+                        className="w-full bg-transparent text-sm text-gray-200 placeholder-gray-500 outline-none"
+                      />
+                      {searchQuery && (
+                        <button
+                          onClick={() => {
+                            setSearchQuery("");
+                            panelSearchRef.current?.focus();
+                          }}
+                          className="text-gray-500 hover:text-gray-300 transition-colors shrink-0"
                         >
-                          {name}
-                        </span>
-                      ))}
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                          >
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
-                  </div>
-                )}
-              </div>
-
-              <div ref={listRef} className="overflow-y-auto overscroll-contain flex-1 py-1">
-                {hasResults ? (
-                  <>
-                    {matchingEnabled.map((skill, idx) => (
-                      <button
-                        key={skill.name}
-                        data-skill-item
-                        onClick={() => addSkill(skill.name)}
-                        className={`w-full text-left px-3 py-2 transition-colors cursor-pointer ${
-                          idx === activeIndex ? "bg-accent/15" : "hover:bg-surface-3"
-                        }`}
-                      >
-                        <p
-                          className={`text-sm ${idx === activeIndex ? "text-accent-light" : "text-gray-200"}`}
-                        >
-                          {skill.name}
-                        </p>
-                        {skill.description && (
-                          <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">
-                            {skill.description}
-                          </p>
-                        )}
-                      </button>
-                    ))}
-                    {matchingDisabled.length > 0 && matchingEnabled.length > 0 && (
-                      <div className="border-t border-border-subtle/30 my-1" />
-                    )}
-                    {matchingDisabled.map((skill) => (
-                      <div
-                        key={skill.name}
-                        className="w-full text-left px-3 py-2 opacity-40 cursor-not-allowed"
-                      >
-                        <p className="text-sm text-gray-200">
-                          {skill.name}
-                          <span className="text-[10px] text-gray-500 ml-1.5">(disabled)</span>
-                        </p>
-                        {skill.description && (
-                          <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">
-                            {skill.description}
-                          </p>
-                        )}
+                    <p className="text-[10px] text-gray-500 mt-1.5 px-0.5">
+                      {searchQuery
+                        ? `${matchingEnabled.length + matchingDisabled.length} of ${totalAvailable} skills`
+                        : `${totalAvailable} skill${totalAvailable !== 1 ? "s" : ""}`}
+                    </p>
+                    {selectedSkills.length > 0 && (
+                      <div className="mt-2 px-0.5">
+                        <p className="text-[10px] text-gray-500 mb-1">Selected for this search</p>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedSkills.map((name) => (
+                            <span
+                              key={name}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent-light font-mono border border-accent/20"
+                            >
+                              {name}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                    ))}
-                  </>
-                ) : (
-                  <p className="text-sm text-gray-500 px-3 py-4 text-center">No matching skills</p>
-                )}
-              </div>
-            </div>
-          </>,
-          document.body
-        )}
+                    )}
+                  </div>
+
+                  <div ref={listRef} className="overflow-y-auto overscroll-contain flex-1 py-1">
+                    {hasResults ? (
+                      <>
+                        {matchingEnabled.map((skill, idx) => (
+                          <button
+                            key={skill.name}
+                            data-skill-item
+                            onClick={() => addSkill(skill.name)}
+                            className={`w-full text-left px-3 py-2 transition-colors cursor-pointer ${
+                              idx === activeIndex ? "bg-accent/15" : "hover:bg-surface-3"
+                            }`}
+                          >
+                            <p
+                              className={`text-sm ${idx === activeIndex ? "text-accent-light" : "text-gray-200"}`}
+                            >
+                              {skill.name}
+                            </p>
+                            {skill.description && (
+                              <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">
+                                {skill.description}
+                              </p>
+                            )}
+                          </button>
+                        ))}
+                        {matchingDisabled.length > 0 && matchingEnabled.length > 0 && (
+                          <div className="border-t border-border-subtle/30 my-1" />
+                        )}
+                        {matchingDisabled.map((skill) => (
+                          <div
+                            key={skill.name}
+                            className="w-full text-left px-3 py-2 opacity-40 cursor-not-allowed"
+                          >
+                            <p className="text-sm text-gray-200">
+                              {skill.name}
+                              <span className="text-[10px] text-gray-500 ml-1.5">(disabled)</span>
+                            </p>
+                            {skill.description && (
+                              <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">
+                                {skill.description}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-500 px-3 py-4 text-center">
+                        No matching skills
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </>,
+              document.body
+            )}
         </div>
       )}
     </div>
