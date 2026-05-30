@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-30
+
 ### Added
 
 - **Threat intelligence built-in MCP** (`opsblaze-threat-intel`): VirusTotal and AbuseIPDB IP reputation lookups with per-provider toggles, a batch `enrich_ips` tool, and a bounded in-process cache.
@@ -86,4 +88,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - EC2/Caddy deployment infrastructure (`deploy/` directory, `ec2-bootstrap.sh`, `Caddyfile.template`). Multi-user OIDC auth replaced the old `OPSBLAZE_MODE=server` flag; use `OPSBLAZE_TRUST_PROXY` and `OPSBLAZE_SECURE_COOKIES` behind a TLS terminator instead.
 - Windows support. Process management relies on Unix-only APIs (`lsof`, process groups, `SIGKILL`, `tail`) that do not work on Windows. CLI entry points now exit with a clear message on `win32`.
 
+[0.2.0]: https://github.com/veddegre/opsblaze/releases/tag/v0.2.0
 [0.1.0]: https://github.com/jagalliers/opsblaze/releases/tag/v0.1.0
