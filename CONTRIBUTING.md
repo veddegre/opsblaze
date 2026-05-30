@@ -22,8 +22,20 @@ This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.
 - **Tests**: `npm test`
 - **Lint**: `npm run lint` (Prettier)
 - **Format**: `npm run lint:fix`
+- **Secret/path scan**: `npm run scan:secrets`
 
 All checks must pass before submitting a pull request.
+
+### Enable the pre-commit hook
+
+OpsBlaze ships a pre-commit hook that blocks committing secrets, absolute home
+paths (which leak usernames), and git bundles. Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The same scan runs in CI (`scripts/scan-secrets.sh`).
 
 ## Pull Requests
 

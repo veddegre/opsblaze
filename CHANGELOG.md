@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Threat intelligence built-in MCP** (`opsblaze-threat-intel`): VirusTotal and AbuseIPDB IP reputation lookups with per-provider toggles, a batch `enrich_ips` tool, and a bounded in-process cache.
+- **Organization IP zones** (Settings → Runtime → Threat intelligence, plus `THREAT_INTEL_INTERNAL_CIDRS`): name internal ranges (e.g. campus, VPN) with a default risk posture (`trusted`/`neutral`/`sensitive`).
+- **`classify_organization_ips`** MCP tool — classifies IPs against configured zones (no external API calls) so investigations can adjust risk by source before any threat-intel lookup.
+- **`ip-context-risk`** and **`ip-threat-enrichment`** skills guiding contextual risk scoring and external enrichment of non-internal IPs.
+- **`scripts/scan-secrets.sh`** with a `.githooks/pre-commit` hook and a CI job that block committing absolute home paths, private keys, AWS keys, and git bundles (`npm run scan:secrets`).
 - **`splunk-index-catalog`** deploy-only skill template (`.opsblaze/skills/_local/`) — markdown table of organization indexes for faster routing.
 - **Settings → Skills** — admins can edit existing `SKILL.md` content in the UI (GET/PUT `/api/skills/:name`).
 - **Settings → Investigation playbooks** — inline edit per playbook (**Update playbook**), separate from creating new ones.
@@ -24,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Organization-internal and RFC1918/reserved IPs are never sent to third-party threat-intel APIs. Env-provided and legacy internal CIDRs are merged into zones collision-proof, so a user zone named `env`/`internal` cannot silently expose those ranges.
+- Bounded threat-intel cache (capped entry count with eviction) prevents unbounded memory growth on long-running servers.
 - Startup refuses non-loopback `HOST` without OIDC unless `OPSBLAZE_LOCAL_MODE=true` is set explicitly.
 - OIDC callback uses fixed `OPSBLAZE_OIDC_REDIRECT_URI` (required when OIDC is enabled); session ID is regenerated on login.
 - MCP HTTP/SSE URLs block private/reserved addresses (SSRF mitigation); `docker` stdio requires `OPSBLAZE_ALLOW_DOCKER_MCP=true`.
@@ -32,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- README reorganized with a table of contents and clearer top-level sections (Overview, Quick Start, Configuration, Authentication, Deployment, Architecture, Troubleshooting, Development, Security).
 - README: reverse-proxy examples (Caddy, nginx) and clarification that **`OPSBLAZE_TRUST_PROXY`** / **`OPSBLAZE_SECURE_COOKIES`** replace the removed **`OPSBLAZE_MODE=server`** flag (HSTS belongs on the proxy).
 - UX: delete confirmation, SPL copy buttons, background-run indicators in sidebar, smart scroll while streaming, investigation rename, skill picker empty states, export success feedback, responsive settings/header, in-app error notices, corrected limit-setting help text.
 - When `OPENWEBUI_BASE_URL` is set, Claude CLI and `ANTHROPIC_API_KEY` are not required.

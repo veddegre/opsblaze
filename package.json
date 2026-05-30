@@ -72,6 +72,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "scan:secrets": "bash scripts/scan-secrets.sh",
     "lint": "prettier --check \"src/**/*.{ts,tsx}\" \"server/**/*.ts\" \"mcp-server/**/*.ts\"",
     "lint:fix": "prettier --write \"src/**/*.{ts,tsx}\" \"server/**/*.ts\" \"mcp-server/**/*.ts\"",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.mcp.json --noEmit",
