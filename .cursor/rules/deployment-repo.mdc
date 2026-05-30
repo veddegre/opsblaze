@@ -5,20 +5,20 @@ alwaysApply: true
 
 # Deployment repository
 
-The user runs, builds, and deploys OpsBlaze from **`~/opsblaze`**, not from this workspace (`opsblaze-1`).
+The user runs, builds, and deploys OpsBlaze from the sibling **`~/opsblaze`** checkout, not from this workspace (`opsblaze-1`).
 
 - Treat **`~/opsblaze`** as the live app: build, restart, logs, and status checks go there.
-- This workspace (`opsblaze-1`) is the development copy; after meaningful changes, sync to `opsblaze` and rebuild/restart there.
+- This workspace (`opsblaze-1`) is the development copy; after meaningful changes, sync to `~/opsblaze` and rebuild/restart there.
 - Use `node bin/opsblaze.cjs` in **`~/opsblaze`** for server lifecycle (see process-management rule).
-- Do not assume the user sees UI or server changes until they are synced to `opsblaze` and the app is restarted.
+- Do not assume the user sees UI or server changes until they are synced to `~/opsblaze` and the app is restarted.
 
-Sync pattern (from repo root):
+Sync pattern (run from this workspace root):
 
 ```bash
 rsync -a --exclude node_modules --exclude dist --exclude data --exclude .git \
-  ~/opsblaze-1/src/ ~/opsblaze/src/
+  ./src/ ~/opsblaze/src/
 rsync -a --exclude node_modules \
-  ~/opsblaze-1/server/ ~/opsblaze/server/
+  ./server/ ~/opsblaze/server/
 cd ~/opsblaze && npm run build && node bin/opsblaze.cjs restart
 ```
 
