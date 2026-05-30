@@ -45,7 +45,26 @@ export interface ActivityBlock {
   detail?: string;
 }
 
-export type MessageBlock = TextBlock | ChartBlock | SkillBlock | LimitBlock | ActivityBlock;
+export interface ThreatIntelResult {
+  provider: "virustotal" | "abuseipdb";
+  ip: string;
+  ok: boolean;
+  summary: string;
+  link?: string;
+}
+
+export interface ThreatIntelBlock {
+  type: "threatintel";
+  results: ThreatIntelResult[];
+}
+
+export type MessageBlock =
+  | TextBlock
+  | ChartBlock
+  | SkillBlock
+  | LimitBlock
+  | ActivityBlock
+  | ThreatIntelBlock;
 
 export interface Message {
   id: string;

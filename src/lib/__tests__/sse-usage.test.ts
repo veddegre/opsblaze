@@ -27,6 +27,7 @@ function makeCallbacks(overrides: Partial<SSECallbacks> = {}): SSECallbacks {
   return {
     onText: vi.fn(),
     onActivity: vi.fn(),
+    onThreatIntel: vi.fn(),
     onChart: vi.fn(),
     onSkill: vi.fn(),
     onUsage: vi.fn(),

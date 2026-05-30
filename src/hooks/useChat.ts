@@ -7,7 +7,15 @@ import {
   updateConversation,
   deleteConversation as deleteConversationApi,
 } from "../lib/api";
-import type { Message, ChartBlock, SkillBlock, LimitBlock, ActivityBlock } from "../types";
+import type {
+  Message,
+  ChartBlock,
+  SkillBlock,
+  LimitBlock,
+  ActivityBlock,
+  ThreatIntelBlock,
+  ThreatIntelResult,
+} from "../types";
 import type { ConversationSkillScope } from "../lib/api";
 import { inferSkillScopeFromMessages } from "../lib/conversation-skill-scope";
 
@@ -81,6 +89,32 @@ function appendChart(msgs: Message[], id: string, data: Record<string, unknown>)
   };
 
   const blocks = [...msg.blocks, chartBlock];
+  const idx = updated.findIndex((m) => m.id === id);
+  updated[idx] = { ...msg, blocks };
+  return updated;
+}
+
+function appendThreatIntel(msgs: Message[], id: string, results: ThreatIntelResult[]): Message[] {
+  if (results.length === 0) return msgs;
+  const updated = [...msgs];
+  const msg = updated.find((m) => m.id === id);
+  if (!msg) return msgs;
+
+  const blocks = [...msg.blocks];
+  const existingIdx = blocks.findIndex((b): b is ThreatIntelBlock => b.type === "threatintel");
+  const merged = existingIdx >= 0 ? [...(blocks[existingIdx] as ThreatIntelBlock).results] : [];
+  const seen = new Set(merged.map((r) => `${r.ip}|${r.provider}`));
+  for (const r of results) {
+    const key = `${r.ip}|${r.provider}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(r);
+  }
+
+  const block: ThreatIntelBlock = { type: "threatintel", results: merged };
+  if (existingIdx >= 0) blocks[existingIdx] = block;
+  else blocks.push(block);
+
   const idx = updated.findIndex((m) => m.id === id);
   updated[idx] = { ...msg, blocks };
   return updated;
@@ -456,6 +490,12 @@ export function useChat() {
             },
             onActivity: (data) => {
               local = upsertActivity(local, assistantId, { type: "activity", ...data });
+              if (activeConvId && isDisplayed(activeConvId)) {
+                setMessages(local);
+              }
+            },
+            onThreatIntel: (data) => {
+              local = appendThreatIntel(local, assistantId, data.results);
               if (activeConvId && isDisplayed(activeConvId)) {
                 setMessages(local);
               }

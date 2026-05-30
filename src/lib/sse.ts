@@ -24,9 +24,18 @@ export interface ActivityData {
   detail?: string;
 }
 
+export interface ThreatIntelResultData {
+  provider: "virustotal" | "abuseipdb";
+  ip: string;
+  ok: boolean;
+  summary: string;
+  link?: string;
+}
+
 export interface SSECallbacks {
   onText: (content: string) => void;
   onActivity: (data: ActivityData) => void;
+  onThreatIntel: (data: { results: ThreatIntelResultData[] }) => void;
   onChart: (data: {
     vizType: string;
     dataSources: unknown;
@@ -111,6 +120,9 @@ export async function streamChat(
                 break;
               case "activity":
                 callbacks.onActivity(parsed as ActivityData);
+                break;
+              case "threatintel":
+                callbacks.onThreatIntel(parsed as { results: ThreatIntelResultData[] });
                 break;
               case "usage":
                 callbacks.onUsage(parsed);

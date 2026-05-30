@@ -24,6 +24,7 @@ import { getClaudeModel, getMaxTurns, getStreamTimeoutMs } from "./runtime-setti
 import { telemetry } from "./telemetry/index.js";
 import { classifyAgentError } from "./pipeline.js";
 import type { QueryUsageData } from "./pipeline.js";
+import { emitThreatIntelResults } from "./threat-intel-emit.js";
 
 interface HistoryMessage {
   role: string;
@@ -451,6 +452,7 @@ export async function runOpenWebUiAgent(
           if (!isError) {
             emitSplunkToolResult(text, emit, agentLog);
             emitSplunkSummaryText(text, emit);
+            emitThreatIntelResults(text, emit);
           }
 
           modelContent = isSplunkQuery

@@ -2,6 +2,7 @@ import type { Logger } from "pino";
 import { chartHasData, processTextBuffer } from "./sse-helpers.js";
 import type { FlushTextState } from "./sse-helpers.js";
 import { isOpenWebUiMode } from "./llm-config.js";
+import { emitThreatIntelResults } from "./threat-intel-emit.js";
 
 const AUTH_PATTERNS = [
   /unauthorized/i,
@@ -79,6 +80,7 @@ function handleToolResult(text: string, emitter: PipelineEmitter): void {
   } catch {
     // Not a SplunkToolResult JSON — ignore
   }
+  emitThreatIntelResults(text, emitter.emit);
 }
 
 function extractToolResultText(value: unknown, emitter: PipelineEmitter): void {

@@ -6,6 +6,7 @@ import { marked } from "marked";
 import { SplunkChart } from "./SplunkChart";
 import { CopyButton } from "./CopyButton";
 import { IpContextStrip } from "./IpContextStrip";
+import { ThreatIntelPanel } from "./ThreatIntelPanel";
 import { runtimeSettingLabel } from "../lib/limit-setting-labels";
 import type {
   Message,
@@ -282,6 +283,10 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
           if (block.type === "activity") {
             return <ActivityIndicator key={i} block={block} />;
+          }
+
+          if (block.type === "threatintel") {
+            return <ThreatIntelPanel key={i} results={block.results} />;
           }
 
           if (block.type === "chart") {
